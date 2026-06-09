@@ -2,6 +2,16 @@
 
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  Boxes,
+  ClipboardPlus,
+  Clock3,
+  History,
+  LayoutDashboard,
+  Menu,
+  PackageCheck,
+  X,
+} from "lucide-react";
 
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { StatusBadge } from "@/components/stock-flow/StatusBadge";
@@ -26,6 +36,14 @@ import {
 import type { FormState, Transaction } from "@/types/stock-flow";
 
 const inputClassName = "control-input";
+
+const navigationItems = [
+  { label: "ภาพรวม", href: "#overview", icon: LayoutDashboard, active: true },
+  { label: "บันทึกรายการ", href: "#form", icon: ClipboardPlus },
+  { label: "ใกล้หมดอายุ", href: "#priority", icon: Clock3 },
+  { label: "คงเหลือสินค้า", href: "#inventory", icon: Boxes },
+  { label: "รายการล่าสุด", href: "#transactions", icon: History },
+];
 
 export default function HomePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -198,51 +216,47 @@ export default function HomePage() {
 
   const sidebarContent = (
     <>
-      <div className="border-b border-[var(--border-soft)] px-2 pb-4">
-        <div className="flex items-start justify-between gap-3 lg:block">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-sky-600">
-              Stock Flow Manager
-            </p>
-            <h1 className="mt-2 text-lg font-bold text-[var(--text-strong)]">แดชบอร์ดสต๊อก</h1>
-            <p className="mt-1 text-[12px] leading-5 text-[var(--text-muted)]">
-              เครื่องมือสำหรับติดตามการรับเข้า จ่ายออก และสินค้าที่ควรเร่งระบาย
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={closeMobileMenu}
-            className="icon-button lg:hidden"
-            aria-label="ปิดเมนู"
-          >
-            <span className="text-lg leading-none">×</span>
-          </button>
+      <div className="dashboard-sidebar-brand">
+        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-sky-50 text-sky-700">
+          <PackageCheck aria-hidden="true" size={20} strokeWidth={2.2} />
         </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-[var(--text-strong)]">
+            Stock Flow Manager
+          </p>
+          <p className="mt-0.5 text-[12px] font-semibold text-[var(--text-muted)]">
+            Inventory Control
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={closeMobileMenu}
+          className="icon-button ml-auto lg:hidden"
+          aria-label="ปิดเมนู"
+        >
+          <X aria-hidden="true" size={18} />
+        </button>
       </div>
 
-      <nav className="mt-4 grid gap-1">
-        <a
-          className="dashboard-nav-item dashboard-nav-item-active"
-          href="#overview"
-          onClick={closeMobileMenu}
-        >
-          ภาพรวม
-        </a>
-        <a className="dashboard-nav-item" href="#form" onClick={closeMobileMenu}>
-          บันทึกรายการ
-        </a>
-        <a className="dashboard-nav-item" href="#priority" onClick={closeMobileMenu}>
-          ใกล้หมดอายุ
-        </a>
-        <a className="dashboard-nav-item" href="#inventory" onClick={closeMobileMenu}>
-          คงเหลือสินค้า
-        </a>
-        <a className="dashboard-nav-item" href="#transactions" onClick={closeMobileMenu}>
-          รายการล่าสุด
-        </a>
+      <nav className="dashboard-nav" aria-label="เมนูหลัก">
+        {navigationItems.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <a
+              key={item.href}
+              className={`dashboard-nav-item ${item.active ? "dashboard-nav-item-active" : ""}`}
+              href={item.href}
+              onClick={closeMobileMenu}
+            >
+              <Icon aria-hidden="true" className="dashboard-nav-icon" size={17} strokeWidth={2.1} />
+              <span>{item.label}</span>
+            </a>
+          );
+        })}
       </nav>
 
-      <div className="mt-auto rounded-md bg-[var(--surface-soft)] p-3">
+      <div className="dashboard-sidebar-status">
         <p className="text-[12px] font-semibold text-[var(--text-muted)]">สถานะข้อมูล</p>
         <p className="mt-2 text-sm font-bold text-[var(--text-strong)]">
           {formatNumber(transactions.length)} รายการ
@@ -264,6 +278,7 @@ export default function HomePage() {
           aria-label="ปิดเมนู"
         />
       ) : null}
+
       <aside
         className={`dashboard-sidebar-mobile ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
@@ -271,47 +286,51 @@ export default function HomePage() {
       >
         {sidebarContent}
       </aside>
-      <div className="dashboard-layout">
-        <aside className="dashboard-sidebar">{sidebarContent}</aside>
 
-        <div className="dashboard-main">
-          <header className="dashboard-card overflow-hidden">
-            <div className="dashboard-panel-header">
-              <div className="flex items-start gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsMobileMenuOpen(true)}
-                  className="icon-button lg:hidden"
-                  aria-label="เปิดเมนู"
-                >
-                  <span className="flex flex-col gap-1">
-                    <span className="block h-0.5 w-4 rounded bg-current" />
-                    <span className="block h-0.5 w-4 rounded bg-current" />
-                    <span className="block h-0.5 w-4 rounded bg-current" />
-                  </span>
-                </button>
-                <div>
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
-                    Dashboard
-                  </p>
-                  <h1 className="dashboard-title">Stock Flow Manager</h1>
-                  <p className="dashboard-subtitle mt-2 max-w-3xl">
-                    บันทึกรับเข้า จ่ายออก ติดตามสต๊อกคงเหลือ และหยิบสินค้าที่ใกล้หมดอายุขึ้นมา
-                    จัดการได้เร็วจากหน้าเดียว
-                  </p>
-                </div>
-              </div>
+      <aside className="dashboard-sidebar">{sidebarContent}</aside>
 
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={handleSeedData} className="secondary-button">
-                  โหลดข้อมูลตัวอย่าง
-                </button>
-                <button type="button" onClick={handleReset} className="danger-button">
-                  ล้างข้อมูลทั้งหมด
-                </button>
-              </div>
+      <div className="dashboard-main">
+        <header className="dashboard-header">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="icon-button lg:hidden"
+              aria-label="เปิดเมนู"
+            >
+              <Menu aria-hidden="true" size={19} />
+            </button>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-sky-600">
+                Dashboard
+              </p>
+              <h1 className="truncate text-lg font-bold text-[var(--text-strong)] md:text-xl">
+                Stock Flow Manager
+              </h1>
             </div>
-          </header>
+          </div>
+
+          <div className="dashboard-header-actions">
+            <button type="button" onClick={handleSeedData} className="secondary-button">
+              โหลดข้อมูลตัวอย่าง
+            </button>
+            <button type="button" onClick={handleReset} className="danger-button">
+              ล้างข้อมูลทั้งหมด
+            </button>
+          </div>
+        </header>
+
+        <div className="dashboard-content">
+          <section className="dashboard-intro">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
+              Inventory Dashboard
+            </p>
+            <h2 className="dashboard-title">แดชบอร์ดสต๊อก</h2>
+            <p className="dashboard-subtitle mt-2 max-w-3xl">
+              บันทึกรับเข้า จ่ายออก ติดตามสต๊อกคงเหลือ และหยิบสินค้าที่ใกล้หมดอายุขึ้นมา
+              จัดการได้เร็วจากหน้าเดียว
+            </p>
+          </section>
 
           <section
             id="overview"
@@ -450,10 +469,7 @@ export default function HomePage() {
               </div>
 
               <div id="transactions">
-                <DataPanel
-                  title="รายการล่าสุด"
-                  description="เรียงจากรายการใหม่สุดไปเก่าสุด"
-                >
+                <DataPanel title="รายการล่าสุด" description="เรียงจากรายการใหม่สุดไปเก่าสุด">
                   <Table
                     headers={[
                       "วันที่รายการ",

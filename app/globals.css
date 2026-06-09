@@ -4,7 +4,7 @@
 
 :root {
   --background: #fbfcfe;
-  --shell-background: linear-gradient(180deg, #ffffff 0, rgba(249, 251, 253, 0.98) 260px), #fbfcfe;
+  --shell-background: #fbfcfe;
   --surface: #ffffff;
   --surface-soft: #f7f9fc;
   --border: #dfe7ef;
@@ -58,26 +58,20 @@ textarea {
 
 @layer components {
   .dashboard-shell {
-    @apply mx-auto min-h-screen w-full max-w-[1440px];
-    padding: 16px;
-  }
-
-  .dashboard-layout {
-    @apply grid gap-3 lg:grid-cols-[224px_minmax(0,1fr)];
+    @apply min-h-screen w-full;
   }
 
   .dashboard-sidebar {
     background: var(--surface);
-    border: 1px solid var(--border-soft);
-    box-shadow: var(--shadow-soft);
-    @apply sticky top-4 hidden h-[calc(100vh-32px)] rounded-lg p-3 lg:block;
+    border-right: 1px solid var(--border-soft);
+    @apply fixed bottom-0 left-0 top-0 z-30 hidden w-[224px] flex-col lg:flex;
   }
 
   .dashboard-sidebar-mobile {
     background: var(--surface);
     border-right: 1px solid var(--border-soft);
     box-shadow: 0 16px 36px rgba(2, 6, 23, 0.12);
-    @apply fixed inset-y-0 left-0 z-40 flex w-[224px] max-w-[85vw] flex-col p-3 transition-transform duration-200 lg:hidden;
+    @apply fixed inset-y-0 left-0 z-40 flex w-[224px] max-w-[85vw] flex-col transition-transform duration-200 lg:hidden;
   }
 
   .dashboard-overlay {
@@ -86,7 +80,39 @@ textarea {
   }
 
   .dashboard-main {
-    @apply grid gap-3;
+    @apply min-h-screen lg:pl-[224px];
+  }
+
+  .dashboard-header {
+    background: var(--surface);
+    border-bottom: 1px solid #edf1f5;
+    @apply sticky top-0 z-20 flex min-h-[72px] flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between lg:px-5;
+  }
+
+  .dashboard-header-actions {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .dashboard-content {
+    @apply mx-auto grid w-full max-w-[1216px] gap-3 px-3 py-3 md:px-5 md:py-4;
+  }
+
+  .dashboard-intro {
+    @apply py-1;
+  }
+
+  .dashboard-sidebar-brand {
+    border-bottom: 1px solid var(--border-soft);
+    @apply flex h-[84px] items-center gap-3 px-3;
+  }
+
+  .dashboard-nav {
+    @apply space-y-1.5 px-2 py-2.5;
+  }
+
+  .dashboard-sidebar-status {
+    background: var(--surface-soft);
+    @apply mx-3 mb-3 mt-auto rounded-md p-3;
   }
 
   .dashboard-card {
@@ -118,10 +144,11 @@ textarea {
 
   .dashboard-nav-item {
     color: #475569;
-    @apply relative flex h-10 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-semibold transition;
+    @apply relative flex h-10 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] font-semibold outline-none transition-colors;
   }
 
-  .dashboard-nav-item:hover {
+  .dashboard-nav-item:hover,
+  .dashboard-nav-item:focus-visible {
     background: var(--sky-soft);
     color: #0369a1;
   }
@@ -137,10 +164,14 @@ textarea {
     @apply absolute right-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-l;
   }
 
+  .dashboard-nav-icon {
+    @apply shrink-0;
+  }
+
   .icon-button {
-    @apply inline-flex h-10 w-10 items-center justify-center rounded-md transition;
-    background: var(--surface);
-    border: 1px solid var(--border);
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors;
+    background: transparent;
+    border: 0;
     color: var(--text-body);
   }
 
@@ -231,10 +262,23 @@ textarea {
     color: #64748b;
     @apply rounded-lg px-4 py-8 text-center text-sm font-medium;
   }
+
+  #overview,
+  #form,
+  #priority,
+  #inventory,
+  #transactions {
+    scroll-margin-top: 92px;
+  }
 }
 
 @media (max-width: 1023px) {
-  .dashboard-shell {
-    padding: 12px;
+  .dashboard-header-actions {
+    @apply w-full;
+  }
+
+  .dashboard-header-actions .secondary-button,
+  .dashboard-header-actions .danger-button {
+    @apply flex-1 px-3 py-2 text-[13px];
   }
 }
