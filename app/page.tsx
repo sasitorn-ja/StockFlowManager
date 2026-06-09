@@ -38,12 +38,14 @@ import type { FormState, Transaction } from "@/types/stock-flow";
 const inputClassName = "control-input";
 
 const navigationItems = [
-  { label: "ภาพรวม", href: "#overview", icon: LayoutDashboard, active: true },
+  { label: "ภาพรวม", href: "#overview", icon: LayoutDashboard },
   { label: "บันทึกรายการ", href: "#form", icon: ClipboardPlus },
   { label: "ใกล้หมดอายุ", href: "#priority", icon: Clock3 },
   { label: "คงเหลือสินค้า", href: "#inventory", icon: Boxes },
   { label: "รายการล่าสุด", href: "#transactions", icon: History },
 ];
+
+const sectionIds = navigationItems.map((item) => item.href.slice(1));
 
 export default function HomePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -51,6 +53,7 @@ export default function HomePage() {
   const [form, setForm] = useState<FormState>(createEmptyForm);
   const [isReady, setIsReady] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState(sectionIds[0]);
 
   useEffect(() => {
     try {
@@ -72,6 +75,40 @@ export default function HomePage() {
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
   }, [isReady, transactions]);
+
+  useEffect(() => {
+    function syncActiveSection() {
+      const currentHash = window.location.hash.slice(1);
+
+      if (sectionIds.includes(currentHash)) {
+        setActiveSection(currentHash);
+        return;
+      }
+
+      const scrollLine = 110;
+      const currentSection =
+        sectionIds
+          .map((id) => {
+            const element = document.getElementById(id);
+
+            return element ? { id, top: element.getBoundingClientRect().top } : null;
+          })
+          .filter((item): item is { id: string; top: number } => Boolean(item))
+          .filter((item) => item.top <= scrollLine)
+          .pop()?.id ?? sectionIds[0];
+
+      setActiveSection(currentSection);
+    }
+
+    syncActiveSection();
+    window.addEventListener("hashchange", syncActiveSection);
+    window.addEventListener("scroll", syncActiveSection, { passive: true });
+
+    return () => {
+      window.removeEventListener("hashchange", syncActiveSection);
+      window.removeEventListener("scroll", syncActiveSection);
+    };
+  }, []);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
@@ -214,6 +251,11 @@ export default function HomePage() {
     setIsMobileMenuOpen(false);
   }
 
+  function handleNavigationClick(sectionId: string) {
+    setActiveSection(sectionId);
+    closeMobileMenu();
+  }
+
   const sidebarContent = (
     <>
       <div className="dashboard-sidebar-brand">
@@ -245,9 +287,12 @@ export default function HomePage() {
           return (
             <a
               key={item.href}
-              className={`dashboard-nav-item ${item.active ? "dashboard-nav-item-active" : ""}`}
+              className={`dashboard-nav-item ${
+                activeSection === item.href.slice(1) ? "dashboard-nav-item-active" : ""
+              }`}
               href={item.href}
-              onClick={closeMobileMenu}
+              onClick={() => handleNavigationClick(item.href.slice(1))}
+              aria-current={activeSection === item.href.slice(1) ? "page" : undefined}
             >
               <Icon aria-hidden="true" className="dashboard-nav-icon" size={17} strokeWidth={2.1} />
               <span>{item.label}</span>
