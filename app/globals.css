@@ -63,7 +63,7 @@ textarea {
 
   .dashboard-sidebar {
     background: var(--surface);
-    border-right: 1px solid var(--border-soft);
+    border-right: 1px solid #edf1f5;
     @apply fixed bottom-0 left-0 top-0 z-30 hidden w-[224px] flex-col lg:flex;
   }
 
@@ -102,7 +102,7 @@ textarea {
   }
 
   .dashboard-sidebar-brand {
-    border-bottom: 1px solid var(--border-soft);
+    border-bottom: 1px solid #edf1f5;
     @apply flex h-[84px] items-center gap-3 px-3;
   }
 
@@ -144,7 +144,7 @@ textarea {
 
   .dashboard-nav-item {
     color: #475569;
-    @apply relative flex h-10 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] font-semibold outline-none transition-colors;
+    @apply relative flex h-10 w-full items-center gap-2.5 rounded-xl px-2.5 text-[13px] font-semibold outline-none transition-colors;
   }
 
   .dashboard-nav-item:hover,
@@ -155,13 +155,7 @@ textarea {
 
   .dashboard-nav-item-active {
     background: var(--sky-soft);
-    color: var(--sky);
-  }
-
-  .dashboard-nav-item-active::after {
-    content: "";
-    background: var(--sky);
-    @apply absolute right-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-l;
+    color: #0369a1;
   }
 
   .dashboard-nav-icon {
