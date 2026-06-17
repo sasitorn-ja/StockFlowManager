@@ -1,5 +1,5 @@
 import type { Transaction } from "@/types/stock-flow";
-import { addDays, getLocalDateValue } from "@/lib/stock-flow/utils";
+import { addDays, createTransactionId, getLocalDateValue } from "@/lib/stock-flow/utils";
 
 export function createSampleTransactions(): Transaction[] {
   const today = getLocalDateValue();
@@ -73,7 +73,7 @@ export function createSampleTransactions(): Transaction[] {
 
   return samples.map((item, index) => ({
     ...item,
-    id: crypto.randomUUID(),
+    id: createTransactionId(),
     createdAt: Date.now() - index * 1000,
   }));
 }

@@ -1,5 +1,43 @@
 import { EXPIRY_WARNING_DAYS } from "@/lib/stock-flow/constants";
-import type { FormState, InventoryItem, ProductImportType, Transaction } from "@/types/stock-flow";
+import type {
+  FormState,
+  InventoryItem,
+  ProductImportType,
+  Transaction,
+  TransactionType,
+} from "@/types/stock-flow";
+
+const productImportTypes = new Set<ProductImportType>(["resale", "stable"]);
+const transactionTypes = new Set<TransactionType>(["in", "out"]);
+
+export function createTransactionId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `txn-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function toStringValue(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function toNumberValue(value: unknown, fallback = 0) {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function toProductImportType(value: unknown): ProductImportType {
+  return typeof value === "string" && productImportTypes.has(value as ProductImportType)
+    ? (value as ProductImportType)
+    : "resale";
+}
+
+function toTransactionType(value: unknown): TransactionType {
+  return typeof value === "string" && transactionTypes.has(value as TransactionType)
+    ? (value as TransactionType)
+    : "in";
+}
 
 export function getProductImportTypeLabel(type?: ProductImportType) {
   return type === "stable" ? "สินค้า stable" : "ซื้อมาขายไป";
@@ -22,6 +60,39 @@ export function createEmptyForm(): FormState {
     requester: "",
     note: "",
   };
+}
+
+export function normalizeTransactions(value: unknown): Transaction[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+    .map((item) => {
+      const quantity = Math.max(0, toNumberValue(item.quantity));
+      const createdAt = toNumberValue(item.createdAt, Date.now());
+
+      return {
+        id: toStringValue(item.id) || createTransactionId(),
+        name: toStringValue(item.name).trim(),
+        sku: toStringValue(item.sku).trim(),
+        category: toStringValue(item.category).trim() || "-",
+        productImportType: toProductImportType(item.productImportType),
+        unit: toStringValue(item.unit).trim(),
+        type: toTransactionType(item.type),
+        quantity,
+        price: Math.max(0, toNumberValue(item.price)),
+        costPrice: Math.max(0, toNumberValue(item.costPrice)),
+        date: toStringValue(item.date) || getLocalDateValue(),
+        expiryDate: toStringValue(item.expiryDate),
+        issueKey: toStringValue(item.issueKey).trim(),
+        requester: toStringValue(item.requester).trim(),
+        note: toStringValue(item.note).trim(),
+        createdAt,
+      };
+    })
+    .filter((item) => item.name && item.unit && item.quantity > 0);
 }
 
 export function buildInventoryMap(transactions: Transaction[]) {
@@ -121,23 +192,31 @@ export function compareExpiryDate(dateA: string, dateB: string) {
 }
 
 export function formatCurrency(value: number) {
+  const safeValue = Number.isFinite(value) ? value : 0;
+
   return new Intl.NumberFormat("th-TH", {
     style: "currency",
     currency: "THB",
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(safeValue);
 }
 
 export function formatNumber(value: number) {
-  return new Intl.NumberFormat("th-TH").format(value);
+  return new Intl.NumberFormat("th-TH").format(Number.isFinite(value) ? value : 0);
 }
 
 export function formatDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
   return new Intl.DateTimeFormat("th-TH", {
     year: "numeric",
     month: "short",
     day: "numeric",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function formatDaysLeft(days: number) {
