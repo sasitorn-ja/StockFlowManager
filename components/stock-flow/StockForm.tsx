@@ -1,28 +1,56 @@
 import type { FormEvent } from "react";
 
 import { Field } from "@/components/stock-flow/Field";
-import type { FormState, TransactionType } from "@/types/stock-flow";
+import { Button } from "@/components/ui/button";
+import { getProductImportTypeLabel } from "@/lib/stock-flow/utils";
+import type {
+  FormState,
+  InventoryItem,
+  ProductImportType,
+  TransactionType,
+} from "@/types/stock-flow";
 
 type StockFormProps = {
   form: FormState;
   inputClassName: string;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onChange: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+  issueInventoryOptions?: InventoryItem[];
+  onIssueInventorySelect?: (itemKey: string) => void;
+  mode?: "card" | "plain";
 };
 
-export function StockForm({ form, inputClassName, onSubmit, onChange }: StockFormProps) {
-  return (
-    <section className="dashboard-card h-fit overflow-hidden">
-      <div className="dashboard-panel-header">
-        <div>
-          <h2 className="dashboard-section-title">เพิ่มรายการสต๊อก</h2>
-          <p className="dashboard-subtitle">
-          รองรับทั้งรับเข้าและจ่ายออก พร้อมวันหมดอายุเพื่อจัดลำดับขายก่อน
-          </p>
-        </div>
-      </div>
+export function StockForm({
+  form,
+  inputClassName,
+  onSubmit,
+  onChange,
+  issueInventoryOptions = [],
+  onIssueInventorySelect,
+  mode = "card",
+}: StockFormProps) {
+  const formContent = (
+    <form className="grid gap-4 p-4" onSubmit={onSubmit}>
+        {form.type === "out" ? (
+          <Field label="เลือกสินค้าที่จะนำออก">
+            <select
+              value=""
+              onChange={(event) => onIssueInventorySelect?.(event.target.value)}
+              className={inputClassName}
+            >
+              <option value="">
+                เลือกจากสินค้า {getProductImportTypeLabel(form.productImportType)} ที่มีคงเหลือ
+              </option>
+              {issueInventoryOptions.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.name} {item.sku ? `(${item.sku})` : ""} - คงเหลือ {item.balance}{" "}
+                  {item.unit}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
 
-      <form className="grid gap-4 p-4" onSubmit={onSubmit}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="ชื่อสินค้า">
             <input
@@ -50,6 +78,27 @@ export function StockForm({ form, inputClassName, onSubmit, onChange }: StockFor
               className={inputClassName}
               placeholder="เช่น เครื่องดื่ม"
             />
+          </Field>
+
+          <Field label="ประเภทสินค้า">
+            {form.type === "out" ? (
+              <input
+                value={getProductImportTypeLabel(form.productImportType)}
+                className={inputClassName}
+                readOnly
+              />
+            ) : (
+              <select
+                value={form.productImportType}
+                onChange={(event) =>
+                  onChange("productImportType", event.target.value as ProductImportType)
+                }
+                className={inputClassName}
+              >
+                <option value="resale">ซื้อมาขายไป</option>
+                <option value="stable">สินค้า stable</option>
+              </select>
+            )}
           </Field>
 
           <Field label="หน่วยนับ">
@@ -96,7 +145,19 @@ export function StockForm({ form, inputClassName, onSubmit, onChange }: StockFor
             />
           </Field>
 
-          <Field label="วันที่">
+          <Field label="ราคาต้นทุน">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.costPrice}
+              onChange={(event) => onChange("costPrice", event.target.value)}
+              className={inputClassName}
+              placeholder="ต้นทุนต่อหน่วย"
+            />
+          </Field>
+
+          <Field label={form.type === "out" ? "วันที่จ่ายออก" : "วันที่รับเข้า"}>
             <input
               type="date"
               value={form.date}
@@ -105,6 +166,29 @@ export function StockForm({ form, inputClassName, onSubmit, onChange }: StockFor
               required
             />
           </Field>
+
+          {form.type === "out" ? (
+            <Field label="Key เบิกสินค้า">
+              <input
+                value={form.issueKey}
+                onChange={(event) => onChange("issueKey", event.target.value)}
+                className={inputClassName}
+                placeholder="เช่น REQ-0001"
+              />
+            </Field>
+          ) : null}
+
+          {form.type === "out" ? (
+            <Field label="ผู้ขอเบิกสินค้า">
+              <input
+                value={form.requester}
+                onChange={(event) => onChange("requester", event.target.value)}
+                className={inputClassName}
+                placeholder="พิมพ์ชื่อผู้ขอเบิก เช่น คุณสมชาย / ฝ่ายขาย"
+                required
+              />
+            </Field>
+          ) : null}
 
           <Field label="วันหมดอายุ">
             <input
@@ -116,23 +200,40 @@ export function StockForm({ form, inputClassName, onSubmit, onChange }: StockFor
           </Field>
         </div>
 
-        <Field label="หมายเหตุ">
-          <textarea
-            rows={3}
-            value={form.note}
-            onChange={(event) => onChange("note", event.target.value)}
-            className={`${inputClassName} control-textarea`}
-            placeholder="ระบุผู้รับผิดชอบ ลูกค้า หรือรายละเอียดเพิ่มเติม"
-          />
-        </Field>
+        {form.type === "out" ? (
+          <Field label="หมายเหตุ">
+            <textarea
+              rows={3}
+              value={form.note}
+              onChange={(event) => onChange("note", event.target.value)}
+              className={`${inputClassName} control-textarea`}
+              placeholder="ระบุผู้รับผิดชอบ ลูกค้า หรือรายละเอียดเพิ่มเติม"
+            />
+          </Field>
+        ) : null}
 
-        <button
-          type="submit"
-          className="primary-button w-full sm:w-auto"
-        >
+        <Button type="submit" className="w-full sm:w-auto">
           บันทึกรายการ
-        </button>
+        </Button>
       </form>
+  );
+
+  if (mode === "plain") {
+    return formContent;
+  }
+
+  return (
+    <section className="dashboard-card h-fit overflow-hidden">
+      <div className="dashboard-panel-header">
+        <div>
+          <h2 className="dashboard-section-title">เพิ่มรายการสต๊อก</h2>
+          <p className="dashboard-subtitle">
+            รองรับทั้งรับเข้าและจ่ายออก พร้อมวันหมดอายุเพื่อจัดลำดับขายก่อน
+          </p>
+        </div>
+      </div>
+
+      {formContent}
     </section>
   );
 }

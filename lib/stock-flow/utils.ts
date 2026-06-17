@@ -1,17 +1,25 @@
 import { EXPIRY_WARNING_DAYS } from "@/lib/stock-flow/constants";
-import type { FormState, InventoryItem, Transaction } from "@/types/stock-flow";
+import type { FormState, InventoryItem, ProductImportType, Transaction } from "@/types/stock-flow";
+
+export function getProductImportTypeLabel(type?: ProductImportType) {
+  return type === "stable" ? "สินค้า stable" : "ซื้อมาขายไป";
+}
 
 export function createEmptyForm(): FormState {
   return {
     name: "",
     sku: "",
     category: "",
+    productImportType: "resale",
     unit: "",
     type: "in",
     quantity: "",
     price: "0",
+    costPrice: "0",
     date: getLocalDateValue(),
     expiryDate: "",
+    issueKey: "",
+    requester: "",
     note: "",
   };
 }
@@ -24,11 +32,13 @@ export function buildInventoryMap(transactions: Transaction[]) {
       name: transaction.name,
       sku: transaction.sku,
       category: transaction.category,
+      productImportType: transaction.productImportType ?? "resale",
       unit: transaction.unit,
       totalIn: 0,
       totalOut: 0,
       balance: 0,
       price: transaction.price,
+      costPrice: transaction.costPrice ?? 0,
       nearestExpiryDate: "",
     };
 
@@ -44,6 +54,10 @@ export function buildInventoryMap(transactions: Transaction[]) {
       entry.price = transaction.price;
     }
 
+    if ((transaction.costPrice ?? 0) > 0) {
+      entry.costPrice = transaction.costPrice;
+    }
+
     if (
       transaction.expiryDate &&
       (!entry.nearestExpiryDate || transaction.expiryDate < entry.nearestExpiryDate)
@@ -56,8 +70,10 @@ export function buildInventoryMap(transactions: Transaction[]) {
   }, new Map<string, InventoryItem>());
 }
 
-export function buildItemKey(item: Pick<Transaction, "name" | "sku" | "unit">) {
-  return `${item.name.toLowerCase()}::${item.sku.toLowerCase()}::${item.unit.toLowerCase()}`;
+export function buildItemKey(
+  item: Pick<Transaction, "name" | "sku" | "unit"> & Partial<Pick<Transaction, "productImportType">>
+) {
+  return `${item.productImportType ?? "resale"}::${item.name.toLowerCase()}::${item.sku.toLowerCase()}::${item.unit.toLowerCase()}`;
 }
 
 export function getLocalDateValue() {

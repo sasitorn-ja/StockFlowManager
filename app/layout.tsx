@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Stock Flow Manager",
+  title: "SB&M lnventory Management",
   description: "Inventory receive, issue, and expiry-priority stock management app",
 };
 
@@ -13,7 +13,7 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="th">
+    <html lang="th" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );
