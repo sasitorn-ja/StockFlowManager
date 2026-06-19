@@ -1,5 +1,6 @@
 import { EXPIRY_WARNING_DAYS } from "@/lib/stock-flow/constants";
 import type {
+  CostCurrency,
   FormState,
   InventoryItem,
   ProductImportType,
@@ -9,6 +10,7 @@ import type {
 
 const productImportTypes = new Set<ProductImportType>(["resale", "stable"]);
 const transactionTypes = new Set<TransactionType>(["in", "out"]);
+const costCurrencies = new Set<CostCurrency>(["THB", "JPY", "CNY", "USD"]);
 
 export function createTransactionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -39,8 +41,27 @@ function toTransactionType(value: unknown): TransactionType {
     : "in";
 }
 
+function toCostCurrency(value: unknown): CostCurrency {
+  return typeof value === "string" && costCurrencies.has(value as CostCurrency)
+    ? (value as CostCurrency)
+    : "THB";
+}
+
 export function getProductImportTypeLabel(type?: ProductImportType) {
   return type === "stable" ? "สินค้า stable" : "ซื้อมาขายไป";
+}
+
+export function getCostCurrencyLabel(currency?: CostCurrency) {
+  switch (currency) {
+    case "JPY":
+      return "เยน";
+    case "CNY":
+      return "หยวน";
+    case "USD":
+      return "ดอลลาร์";
+    default:
+      return "บาท";
+  }
 }
 
 export function createEmptyForm(): FormState {
@@ -54,6 +75,7 @@ export function createEmptyForm(): FormState {
     quantity: "",
     price: "0",
     costPrice: "0",
+    costCurrency: "THB",
     date: getLocalDateValue(),
     expiryDate: "",
     issueKey: "",
@@ -84,10 +106,12 @@ export function normalizeTransactions(value: unknown): Transaction[] {
         quantity,
         price: Math.max(0, toNumberValue(item.price)),
         costPrice: Math.max(0, toNumberValue(item.costPrice)),
+        costCurrency: toCostCurrency(item.costCurrency),
         date: toStringValue(item.date) || getLocalDateValue(),
         expiryDate: toStringValue(item.expiryDate),
         issueKey: toStringValue(item.issueKey).trim(),
         requester: toStringValue(item.requester).trim(),
+        approver: toStringValue(item.approver).trim(),
         note: toStringValue(item.note).trim(),
         createdAt,
       };
@@ -110,6 +134,7 @@ export function buildInventoryMap(transactions: Transaction[]) {
       balance: 0,
       price: transaction.price,
       costPrice: transaction.costPrice ?? 0,
+      costCurrency: transaction.costCurrency ?? "THB",
       nearestExpiryDate: "",
     };
 
@@ -127,6 +152,7 @@ export function buildInventoryMap(transactions: Transaction[]) {
 
     if ((transaction.costPrice ?? 0) > 0) {
       entry.costPrice = transaction.costPrice;
+      entry.costCurrency = transaction.costCurrency ?? "THB";
     }
 
     if (
@@ -199,6 +225,10 @@ export function formatCurrency(value: number) {
     currency: "THB",
     maximumFractionDigits: 2,
   }).format(safeValue);
+}
+
+export function formatCurrencyWithLabel(value: number, currency?: CostCurrency) {
+  return `${formatNumber(value)} ${getCostCurrencyLabel(currency)}`;
 }
 
 export function formatNumber(value: number) {

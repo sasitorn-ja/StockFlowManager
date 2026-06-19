@@ -2,7 +2,7 @@ import type { FormEvent } from "react";
 
 import { Field } from "@/components/stock-flow/Field";
 import { Button } from "@/components/ui/button";
-import { getProductImportTypeLabel } from "@/lib/stock-flow/utils";
+import { getCostCurrencyLabel, getProductImportTypeLabel } from "@/lib/stock-flow/utils";
 import type {
   FormState,
   InventoryItem,
@@ -29,6 +29,8 @@ export function StockForm({
   onIssueInventorySelect,
   mode = "card",
 }: StockFormProps) {
+  const costCurrencyLabel = getCostCurrencyLabel(form.costCurrency);
+
   const formContent = (
     <form className="grid gap-4 p-4" onSubmit={onSubmit}>
         {form.type === "out" ? (
@@ -135,26 +137,32 @@ export function StockForm({
           </Field>
 
           <Field label="ราคาต่อหน่วย">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.price}
-              onChange={(event) => onChange("price", event.target.value)}
-              className={inputClassName}
-            />
+            <div className={form.type === "out" ? "price-suffix-control" : ""}>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.price}
+                onChange={(event) => onChange("price", event.target.value)}
+                className={inputClassName}
+              />
+              {form.type === "out" ? <span>{costCurrencyLabel}</span> : null}
+            </div>
           </Field>
 
           <Field label="ราคาต้นทุน">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.costPrice}
-              onChange={(event) => onChange("costPrice", event.target.value)}
-              className={inputClassName}
-              placeholder="ต้นทุนต่อหน่วย"
-            />
+            <div className={form.type === "out" ? "price-suffix-control" : ""}>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.costPrice}
+                onChange={(event) => onChange("costPrice", event.target.value)}
+                className={inputClassName}
+                placeholder="ต้นทุนต่อหน่วย"
+              />
+              {form.type === "out" ? <span>{costCurrencyLabel}</span> : null}
+            </div>
           </Field>
 
           <Field label={form.type === "out" ? "วันที่จ่ายออก" : "วันที่รับเข้า"}>

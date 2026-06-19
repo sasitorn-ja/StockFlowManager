@@ -7,11 +7,13 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ChevronDown,
+  ChevronRight,
   Clock3,
   ClipboardPlus,
   Database,
   Download,
   Filter,
+  FileText,
   History,
   Home,
   Layers3,
@@ -23,6 +25,7 @@ import {
   ScanLine,
   Search,
   Settings,
+  Trash2,
   Warehouse,
   X,
 } from "lucide-react";
@@ -49,6 +52,7 @@ import {
   createEmptyForm,
   createTransactionId,
   formatCurrency,
+  formatCurrencyWithLabel,
   formatDate,
   formatDaysLeft,
   formatNumber,
@@ -58,7 +62,14 @@ import {
   isExpiringSoon,
   normalizeTransactions,
 } from "@/lib/stock-flow/utils";
-import type { FormState, InventoryItem, ProductImportType, StatCard, Transaction } from "@/types/stock-flow";
+import type {
+  CostCurrency,
+  FormState,
+  InventoryItem,
+  ProductImportType,
+  StatCard,
+  Transaction,
+} from "@/types/stock-flow";
 
 const inputClassName = "control-input";
 const productImportTypes: { type: ProductImportType; label: string }[] = [
@@ -69,6 +80,12 @@ const overviewFilterOptions: { value: OverviewFilter; label: string }[] = [
   { value: "all", label: "ทั้งหมด" },
   { value: "resale", label: "สินค้าซื้อมาขายไป" },
   { value: "stable", label: "สินค้า stable" },
+];
+const costCurrencyOptions: { value: CostCurrency; label: string }[] = [
+  { value: "THB", label: "บาท" },
+  { value: "JPY", label: "เยน" },
+  { value: "CNY", label: "หยวน" },
+  { value: "USD", label: "ดอลลาร์" },
 ];
 
 type ProductEditForm = {
@@ -84,6 +101,13 @@ type ProductEditForm = {
 
 type IssueDeliveryDocument = {
   transaction: Transaction;
+  transactions: Transaction[];
+  rows: {
+    transaction: Transaction;
+    beforeBalance: number;
+    afterBalance: number;
+    costValue: number;
+  }[];
   beforeBalance: number;
   afterBalance: number;
   costValue: number;
@@ -176,14 +200,19 @@ export default function HomePage() {
   const [isIssuePanelOpen, setIsIssuePanelOpen] = useState(false);
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
   const [pendingIssueTransaction, setPendingIssueTransaction] = useState<Transaction | null>(null);
+  const [pendingIssueBatch, setPendingIssueBatch] = useState<Transaction[]>([]);
   const [isPendingIssueApproved, setIsPendingIssueApproved] = useState(false);
+  const [approvedDate, setApprovedDate] = useState("");
+  const [isApprovalDetailOpen, setIsApprovalDetailOpen] = useState(false);
   const [deliveryDocument, setDeliveryDocument] = useState<IssueDeliveryDocument | null>(null);
   const [selectedImportType, setSelectedImportType] = useState<ProductImportType>("resale");
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>("all");
   const [receiveFilter, setReceiveFilter] = useState<OverviewFilter>("all");
   const [issueImportTypeFilter, setIssueImportTypeFilter] = useState<OverviewFilter>("all");
-  const [selectedIssueItemKey, setSelectedIssueItemKey] = useState("");
-  const [issueQuantity, setIssueQuantity] = useState("");
+  const [issueSelections, setIssueSelections] = useState<Record<string, string>>({});
+  const [issueRequester, setIssueRequester] = useState("");
+  const [issueApprover, setIssueApprover] = useState("");
+  const [issueNote, setIssueNote] = useState("");
   const [activeSection, setActiveSection] = useState(sectionIds[0]);
   const [editingItemKey, setEditingItemKey] = useState("");
   const [productEditForm, setProductEditForm] = useState<ProductEditForm>({
@@ -420,6 +449,14 @@ export default function HomePage() {
       .sort((a, b) => a.name.localeCompare(b.name, "th"));
   }, [form.productImportType, inventory]);
 
+  const selectedIssueEntries = useMemo(
+    () =>
+      issueListItems
+        .filter((item) => issueSelections[item.key])
+        .map((item) => ({ item, quantity: issueSelections[item.key] })),
+    [issueListItems, issueSelections]
+  );
+
   const issueOverview = useMemo(() => {
     const today = getLocalDateValue();
     const issueTransactions = transactions
@@ -523,10 +560,94 @@ export default function HomePage() {
     };
   }, [inventory, pendingIssueTransaction]);
 
+  const pendingIssueBatchStatus = useMemo(() => {
+    if (pendingIssueBatch.length === 0) {
+      return null;
+    }
+
+    const rows = pendingIssueBatch.map((transaction) => {
+      const currentItem = inventory.find((item) => item.key === buildItemKey(transaction));
+      const beforeBalance = currentItem?.balance ?? 0;
+      const afterBalance = beforeBalance - transaction.quantity;
+      const costValue = transaction.quantity * (transaction.costPrice ?? 0);
+
+      return {
+        transaction,
+        beforeBalance,
+        afterBalance,
+        costValue,
+      };
+    });
+    const totalQuantity = rows.reduce((sum, row) => sum + row.transaction.quantity, 0);
+    const totalCostValue = rows.reduce((sum, row) => sum + row.costValue, 0);
+    const hasInsufficientStock = rows.some((row) => row.afterBalance < 0);
+
+    return {
+      rows,
+      totalQuantity,
+      totalCostValue,
+      hasInsufficientStock,
+      stats: [
+        {
+          label: "รายการขอเบิก",
+          value: formatNumber(rows.length),
+          unit: "รายการ",
+          helper: "รอตรวจสอบก่อนตัดสต๊อก",
+          tone: "sky" as const,
+        },
+        {
+          label: "จำนวนที่ขอเบิกรวม",
+          value: formatNumber(totalQuantity),
+          unit: "หน่วย",
+          helper: pendingIssueBatch[0]?.issueKey || "รอบเบิกสินค้า",
+          tone: "amber" as const,
+        },
+        {
+          label: "สถานะสต๊อก",
+          value: hasInsufficientStock ? "ยอดไม่พอ" : "พร้อมเบิก",
+          helper: hasInsufficientStock ? "มีบางรายการคงเหลือไม่พอ" : "ทุกสินค้ามียอดพอ",
+          tone: hasInsufficientStock ? "amber" as const : "emerald" as const,
+        },
+        {
+          label: "มูลค่าต้นทุนรวม",
+          value: formatCurrency(totalCostValue),
+          helper: "รวมทุกสกุลแบบตัวเลขอ้างอิง",
+          tone: "violet" as const,
+        },
+      ],
+    };
+  }, [inventory, pendingIssueBatch]);
+
   const pendingIssueCanConfirm =
-    Boolean(pendingIssueTransaction) &&
+    (Boolean(pendingIssueTransaction) || pendingIssueBatch.length > 0) &&
     Boolean(isPendingIssueApproved) &&
-    (pendingIssueStatus?.afterBalance ?? -1) >= 0;
+    (pendingIssueBatchStatus
+      ? !pendingIssueBatchStatus.hasInsufficientStock
+      : (pendingIssueStatus?.afterBalance ?? -1) >= 0);
+
+  const pendingApprovalDetails = useMemo(() => {
+    if (pendingIssueBatchStatus) {
+      return pendingIssueBatchStatus.rows.map((row) => ({
+        issueKey: row.transaction.issueKey || "-",
+        requester: row.transaction.requester || "-",
+        approver: row.transaction.approver || "-",
+        approvedDate: approvedDate || getLocalDateValue(),
+      }));
+    }
+
+    if (pendingIssueTransaction) {
+      return [
+        {
+          issueKey: pendingIssueTransaction.issueKey || "-",
+          requester: pendingIssueTransaction.requester || "-",
+          approver: pendingIssueTransaction.approver || "-",
+          approvedDate: approvedDate || getLocalDateValue(),
+        },
+      ];
+    }
+
+    return [];
+  }, [approvedDate, pendingIssueBatchStatus, pendingIssueTransaction]);
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -537,6 +658,12 @@ export default function HomePage() {
     value: ProductEditForm[K]
   ) {
     setProductEditForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function approvePendingIssue() {
+    setIsPendingIssueApproved(true);
+    setApprovedDate(getLocalDateValue());
+    setIsApprovalDetailOpen(false);
   }
 
   function openEditProductDialog(item: InventoryItem) {
@@ -611,6 +738,7 @@ export default function HomePage() {
       unit: selectedItem.unit,
       price: String(selectedItem.price),
       costPrice: String(selectedItem.costPrice ?? 0),
+      costCurrency: selectedItem.costCurrency ?? "THB",
       expiryDate: selectedItem.nearestExpiryDate,
     }));
   }
@@ -638,6 +766,7 @@ export default function HomePage() {
       quantity,
       price: Math.max(0, price),
       costPrice: Math.max(0, costPrice),
+      costCurrency: form.costCurrency,
       date: form.date,
       expiryDate: form.expiryDate,
       issueKey: form.type === "out" ? form.issueKey.trim() : "",
@@ -669,6 +798,8 @@ export default function HomePage() {
 
       setPendingIssueTransaction(transaction);
       setIsPendingIssueApproved(false);
+      setApprovedDate("");
+      setIsApprovalDetailOpen(false);
       setIsCreateDialogOpen(false);
       return;
     }
@@ -680,12 +811,45 @@ export default function HomePage() {
   }
 
   function confirmIssueTransaction() {
-    if (!pendingIssueTransaction) {
+    if (!pendingIssueTransaction && pendingIssueBatch.length === 0) {
       return;
     }
 
     if (!isPendingIssueApproved) {
       window.alert("ต้อง Approved ใบเบิกก่อน จึงจะยืนยันนำออกสินค้าได้");
+      return;
+    }
+
+    if (pendingIssueBatch.length > 0) {
+      const firstTransaction = pendingIssueBatch[0];
+      const firstRow = pendingIssueBatchStatus?.rows[0];
+      const documentNo =
+        firstTransaction.issueKey || `ISS-${String(firstTransaction.createdAt).slice(-6)}`;
+
+      setTransactions((current) => [...pendingIssueBatch, ...current]);
+      setDeliveryDocument({
+        transaction: firstTransaction,
+        transactions: pendingIssueBatch,
+        rows: pendingIssueBatchStatus?.rows ?? [],
+        beforeBalance: firstRow?.beforeBalance ?? 0,
+        afterBalance: firstRow?.afterBalance ?? 0,
+        costValue: pendingIssueBatchStatus?.totalCostValue ?? 0,
+        documentNo,
+        approvedDate: getLocalDateValue(),
+      });
+      setPendingIssueBatch([]);
+      setPendingIssueTransaction(null);
+      setIsPendingIssueApproved(false);
+      setApprovedDate("");
+      setIsApprovalDetailOpen(false);
+      setForm(createEmptyForm());
+      setActiveSection("delivery-note");
+      window.history.pushState(null, "", "#delivery-note");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    if (!pendingIssueTransaction) {
       return;
     }
 
@@ -696,6 +860,17 @@ export default function HomePage() {
     setTransactions((current) => [pendingIssueTransaction, ...current]);
     setDeliveryDocument({
       transaction: pendingIssueTransaction,
+      transactions: [pendingIssueTransaction],
+      rows: pendingIssueStatus
+        ? [
+            {
+              transaction: pendingIssueTransaction,
+              beforeBalance: pendingIssueStatus.beforeBalance,
+              afterBalance: pendingIssueStatus.afterBalance,
+              costValue: pendingIssueStatus.costValue,
+            },
+          ]
+        : [],
       beforeBalance: pendingIssueStatus?.beforeBalance ?? 0,
       afterBalance: pendingIssueStatus?.afterBalance ?? 0,
       costValue: pendingIssueStatus?.costValue ?? 0,
@@ -704,7 +879,48 @@ export default function HomePage() {
     });
     setPendingIssueTransaction(null);
     setIsPendingIssueApproved(false);
+    setApprovedDate("");
+    setIsApprovalDetailOpen(false);
     setForm(createEmptyForm());
+    setActiveSection("delivery-note");
+    window.history.pushState(null, "", "#delivery-note");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function openDeliveryDocumentFromHistory(issueKey: string) {
+    const documentTransactions = issueOverview.transactions.filter(
+      (item) => (item.issueKey || "-") === issueKey
+    );
+    const firstTransaction = documentTransactions[0];
+
+    if (!firstTransaction) {
+      return;
+    }
+
+    const currentInventory = buildInventoryMap(transactions);
+    const rows = documentTransactions.map((transaction) => {
+      const currentItem = currentInventory.get(buildItemKey(transaction));
+      const afterBalance = currentItem?.balance ?? 0;
+      const beforeBalance = afterBalance + transaction.quantity;
+
+      return {
+        transaction,
+        beforeBalance,
+        afterBalance,
+        costValue: transaction.quantity * (transaction.costPrice ?? 0),
+      };
+    });
+
+    setDeliveryDocument({
+      transaction: firstTransaction,
+      transactions: documentTransactions,
+      rows,
+      beforeBalance: rows[0]?.beforeBalance ?? 0,
+      afterBalance: rows[0]?.afterBalance ?? 0,
+      costValue: rows.reduce((sum, row) => sum + row.costValue, 0),
+      documentNo: issueKey,
+      approvedDate: firstTransaction.date,
+    });
     setActiveSection("delivery-note");
     window.history.pushState(null, "", "#delivery-note");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -725,6 +941,7 @@ export default function HomePage() {
       quantity: String(pendingIssueTransaction.quantity),
       price: String(pendingIssueTransaction.price),
       costPrice: String(pendingIssueTransaction.costPrice ?? 0),
+      costCurrency: pendingIssueTransaction.costCurrency ?? "THB",
       date: pendingIssueTransaction.date,
       expiryDate: pendingIssueTransaction.expiryDate,
       issueKey: pendingIssueTransaction.issueKey,
@@ -733,6 +950,8 @@ export default function HomePage() {
     });
     setPendingIssueTransaction(null);
     setIsPendingIssueApproved(false);
+    setApprovedDate("");
+    setIsApprovalDetailOpen(false);
     setIsCreateDialogOpen(true);
   }
 
@@ -797,6 +1016,7 @@ export default function HomePage() {
       quantity,
       price: String(item.price),
       costPrice: String(item.costPrice ?? 0),
+      costCurrency: item.costCurrency ?? "THB",
       date: getLocalDateValue(),
       expiryDate: item.nearestExpiryDate,
     });
@@ -807,32 +1027,114 @@ export default function HomePage() {
     closeMobileMenu();
     if (item) {
       setSelectedImportType(item.productImportType);
-      setSelectedIssueItemKey(item.key);
-      setIssueQuantity("");
+      setIssueSelections((current) => ({
+        ...current,
+        [item.key]: current[item.key] || "1",
+      }));
     }
     setIsIssuePanelOpen(true);
   }
 
-  function openSelectedIssueDialog() {
-    const selectedItem = issueListItems.find((item) => item.key === selectedIssueItemKey);
-    const quantity = Number(issueQuantity);
+  function updateIssueSelection(itemKey: string, quantity: string) {
+    setIssueSelections((current) => {
+      if (!quantity) {
+        const next = { ...current };
+        delete next[itemKey];
+        return next;
+      }
 
-    if (!selectedItem) {
+      return { ...current, [itemKey]: quantity };
+    });
+  }
+
+  function toggleIssueSelection(itemKey: string, isSelected: boolean) {
+    setIssueSelections((current) => {
+      const next = { ...current };
+
+      if (isSelected) {
+        next[itemKey] = next[itemKey] || "1";
+      } else {
+        delete next[itemKey];
+      }
+
+      return next;
+    });
+  }
+
+  function handleSelectedIssueBatch() {
+    const selectedEntries = Object.entries(issueSelections)
+      .map(([itemKey, quantityValue]) => {
+        const item = issueListItems.find((candidate) => candidate.key === itemKey);
+        return { item, quantity: Number(quantityValue) };
+      })
+      .filter((entry): entry is { item: InventoryItem; quantity: number } => Boolean(entry.item));
+
+    if (selectedEntries.length === 0) {
       window.alert("เลือกสินค้าที่ต้องการเบิกก่อน");
       return;
     }
 
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      window.alert("กรอกจำนวนที่ต้องการเบิกให้ถูกต้อง");
+    if (!issueRequester.trim()) {
+      window.alert("กรอกผู้ขอเบิกสินค้าก่อนบันทึก");
       return;
     }
 
-    if (quantity > selectedItem.balance) {
-      window.alert(`เบิกไม่ได้ เพราะคงเหลือเพียง ${selectedItem.balance} ${selectedItem.unit}`);
+    if (!issueApprover.trim()) {
+      window.alert("กรอกชื่อผู้อนุมัติก่อนบันทึก");
       return;
     }
 
-    openIssueDialogForItem(selectedItem, String(quantity));
+    const invalidEntry = selectedEntries.find(
+      ({ quantity }) => !Number.isFinite(quantity) || quantity <= 0
+    );
+
+    if (invalidEntry) {
+      window.alert("กรอกจำนวนที่ต้องการเบิกให้ถูกต้องทุกรายการ");
+      return;
+    }
+
+    const overBalanceEntry = selectedEntries.find(({ item, quantity }) => quantity > item.balance);
+
+    if (overBalanceEntry) {
+      window.alert(
+        `เบิก ${overBalanceEntry.item.name} ไม่ได้ เพราะคงเหลือเพียง ${overBalanceEntry.item.balance} ${overBalanceEntry.item.unit}`
+      );
+      return;
+    }
+
+    const now = Date.now();
+    const issueDate = getLocalDateValue();
+    const batchIssueKey = `ISS-${String(now).slice(-6)}`;
+    const nextTransactions: Transaction[] = selectedEntries.map(({ item, quantity }, index) => ({
+      id: createTransactionId(),
+      name: item.name,
+      sku: item.sku,
+      category: item.category,
+      productImportType: item.productImportType,
+      unit: item.unit,
+      type: "out",
+      quantity,
+      price: item.price,
+      costPrice: item.costPrice ?? 0,
+      costCurrency: item.costCurrency ?? "THB",
+      date: issueDate,
+      expiryDate: item.nearestExpiryDate,
+      issueKey: batchIssueKey,
+      requester: issueRequester.trim(),
+      approver: issueApprover.trim(),
+      note: issueNote.trim(),
+      createdAt: now + index,
+    }));
+
+    setPendingIssueBatch(nextTransactions);
+    setPendingIssueTransaction(null);
+    setIsPendingIssueApproved(false);
+    setApprovedDate("");
+    setIsApprovalDetailOpen(false);
+    setIssueSelections({});
+    setIssueRequester("");
+    setIssueApprover("");
+    setIssueNote("");
     setIsIssuePanelOpen(false);
   }
 
@@ -856,8 +1158,10 @@ export default function HomePage() {
     }
     if (sectionId === "issue") {
       setIsIssuePanelOpen(false);
-      setSelectedIssueItemKey("");
-      setIssueQuantity("");
+      setIssueSelections({});
+      setIssueRequester("");
+      setIssueApprover("");
+      setIssueNote("");
     }
     setActiveSection(sectionId);
     closeMobileMenu();
@@ -951,8 +1255,7 @@ export default function HomePage() {
         <div className="flex items-center gap-2">
           <Warehouse size={18} />
           <div>
-            <p className="text-[12px] font-bold text-[var(--text-strong)]">คลังสินค้าหลัก</p>
-            <p className="text-[11px] text-[var(--text-muted)]">โรงงานบางบัวทอง</p>
+            <p className="text-[12px] font-bold text-[var(--text-strong)]">คลังสินค้าตึก4</p>
           </div>
         </div>
         <div className="mt-4 border-t border-slate-200 pt-3">
@@ -1503,14 +1806,28 @@ export default function HomePage() {
                     </label>
 
                     <label>
-                      <span>ต้นทุนต่อหน่วย (บาท) *</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={form.costPrice}
-                        onChange={(event) => updateForm("costPrice", event.target.value)}
-                      />
+                      <span>ต้นทุนต่อหน่วย *</span>
+                      <div className="cost-currency-control">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={form.costPrice}
+                          onChange={(event) => updateForm("costPrice", event.target.value)}
+                        />
+                        <select
+                          value={form.costCurrency}
+                          onChange={(event) =>
+                            updateForm("costCurrency", event.target.value as CostCurrency)
+                          }
+                        >
+                          {costCurrencyOptions.map((item) => (
+                            <option key={item.value} value={item.value}>
+                              {item.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </label>
 
                     <label>
@@ -1585,8 +1902,7 @@ export default function HomePage() {
                           value={issueImportTypeFilter}
                           onChange={(event) => {
                             setIssueImportTypeFilter(event.target.value as OverviewFilter);
-                            setSelectedIssueItemKey("");
-                            setIssueQuantity("");
+                            setIssueSelections({});
                           }}
                         >
                           <option value="all">ทั้งหมด</option>
@@ -1601,8 +1917,7 @@ export default function HomePage() {
                         onClick={() => {
                           setIssueImportTypeFilter("all");
                           setSearchTerm("");
-                          setSelectedIssueItemKey("");
-                          setIssueQuantity("");
+                          setIssueSelections({});
                         }}
                       >
                         <Filter size={15} />
@@ -1620,7 +1935,28 @@ export default function HomePage() {
                       <thead>
                         <tr>
                           <th>
-                            <input type="checkbox" aria-label="เลือกทั้งหมด" />
+                            <input
+                              type="checkbox"
+                              aria-label="เลือกทั้งหมด"
+                              checked={
+                                issueListItems.length > 0 &&
+                                issueListItems.every((item) => issueSelections[item.key])
+                              }
+                              onChange={(event) => {
+                                if (event.target.checked) {
+                                  setIssueSelections((current) => {
+                                    const next = { ...current };
+                                    issueListItems.forEach((item) => {
+                                      next[item.key] = next[item.key] || "1";
+                                    });
+                                    return next;
+                                  });
+                                  setIsIssuePanelOpen(true);
+                                } else {
+                                  setIssueSelections({});
+                                }
+                              }}
+                            />
                           </th>
                           <th>รหัสสินค้า</th>
                           <th>รายการสินค้า</th>
@@ -1654,7 +1990,17 @@ export default function HomePage() {
                             return (
                               <tr key={`issue-list-${item.key}`}>
                                 <td>
-                                  <input type="checkbox" aria-label={`เลือก ${item.name}`} />
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`เลือก ${item.name}`}
+                                    checked={Boolean(issueSelections[item.key])}
+                                    onChange={(event) => {
+                                      toggleIssueSelection(item.key, event.target.checked);
+                                      if (event.target.checked) {
+                                        setIsIssuePanelOpen(true);
+                                      }
+                                    }}
+                                  />
                                 </td>
                                 <td className="sku-cell">{item.sku || "-"}</td>
                                 <td>
@@ -1724,8 +2070,6 @@ export default function HomePage() {
                         aria-label="ปิดฟอร์ม"
                         onClick={() => {
                           setIsIssuePanelOpen(false);
-                          setSelectedIssueItemKey("");
-                          setIssueQuantity("");
                         }}
                       >
                         <X size={18} />
@@ -1734,14 +2078,20 @@ export default function HomePage() {
 
                     <div className="issue-quick-form issue-quick-form-panel">
                       <label>
-                        <span>เลือกสินค้าที่จะเบิก</span>
+                        <span>เลือกสินค้าเข้ารายการ</span>
                         <select
-                          value={selectedIssueItemKey}
-                          onChange={(event) => setSelectedIssueItemKey(event.target.value)}
+                          value=""
+                          onChange={(event) => {
+                            if (!event.target.value) {
+                              return;
+                            }
+
+                            toggleIssueSelection(event.target.value, true);
+                          }}
                         >
                           <option value="">เลือกสินค้า</option>
                           {issueListItems.map((item) => (
-                            <option key={`issue-option-${item.key}`} value={item.key}>
+                            <option key={`issue-panel-option-${item.key}`} value={item.key}>
                               {item.name} {item.sku ? `(${item.sku})` : ""} - คงเหลือ{" "}
                               {formatNumber(item.balance)} {item.unit}
                             </option>
@@ -1749,14 +2099,81 @@ export default function HomePage() {
                         </select>
                       </label>
                       <label>
-                        <span>จำนวนที่เบิก</span>
+                        <span>ผู้ขอเบิกสินค้า *</span>
                         <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={issueQuantity}
-                          onChange={(event) => setIssueQuantity(event.target.value)}
-                          placeholder="ระบุจำนวน"
+                          value={issueRequester}
+                          onChange={(event) => setIssueRequester(event.target.value)}
+                          placeholder="เช่น โครงการ / ลูกค้า / ผู้รับผิดชอบ"
+                        />
+                      </label>
+                      <label>
+                        <span>ชื่อผู้อนุมัติ *</span>
+                        <input
+                          value={issueApprover}
+                          onChange={(event) => setIssueApprover(event.target.value)}
+                          placeholder="ระบุชื่อผู้อนุมัติ"
+                        />
+                      </label>
+                      <div className="issue-selection-list">
+                        <div className="issue-selection-list-header">
+                          <span>ตารางรายการเบิก</span>
+                          <strong>{formatNumber(selectedIssueEntries.length)} รายการ</strong>
+                        </div>
+                        {selectedIssueEntries.length > 0 ? (
+                          selectedIssueEntries.map(({ item, quantity }) => (
+                            <article key={`selected-issue-${item.key}`} className="issue-selection-item">
+                              <div className="issue-selection-item-header">
+                                <label className="issue-selection-check">
+                                  <input
+                                    type="checkbox"
+                                    checked
+                                    onChange={(event) =>
+                                      toggleIssueSelection(item.key, event.target.checked)
+                                    }
+                                  />
+                                  <span>
+                                    <strong>{item.name}</strong>
+                                    <small>
+                                      {item.sku || "-"} · คงเหลือ {formatNumber(item.balance)}{" "}
+                                      {item.unit}
+                                    </small>
+                                  </span>
+                                </label>
+                                <button
+                                  type="button"
+                                  className="issue-selection-delete"
+                                  onClick={() => toggleIssueSelection(item.key, false)}
+                                  aria-label={`ลบ ${item.name} ออกจากรายการเบิก`}
+                                  title="ลบรายการนี้"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                              <label className="issue-selection-quantity">
+                                <span>จำนวน</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={item.balance}
+                                  step="1"
+                                  value={quantity}
+                                  onChange={(event) =>
+                                    updateIssueSelection(item.key, event.target.value)
+                                  }
+                                />
+                              </label>
+                            </article>
+                          ))
+                        ) : (
+                          <div className="empty-state">เลือกสินค้าได้จาก checkbox ในตาราง</div>
+                        )}
+                      </div>
+                      <label>
+                        <span>หมายเหตุ</span>
+                        <input
+                          value={issueNote}
+                          onChange={(event) => setIssueNote(event.target.value)}
+                          placeholder="ระบุหมายเหตุ ถ้ามี"
                         />
                       </label>
                       <div className="receive-panel-actions">
@@ -1765,14 +2182,16 @@ export default function HomePage() {
                           variant="secondary"
                           onClick={() => {
                             setIsIssuePanelOpen(false);
-                            setSelectedIssueItemKey("");
-                            setIssueQuantity("");
+                            setIssueSelections({});
+                            setIssueRequester("");
+                            setIssueApprover("");
+                            setIssueNote("");
                           }}
                         >
                           ยกเลิก
                         </Button>
-                        <Button type="button" onClick={openSelectedIssueDialog}>
-                          เริ่มเบิกสินค้า
+                        <Button type="button" onClick={handleSelectedIssueBatch}>
+                          บันทึกเบิกสินค้า
                         </Button>
                       </div>
                     </div>
@@ -1783,14 +2202,31 @@ export default function HomePage() {
 
             {activeSection === "delivery-note" ? (
               <section id="delivery-note" className="grid gap-3">
-                {deliveryDocument ? (
+                {deliveryDocument ? (() => {
+                  const documentTransactions =
+                    deliveryDocument.transactions?.length > 0
+                      ? deliveryDocument.transactions
+                      : [deliveryDocument.transaction];
+                  const documentRows =
+                    deliveryDocument.rows?.length > 0
+                      ? deliveryDocument.rows
+                      : [
+                          {
+                            transaction: deliveryDocument.transaction,
+                            beforeBalance: deliveryDocument.beforeBalance,
+                            afterBalance: deliveryDocument.afterBalance,
+                            costValue: deliveryDocument.costValue,
+                          },
+                        ];
+
+                  return (
                   <>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
                           Delivery Note
                         </p>
-                        <h3 className="dashboard-section-title">ใบกำกับขนส่งสินค้าเบิกออก</h3>
+                        <h3 className="dashboard-section-title">ใบกำกับเบิกสินค้า</h3>
                       </div>
                       <Button type="button" variant="secondary" onClick={() => setActiveSection("history")}>
                         กลับไปประวัติภาพรวม
@@ -1799,8 +2235,7 @@ export default function HomePage() {
 
                     <article className="delivery-document">
                       <header className="delivery-document-header">
-                        <h2>บริษัท ปูนซีเมนต์ไทย (ท่าหลวง) จำกัด</h2>
-                        <p>ใบกำกับขนส่ง</p>
+                        <h2>ใบกำกับเบิกสินค้า</h2>
                       </header>
 
                       <div className="delivery-document-meta">
@@ -1831,8 +2266,8 @@ export default function HomePage() {
                           </thead>
                           <tbody>
                             {Array.from({ length: 30 }, (_, index) => {
-                              const isIssueRow = index === 0;
-                              const transaction = deliveryDocument.transaction;
+                              const transaction = documentTransactions[index];
+                              const isIssueRow = Boolean(transaction);
 
                               return (
                                 <tr key={`delivery-row-${index + 1}`}>
@@ -1855,7 +2290,7 @@ export default function HomePage() {
                       <section className="delivery-summary-grid">
                         <div>
                           <p>ผู้ออกเอกสาร ................................</p>
-                          <p>ผู้อนุมัตินำส่ง ..............................</p>
+                          <p>ผู้อนุมัตินำส่ง {deliveryDocument.transaction.approver || ".............................."}</p>
                         </div>
                         <div>
                           <p>ผู้รับจ้างขนส่ง ..............................</p>
@@ -1892,43 +2327,70 @@ export default function HomePage() {
                         <h4>รายละเอียดสินค้าที่เบิกออก</h4>
                         <dl>
                           <div>
-                            <dt>สินค้า</dt>
-                            <dd>{deliveryDocument.transaction.name}</dd>
+                            <dt>จำนวนรายการ</dt>
+                            <dd>{formatNumber(documentTransactions.length)} รายการ</dd>
                           </div>
                           <div>
                             <dt>ประเภทสินค้า</dt>
-                            <dd>{getProductImportTypeLabel(deliveryDocument.transaction.productImportType)}</dd>
+                            <dd>
+                              {Array.from(
+                                new Set(
+                                  documentTransactions.map((item) =>
+                                    getProductImportTypeLabel(item.productImportType)
+                                  )
+                                )
+                              ).join(", ")}
+                            </dd>
                           </div>
                           <div>
                             <dt>ผู้ขอเบิกสินค้า</dt>
                             <dd>{deliveryDocument.transaction.requester || "-"}</dd>
                           </div>
                           <div>
+                            <dt>ชื่อผู้อนุมัติ</dt>
+                            <dd>{deliveryDocument.transaction.approver || "-"}</dd>
+                          </div>
+                          <div>
                             <dt>จำนวนที่เบิก</dt>
                             <dd>
-                              {formatNumber(deliveryDocument.transaction.quantity)}{" "}
-                              {deliveryDocument.transaction.unit}
+                              {documentTransactions
+                                .map((item) => `${formatNumber(item.quantity)} ${item.unit}`)
+                                .join(", ")}
                             </dd>
                           </div>
                           <div>
                             <dt>คงเหลือหลังเบิก</dt>
                             <dd>
-                              {formatNumber(deliveryDocument.afterBalance)}{" "}
-                              {deliveryDocument.transaction.unit}
+                              {documentRows
+                                .map(
+                                  (row) =>
+                                    `${row.transaction.name}: ${formatNumber(row.afterBalance)} ${row.transaction.unit}`
+                                )
+                                .join(", ")}
                             </dd>
                           </div>
                           <div>
                             <dt>มูลค่าต้นทุน</dt>
-                            <dd>{formatCurrency(deliveryDocument.costValue)}</dd>
+                            <dd>
+                              {documentRows
+                                .map((row) =>
+                                  `${row.transaction.name}: ${formatCurrencyWithLabel(
+                                    row.costValue,
+                                    row.transaction.costCurrency
+                                  )}`
+                                )
+                                .join(", ")}
+                            </dd>
                           </div>
                         </dl>
                       </section>
                     </article>
                   </>
-                ) : (
+                  );
+                })() : (
                   <DataPanel
-                    title="ยังไม่มีใบกำกับขนส่ง"
-                    description="เมื่อ Approved และยืนยันเบิกสินค้าแล้ว ระบบจะแสดงเอกสารใบกำกับขนส่งในหน้านี้"
+                    title="ยังไม่มีใบกำกับเบิกสินค้า"
+                    description="เมื่อ Approved และยืนยันเบิกสินค้าแล้ว ระบบจะแสดงเอกสารใบกำกับเบิกสินค้าในหน้านี้"
                   >
                     <Button type="button" onClick={() => setActiveSection("issue")}>
                       ไปหน้านำออกสินค้า
@@ -1974,17 +2436,38 @@ export default function HomePage() {
                     "ราคาต้นทุน",
                     "มูลค่าต้นทุน",
                     "หมายเหตุ",
+                    "ใบเบิกสินค้า",
                   ]}
                   emptyMessage="ยังไม่มีประวัติการขอเบิกสินค้า"
-                  columnCount={10}
+                  columnCount={11}
                 >
-                  {issueOverview.transactions.map((item) => (
-                    <tr key={`history-${item.id}`}>
+                  {issueOverview.transactions.map((item, index, items) => {
+                    const issueKey = item.issueKey || "-";
+                    const previousIssueKey = items[index - 1]?.issueKey || "-";
+                    const nextIssueKey = items[index + 1]?.issueKey || "-";
+                    const isGroupStart = issueKey !== previousIssueKey;
+                    const isGroupEnd = issueKey !== nextIssueKey;
+                    const groupCount = items.filter(
+                      (candidate) => (candidate.issueKey || "-") === issueKey
+                    ).length;
+
+                    return (
+                    <tr
+                      key={`history-${item.id}`}
+                      className={`history-group-row ${
+                        isGroupStart ? "history-group-start" : ""
+                      } ${isGroupEnd ? "history-group-end" : ""}`}
+                    >
                       <td>{formatDate(item.date)}</td>
                       <td>
                         <strong className="font-semibold text-[var(--text-strong)]">
                           {item.issueKey || "-"}
                         </strong>
+                        {groupCount > 1 && isGroupStart ? (
+                          <div className="history-group-label">
+                            ใบเดียวกัน {formatNumber(groupCount)} รายการ
+                          </div>
+                        ) : null}
                       </td>
                       <td>
                         <strong className="font-semibold text-[var(--text-strong)]">
@@ -2003,15 +2486,36 @@ export default function HomePage() {
                         </span>
                       </td>
                       <td>{item.expiryDate ? formatDate(item.expiryDate) : "-"}</td>
-                      <td className="text-right">{formatCurrency(item.costPrice ?? 0)}</td>
                       <td className="text-right">
-                        {formatCurrency(item.quantity * (item.costPrice ?? 0))}
+                        {formatCurrencyWithLabel(item.costPrice ?? 0, item.costCurrency)}
+                      </td>
+                      <td className="text-right">
+                        {formatCurrencyWithLabel(
+                          item.quantity * (item.costPrice ?? 0),
+                          item.costCurrency
+                        )}
                       </td>
                       <td className="text-[12px] text-[var(--text-muted)]">
                         {item.note || "-"}
                       </td>
+                      <td>
+                        {isGroupStart ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => openDeliveryDocumentFromHistory(issueKey)}
+                          >
+                            <FileText size={14} />
+                            ดูใบเบิก
+                          </Button>
+                        ) : (
+                          <span className="text-[12px] text-[var(--text-muted)]">ใบเดียวกัน</span>
+                        )}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </Table>
               </DataPanel>
             </section>
@@ -2158,10 +2662,15 @@ export default function HomePage() {
       </Dialog>
 
       <Dialog
-        open={Boolean(pendingIssueTransaction)}
+        open={Boolean(pendingIssueTransaction) || pendingIssueBatch.length > 0}
         onOpenChange={(open) => {
           if (!open) {
             setPendingIssueTransaction(null);
+            setPendingIssueBatch([]);
+            setIsPendingIssueApproved(false);
+            setApprovedDate("");
+            setIsApprovalDetailOpen(false);
+            setIssueApprover("");
           }
         }}
       >
@@ -2173,7 +2682,168 @@ export default function HomePage() {
             </DialogDescription>
           </DialogHeader>
 
-          {pendingIssueTransaction && pendingIssueStatus ? (
+          {pendingIssueBatchStatus ? (
+            <div className="grid gap-4 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
+                    Issue Confirmation
+                  </p>
+                  <h3 className="dashboard-section-title">สรุปรายการเบิกก่อน Approved</h3>
+                </div>
+                <StatusBadge
+                  tone={
+                    pendingIssueBatchStatus.hasInsufficientStock
+                      ? "urgent"
+                      : isPendingIssueApproved
+                        ? "in"
+                        : "out"
+                  }
+                >
+                  {pendingIssueBatchStatus.hasInsufficientStock
+                    ? "ยอดไม่พอ"
+                    : isPendingIssueApproved
+                      ? "Approved แล้ว"
+                      : "รอ Approved"}
+                </StatusBadge>
+              </div>
+
+              <StatsGrid stats={pendingIssueBatchStatus.stats} />
+
+              <DataPanel
+                title="ตารางตรวจสอบใบเบิก"
+                description="ตรวจสอบหลายรายการก่อน Approved และยืนยันตัดสต๊อก"
+              >
+                <Table
+                  headers={[
+                    "วันที่เบิก",
+                    "เลขใบเบิก",
+                    "ประเภทสินค้า",
+                    "ชื่อผู้ขอเบิก",
+                    "ชื่อผู้อนุมัติ",
+                    "สถานะ Approved",
+                  ]}
+                  emptyMessage="ไม่มีรายการรอยืนยัน"
+                  columnCount={6}
+                >
+                  {pendingIssueBatchStatus.rows.map((row) => (
+                    <tr key={`pending-batch-${row.transaction.id}`}>
+                      <td>{formatDate(row.transaction.date)}</td>
+                      <td>
+                        <strong className="font-semibold text-[var(--text-strong)]">
+                          {row.transaction.issueKey || "-"}
+                        </strong>
+                      </td>
+                      <td>{getProductImportTypeLabel(row.transaction.productImportType)}</td>
+                      <td>
+                        <strong className="font-semibold text-[var(--text-strong)]">
+                          {row.transaction.requester || "-"}
+                        </strong>
+                      </td>
+                      <td>
+                        <strong className="font-semibold text-[var(--text-strong)]">
+                          {row.transaction.approver || "-"}
+                        </strong>
+                      </td>
+                      <td>
+                        <div className="approval-status-cell">
+                          <StatusBadge
+                            tone={
+                              row.afterBalance < 0
+                                ? "urgent"
+                                : isPendingIssueApproved
+                                  ? "in"
+                                  : "warn"
+                            }
+                          >
+                            {row.afterBalance < 0
+                              ? "ยอดไม่พอ"
+                              : isPendingIssueApproved
+                                ? "Approved แล้ว"
+                                : "ยังไม่ Approved"}
+                          </StatusBadge>
+                          {isPendingIssueApproved ? (
+                            <button
+                              type="button"
+                              className={`approval-circle-button approval-circle-button-compact ${
+                                isApprovalDetailOpen ? "approval-circle-button-open" : ""
+                              }`}
+                              onClick={() => setIsApprovalDetailOpen((current) => !current)}
+                              aria-label="ดูรายละเอียดผู้อนุมัติ"
+                              title="ดูรายละเอียดผู้อนุมัติ"
+                            >
+                              {isApprovalDetailOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+              </DataPanel>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setPendingIssueBatch([]);
+                    setIsPendingIssueApproved(false);
+                    setApprovedDate("");
+                    setIsApprovalDetailOpen(false);
+                    setIsIssuePanelOpen(true);
+                  }}
+                >
+                  กลับไปแก้ไข
+                </Button>
+                {!pendingIssueBatchStatus.hasInsufficientStock ? (
+                  <div className="approval-action-group">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={approvePendingIssue}
+                      disabled={isPendingIssueApproved}
+                    >
+                      {isPendingIssueApproved ? "Approved แล้ว" : "Approved"}
+                    </Button>
+                    {isPendingIssueApproved ? (
+                      <button
+                        type="button"
+                        className={`approval-circle-button ${
+                          isApprovalDetailOpen ? "approval-circle-button-open" : ""
+                        }`}
+                        onClick={() => setIsApprovalDetailOpen((current) => !current)}
+                        aria-label="ดูรายละเอียดผู้อนุมัติ"
+                        title="ดูรายละเอียดผู้อนุมัติ"
+                      >
+                        {isApprovalDetailOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                <Button type="button" onClick={confirmIssueTransaction} disabled={!pendingIssueCanConfirm}>
+                  ยืนยันเบิกสินค้า
+                </Button>
+              </div>
+              {isPendingIssueApproved && isApprovalDetailOpen ? (
+                <section className="approval-detail-panel">
+                  <div className="approval-detail-header">
+                    <strong>รายละเอียดผู้อนุมัติ</strong>
+                    <span>{formatDate(approvedDate || getLocalDateValue())}</span>
+                  </div>
+                  <div className="approval-detail-list">
+                    {pendingApprovalDetails.map((item, index) => (
+                      <article key={`approval-detail-${item.issueKey}-${index}`}>
+                        <span>เลขใบเบิก {item.issueKey}</span>
+                        <strong>{item.approver}</strong>
+                        <small>ผู้ขอเบิก: {item.requester}</small>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          ) : pendingIssueTransaction && pendingIssueStatus ? (
             <div className="grid gap-4 p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -2207,32 +2877,36 @@ export default function HomePage() {
               >
                 <Table
                   headers={[
-                    "เลขใบงาน",
-                    "ประเภท",
-                    "สถานะ",
-                    "ผู้ขอเบิก",
-                    "รายละเอียด",
+                    "วันที่เบิก",
+                    "เลขใบเบิก",
+                    "ประเภทสินค้า",
+                    "ชื่อผู้ขอเบิก",
+                    "ชื่อผู้อนุมัติ",
+                    "สถานะ Approved",
                   ]}
                   emptyMessage="ไม่มีรายการรอยืนยัน"
-                  columnCount={5}
+                  columnCount={6}
                 >
                   <tr>
+                    <td>{formatDate(pendingIssueTransaction.date)}</td>
                     <td>
                       <strong className="font-semibold text-[var(--text-strong)]">
                         {pendingIssueTransaction.issueKey || "-"}
                       </strong>
-                      <div className="text-[12px] text-[var(--text-muted)]">
-                        {formatDate(pendingIssueTransaction.date)}
-                      </div>
+                    </td>
+                    <td>{getProductImportTypeLabel(pendingIssueTransaction.productImportType)}</td>
+                    <td>
+                      <strong className="font-semibold text-[var(--text-strong)]">
+                        {pendingIssueTransaction.requester || "-"}
+                      </strong>
                     </td>
                     <td>
-                      <StatusBadge tone="out">ขอเบิกสินค้า</StatusBadge>
-                      <p className="mt-1 text-[12px] text-[var(--text-muted)]">
-                        {getProductImportTypeLabel(pendingIssueTransaction.productImportType)}
-                      </p>
+                      <strong className="font-semibold text-[var(--text-strong)]">
+                        {pendingIssueTransaction.approver || "-"}
+                      </strong>
                     </td>
                     <td>
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="approval-status-cell">
                         <StatusBadge
                           tone={
                             pendingIssueStatus.afterBalance < 0
@@ -2248,42 +2922,20 @@ export default function HomePage() {
                               ? "Approved แล้ว"
                               : "ยังไม่ Approved"}
                         </StatusBadge>
-                        {!isPendingIssueApproved && pendingIssueStatus.afterBalance >= 0 ? (
-                          <Button
+                        {isPendingIssueApproved ? (
+                          <button
                             type="button"
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => setIsPendingIssueApproved(true)}
+                            className={`approval-circle-button approval-circle-button-compact ${
+                              isApprovalDetailOpen ? "approval-circle-button-open" : ""
+                            }`}
+                            onClick={() => setIsApprovalDetailOpen((current) => !current)}
+                            aria-label="ดูรายละเอียดผู้อนุมัติ"
+                            title="ดูรายละเอียดผู้อนุมัติ"
                           >
-                            Approved
-                          </Button>
+                            {isApprovalDetailOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                          </button>
                         ) : null}
                       </div>
-                      {isPendingIssueApproved ? (
-                        <p className="mt-1 text-[12px] font-semibold text-emerald-700">
-                          สำเร็จ สามารถนำออกได้
-                        </p>
-                      ) : null}
-                    </td>
-                    <td>
-                      <strong className="font-semibold text-[var(--text-strong)]">
-                        {pendingIssueTransaction.requester || "-"}
-                      </strong>
-                    </td>
-                    <td className="text-[12px] text-[var(--text-muted)]">
-                      <strong className="block text-[13px] text-[var(--text-strong)]">
-                        {pendingIssueTransaction.name}
-                      </strong>
-                      <span className="block">
-                        จำนวน {formatNumber(pendingIssueStatus.issueQuantity)}{" "}
-                        {pendingIssueTransaction.unit} · คงเหลือก่อน{" "}
-                        {formatNumber(pendingIssueStatus.beforeBalance)} · คงเหลือหลัง{" "}
-                        {formatNumber(pendingIssueStatus.afterBalance)}
-                      </span>
-                      <span className="block">
-                        ต้นทุน {formatCurrency(pendingIssueStatus.costValue)} ·{" "}
-                        {pendingIssueTransaction.note || "ไม่มีหมายเหตุ"}
-                      </span>
                     </td>
                   </tr>
                 </Table>
@@ -2293,6 +2945,31 @@ export default function HomePage() {
                 <Button type="button" variant="secondary" onClick={editPendingIssueTransaction}>
                   กลับไปแก้ไข
                 </Button>
+                {pendingIssueStatus.afterBalance >= 0 ? (
+                  <div className="approval-action-group">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={approvePendingIssue}
+                      disabled={isPendingIssueApproved}
+                    >
+                      {isPendingIssueApproved ? "Approved แล้ว" : "Approved"}
+                    </Button>
+                    {isPendingIssueApproved ? (
+                      <button
+                        type="button"
+                        className={`approval-circle-button ${
+                          isApprovalDetailOpen ? "approval-circle-button-open" : ""
+                        }`}
+                        onClick={() => setIsApprovalDetailOpen((current) => !current)}
+                        aria-label="ดูรายละเอียดผู้อนุมัติ"
+                        title="ดูรายละเอียดผู้อนุมัติ"
+                      >
+                        {isApprovalDetailOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
                 <Button
                   type="button"
                   onClick={confirmIssueTransaction}
@@ -2301,6 +2978,23 @@ export default function HomePage() {
                   ยืนยันเบิกสินค้า
                 </Button>
               </div>
+              {isPendingIssueApproved && isApprovalDetailOpen ? (
+                <section className="approval-detail-panel">
+                  <div className="approval-detail-header">
+                    <strong>รายละเอียดผู้อนุมัติ</strong>
+                    <span>{formatDate(approvedDate || getLocalDateValue())}</span>
+                  </div>
+                  <div className="approval-detail-list">
+                    {pendingApprovalDetails.map((item, index) => (
+                      <article key={`approval-detail-single-${item.issueKey}-${index}`}>
+                        <span>เลขใบเบิก {item.issueKey}</span>
+                        <strong>{item.approver}</strong>
+                        <small>ผู้ขอเบิก: {item.requester}</small>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </div>
           ) : null}
         </DialogContent>

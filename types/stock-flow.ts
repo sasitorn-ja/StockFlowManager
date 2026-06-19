@@ -1,5 +1,6 @@
 export type TransactionType = "in" | "out";
 export type ProductImportType = "resale" | "stable";
+export type CostCurrency = "THB" | "JPY" | "CNY" | "USD";
 
 export type Transaction = {
   id: string;
@@ -12,10 +13,12 @@ export type Transaction = {
   quantity: number;
   price: number;
   costPrice: number;
+  costCurrency: CostCurrency;
   date: string;
   expiryDate: string;
   issueKey: string;
   requester?: string;
+  approver?: string;
   note: string;
   createdAt: number;
 };
@@ -32,6 +35,7 @@ export type InventoryItem = {
   balance: number;
   price: number;
   costPrice: number;
+  costCurrency: CostCurrency;
   nearestExpiryDate: string;
 };
 
@@ -45,6 +49,7 @@ export type FormState = {
   quantity: string;
   price: string;
   costPrice: string;
+  costCurrency: CostCurrency;
   date: string;
   expiryDate: string;
   issueKey: string;
