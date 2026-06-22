@@ -1,0 +1,159 @@
+import { NextResponse } from "next/server";
+
+type IssueEmailRow = {
+  name: string;
+  productImportTypeLabel: string;
+  quantity: number;
+  sku: string;
+  unit: string;
+};
+
+type IssueEmailPayload = {
+  approverEmail?: string;
+  approverName?: string;
+  issueDate?: string;
+  issueKey?: string;
+  items?: IssueEmailRow[];
+  note?: string;
+  requester?: string;
+};
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function buildEmailHtml(input: {
+  appUrl: string;
+  approverName: string;
+  issueDate: string;
+  issueKey: string;
+  items: IssueEmailRow[];
+  note: string;
+  requester: string;
+}) {
+  const rows = input.items
+    .map(
+      (item) => `
+        <tr>
+          <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${escapeHtml(item.name)}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${escapeHtml(item.sku || "-")}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${escapeHtml(item.productImportTypeLabel)}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:right;">${item.quantity}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${escapeHtml(item.unit)}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  return `
+    <div style="background:#f8fafc;padding:32px 16px;font-family:Arial,sans-serif;color:#0f172a;">
+      <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+        <div style="padding:24px 28px;border-bottom:1px solid #e2e8f0;">
+          <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#0284c7;">Issue Request</p>
+          <h1 style="margin:0;font-size:24px;line-height:1.3;">มีคำขอเบิกสินค้าใหม่รออนุมัติ</h1>
+        </div>
+        <div style="padding:24px 28px;">
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">สวัสดี ${escapeHtml(
+            input.approverName
+          )}, มีคำขอเบิกสินค้าใหม่จาก ${escapeHtml(input.requester)} กรุณาตรวจสอบรายละเอียดด้านล่าง</p>
+          <div style="margin-bottom:20px;padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
+            <p style="margin:0 0 8px;"><strong>เลขใบเบิก:</strong> ${escapeHtml(input.issueKey)}</p>
+            <p style="margin:0 0 8px;"><strong>วันที่ขอเบิก:</strong> ${escapeHtml(input.issueDate)}</p>
+            <p style="margin:0;"><strong>ผู้ขอเบิก:</strong> ${escapeHtml(input.requester)}</p>
+          </div>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+            <thead>
+              <tr style="background:#f8fafc;">
+                <th style="padding:10px 12px;text-align:left;font-size:12px;border-bottom:1px solid #e2e8f0;">สินค้า</th>
+                <th style="padding:10px 12px;text-align:left;font-size:12px;border-bottom:1px solid #e2e8f0;">รหัส</th>
+                <th style="padding:10px 12px;text-align:left;font-size:12px;border-bottom:1px solid #e2e8f0;">ประเภท</th>
+                <th style="padding:10px 12px;text-align:right;font-size:12px;border-bottom:1px solid #e2e8f0;">จำนวน</th>
+                <th style="padding:10px 12px;text-align:left;font-size:12px;border-bottom:1px solid #e2e8f0;">หน่วย</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <div style="margin-bottom:24px;padding:16px;border:1px solid #e2e8f0;border-radius:12px;">
+            <p style="margin:0 0 8px;font-weight:700;">หมายเหตุ</p>
+            <p style="margin:0;color:#475569;">${escapeHtml(input.note || "-")}</p>
+          </div>
+          <a href="${escapeHtml(
+            `${input.appUrl}/#issue`
+          )}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;">เปิดหน้าตรวจสอบใบเบิก</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export async function POST(request: Request) {
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const fromEmail = process.env.APPROVAL_EMAIL_FROM;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
+
+  if (!resendApiKey || !fromEmail) {
+    return NextResponse.json(
+      { error: "Email service is not configured. Set RESEND_API_KEY and APPROVAL_EMAIL_FROM." },
+      { status: 500 }
+    );
+  }
+
+  let payload: IssueEmailPayload;
+
+  try {
+    payload = (await request.json()) as IssueEmailPayload;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
+  }
+
+  const approverEmail = payload.approverEmail?.trim() || "";
+  const approverName = payload.approverName?.trim() || "";
+  const requester = payload.requester?.trim() || "";
+  const issueKey = payload.issueKey?.trim() || "";
+  const issueDate = payload.issueDate?.trim() || "";
+  const note = payload.note?.trim() || "";
+  const items = payload.items ?? [];
+
+  if (!approverEmail || !approverName || !requester || !issueKey || !issueDate || items.length === 0) {
+    return NextResponse.json({ error: "Missing required request email fields." }, { status: 400 });
+  }
+
+  const resendResponse = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": issueKey,
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [approverEmail],
+      subject: `คำขอเบิกสินค้าใหม่ ${issueKey}`,
+      html: buildEmailHtml({
+        appUrl,
+        approverName,
+        issueDate,
+        issueKey,
+        items,
+        note,
+        requester,
+      }),
+      text: `มีคำขอเบิกสินค้าใหม่ ${issueKey} จาก ${requester} กรุณาตรวจสอบที่ ${appUrl}/#issue`,
+    }),
+  });
+
+  if (!resendResponse.ok) {
+    return NextResponse.json(
+      { error: "Failed to send approval email.", detail: await resendResponse.text() },
+      { status: 502 }
+    );
+  }
+
+  const result = (await resendResponse.json()) as { id?: string };
+  return NextResponse.json({ ok: true, id: result.id ?? null });
+}

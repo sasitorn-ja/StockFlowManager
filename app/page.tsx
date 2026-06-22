@@ -11,7 +11,6 @@ import {
   Clock3,
   ClipboardPlus,
   Database,
-  Download,
   Filter,
   FileText,
   History,
@@ -22,15 +21,15 @@ import {
   PackageMinus,
   Pencil,
   Plus,
-  ScanLine,
   Search,
   Settings,
   Trash2,
-  Warehouse,
   X,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 import { DataPanel } from "@/components/stock-flow/DataPanel";
+import { IssueTypeCombobox } from "@/components/stock-flow/IssueTypeCombobox";
 import { StatusBadge } from "@/components/stock-flow/StatusBadge";
 import { StockForm } from "@/components/stock-flow/StockForm";
 import { StatsGrid } from "@/components/stock-flow/StatsGrid";
@@ -44,13 +43,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { LOW_STOCK_THRESHOLD, STORAGE_KEY } from "@/lib/stock-flow/constants";
-import { createSampleTransactions } from "@/lib/stock-flow/sample-data";
 import {
   buildInventoryMap,
   buildItemKey,
   compareExpiryDate,
   createEmptyForm,
   createTransactionId,
+  addDays,
   formatCurrency,
   formatCurrencyWithLabel,
   formatDate,
@@ -79,6 +78,11 @@ const productImportTypes: { type: ProductImportType; label: string }[] = [
 const overviewFilterOptions: { value: OverviewFilter; label: string }[] = [
   { value: "all", label: "ทั้งหมด" },
   { value: "resale", label: "สินค้าซื้อมาขายไป" },
+  { value: "stable", label: "สินค้า stable" },
+];
+const issueFilterOptions: { value: OverviewFilter; label: string }[] = [
+  { value: "all", label: "ทั้งหมด" },
+  { value: "resale", label: "ซื้อมาขายไป" },
   { value: "stable", label: "สินค้า stable" },
 ];
 const costCurrencyOptions: { value: CostCurrency; label: string }[] = [
@@ -209,10 +213,16 @@ export default function HomePage() {
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>("all");
   const [receiveFilter, setReceiveFilter] = useState<OverviewFilter>("all");
   const [issueImportTypeFilter, setIssueImportTypeFilter] = useState<OverviewFilter>("all");
+  const [issuePanelImportType, setIssuePanelImportType] = useState<ProductImportType | "">("");
   const [issueSelections, setIssueSelections] = useState<Record<string, string>>({});
   const [issueRequester, setIssueRequester] = useState("");
   const [issueApprover, setIssueApprover] = useState("");
+  const [issueApproverEmail, setIssueApproverEmail] = useState("");
   const [issueNote, setIssueNote] = useState("");
+  const [isSendingIssueEmail, setIsSendingIssueEmail] = useState(false);
+  const [isIssueTypeFilterOpen, setIsIssueTypeFilterOpen] = useState(false);
+  const [overviewDateFrom, setOverviewDateFrom] = useState(() => addDays(getLocalDateValue(), -6));
+  const [overviewDateTo, setOverviewDateTo] = useState(getLocalDateValue);
   const [activeSection, setActiveSection] = useState(sectionIds[0]);
   const [editingItemKey, setEditingItemKey] = useState("");
   const [productEditForm, setProductEditForm] = useState<ProductEditForm>({
@@ -298,6 +308,23 @@ export default function HomePage() {
   const selectedProductImportGroup =
     productImportGroups.find((group) => group.type === selectedImportType) ?? productImportGroups[0];
 
+  const latestTransactionByItemKey = useMemo(() => {
+    return transactions.reduce((map, transaction) => {
+      const itemKey = buildItemKey(transaction);
+      const current = map.get(itemKey);
+
+      if (!current || transaction.createdAt > current.createdAt) {
+        map.set(itemKey, transaction);
+      }
+
+      return map;
+    }, new Map<string, Transaction>());
+  }, [transactions]);
+
+  const filteredTransactionsByDate = useMemo(() => {
+    return transactions.filter((item) => item.date >= overviewDateFrom && item.date <= overviewDateTo);
+  }, [overviewDateFrom, overviewDateTo, transactions]);
+
   const filteredOverviewInventory = useMemo(() => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
     const baseInventory =
@@ -307,29 +334,38 @@ export default function HomePage() {
 
     return baseInventory.filter((item) => {
       const haystack = `${item.name} ${item.sku} ${item.category}`.toLowerCase();
-      return haystack.includes(normalizedSearchTerm);
+      const latestTransaction = latestTransactionByItemKey.get(item.key);
+      const matchesSearch = haystack.includes(normalizedSearchTerm);
+      const matchesDate = latestTransaction
+        ? latestTransaction.date >= overviewDateFrom && latestTransaction.date <= overviewDateTo
+        : true;
+
+      return matchesSearch && matchesDate;
     });
-  }, [inventory, overviewFilter, searchTerm]);
+  }, [inventory, latestTransactionByItemKey, overviewDateFrom, overviewDateTo, overviewFilter, searchTerm]);
 
   const overviewStats = useMemo(() => {
-    const now = new Date();
-    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const totalBalance = inventory.reduce((sum, item) => sum + item.balance, 0);
-    const totalStockValue = inventory.reduce((sum, item) => sum + item.balance * item.price, 0);
-    const lowStockCount = inventory.filter((item) => item.balance <= LOW_STOCK_THRESHOLD).length;
-    const receivedThisMonth = transactions
-      .filter((item) => item.type === "in" && item.date.startsWith(monthKey))
+    const totalBalance = filteredOverviewInventory.reduce((sum, item) => sum + item.balance, 0);
+    const totalStockValue = filteredOverviewInventory.reduce(
+      (sum, item) => sum + item.balance * item.price,
+      0
+    );
+    const lowStockCount = filteredOverviewInventory.filter(
+      (item) => item.balance <= LOW_STOCK_THRESHOLD
+    ).length;
+    const receivedInRange = filteredTransactionsByDate
+      .filter((item) => item.type === "in")
       .reduce((sum, item) => sum + item.quantity, 0);
-    const issuedThisMonth = transactions
-      .filter((item) => item.type === "out" && item.date.startsWith(monthKey))
+    const issuedInRange = filteredTransactionsByDate
+      .filter((item) => item.type === "out")
       .reduce((sum, item) => sum + item.quantity, 0);
 
     return [
       {
         label: "จำนวนสินค้า",
-        value: formatNumber(inventory.length),
+        value: formatNumber(filteredOverviewInventory.length),
         unit: "รายการ",
-        helper: "ครบทุกหมวดหมู่",
+        helper: "ตามช่วงวันที่ที่เลือก",
         icon: Layers3,
         tone: "sky" as const,
       },
@@ -350,18 +386,18 @@ export default function HomePage() {
         tone: "amber" as const,
       },
       {
-        label: "รับเข้าเดือนนี้",
-        value: formatNumber(receivedThisMonth),
+        label: "รับเข้าในช่วงนี้",
+        value: formatNumber(receivedInRange),
         unit: "หน่วย",
-        helper: `${transactions.filter((item) => item.type === "in").length} รายการ`,
+        helper: `${filteredTransactionsByDate.filter((item) => item.type === "in").length} รายการ`,
         icon: ArrowDownToLine,
         tone: "sky" as const,
       },
       {
-        label: "เบิกจ่ายเดือนนี้",
-        value: formatNumber(issuedThisMonth),
+        label: "เบิกจ่ายในช่วงนี้",
+        value: formatNumber(issuedInRange),
         unit: "หน่วย",
-        helper: `${transactions.filter((item) => item.type === "out").length} รายการ`,
+        helper: `${filteredTransactionsByDate.filter((item) => item.type === "out").length} รายการ`,
         icon: ArrowUpFromLine,
         tone: "violet" as const,
       },
@@ -373,14 +409,7 @@ export default function HomePage() {
         tone: "sky" as const,
       },
     ];
-  }, [inventory, transactions]);
-
-  const recentActivities = useMemo(() => {
-    return transactions
-      .slice()
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 3);
-  }, [transactions]);
+  }, [filteredOverviewInventory, filteredTransactionsByDate]);
 
   const receiveTransactions = useMemo(() => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
@@ -449,12 +478,31 @@ export default function HomePage() {
       .sort((a, b) => a.name.localeCompare(b.name, "th"));
   }, [form.productImportType, inventory]);
 
+  const issuePanelInventoryItems = useMemo(() => {
+    return inventory
+      .filter((item) => {
+        if (item.balance <= 0) {
+          return false;
+        }
+
+        if (!issuePanelImportType) {
+          return false;
+        }
+
+        return item.productImportType === issuePanelImportType;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "th"));
+  }, [inventory, issuePanelImportType]);
+
   const selectedIssueEntries = useMemo(
     () =>
-      issueListItems
-        .filter((item) => issueSelections[item.key])
-        .map((item) => ({ item, quantity: issueSelections[item.key] })),
-    [issueListItems, issueSelections]
+      Object.entries(issueSelections)
+        .map(([itemKey, quantity]) => {
+          const item = inventory.find((candidate) => candidate.key === itemKey);
+          return item ? { item, quantity } : null;
+        })
+        .filter((entry): entry is { item: InventoryItem; quantity: string } => Boolean(entry)),
+    [inventory, issueSelections]
   );
 
   const issueOverview = useMemo(() => {
@@ -964,19 +1012,51 @@ export default function HomePage() {
     setForm(createEmptyForm());
   }
 
-  function handleSeedData() {
-    if (
-      transactions.length > 0 &&
-      !window.confirm("มีข้อมูลอยู่แล้ว ต้องการเติมข้อมูลตัวอย่างเพิ่มใช่หรือไม่")
-    ) {
+  function closeMobileMenu() {
+    setIsMobileMenuOpen(false);
+  }
+
+  function openReceiveDialog() {
+    setForm({
+      ...createEmptyForm(),
+      productImportType: selectedImportType,
+      type: "in",
+      date: getLocalDateValue(),
+    });
+    setIsReceivePanelOpen(true);
+  }
+
+  function closeReceiveDialog() {
+    setIsReceivePanelOpen(false);
+    setForm(createEmptyForm());
+  }
+
+  function handleReceiveExport() {
+    const rows = receiveTransactions.map((item, index) => ({
+      "เลขที่รับเข้า": `IN-${item.date.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`,
+      "วันที่รับเข้า": formatDate(item.date),
+      "เวลา": new Date(item.createdAt).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      "ผู้จำหน่าย": item.note || "CPAC Precast",
+      "รายการสินค้า": item.name,
+      "รหัสสินค้า": item.sku || "-",
+      "จำนวน": item.quantity,
+      "หน่วย": item.unit,
+      "มูลค่ารวม": item.quantity * (item.costPrice || item.price || 0),
+      "สถานะ": "เสร็จสิ้น",
+    }));
+
+    if (rows.length === 0) {
+      window.alert("ยังไม่มีรายการรับเข้าสินค้าที่พร้อมส่งออก");
       return;
     }
 
-    setTransactions((current) => [...createSampleTransactions(), ...current]);
-  }
-
-  function closeMobileMenu() {
-    setIsMobileMenuOpen(false);
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Receive");
+    XLSX.writeFile(workbook, `receive-transactions-${getLocalDateValue()}.xlsx`);
   }
 
   function openCreateDialog(productImportType?: ProductImportType) {
@@ -1027,10 +1107,13 @@ export default function HomePage() {
     closeMobileMenu();
     if (item) {
       setSelectedImportType(item.productImportType);
+      setIssuePanelImportType(item.productImportType);
       setIssueSelections((current) => ({
         ...current,
         [item.key]: current[item.key] || "1",
       }));
+    } else {
+      setIssuePanelImportType("");
     }
     setIsIssuePanelOpen(true);
   }
@@ -1061,10 +1144,10 @@ export default function HomePage() {
     });
   }
 
-  function handleSelectedIssueBatch() {
+  async function handleSelectedIssueBatch() {
     const selectedEntries = Object.entries(issueSelections)
       .map(([itemKey, quantityValue]) => {
-        const item = issueListItems.find((candidate) => candidate.key === itemKey);
+        const item = inventory.find((candidate) => candidate.key === itemKey);
         return { item, quantity: Number(quantityValue) };
       })
       .filter((entry): entry is { item: InventoryItem; quantity: number } => Boolean(entry.item));
@@ -1081,6 +1164,16 @@ export default function HomePage() {
 
     if (!issueApprover.trim()) {
       window.alert("กรอกชื่อผู้อนุมัติก่อนบันทึก");
+      return;
+    }
+
+    if (!issueApproverEmail.trim()) {
+      window.alert("กรอกอีเมลผู้อนุมัติก่อนบันทึก");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(issueApproverEmail.trim())) {
+      window.alert("กรอกอีเมลผู้อนุมัติให้ถูกต้อง");
       return;
     }
 
@@ -1126,14 +1219,53 @@ export default function HomePage() {
       createdAt: now + index,
     }));
 
+    setIsSendingIssueEmail(true);
+
+    try {
+      const response = await fetch("/api/issue-request-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          approverEmail: issueApproverEmail.trim(),
+          approverName: issueApprover.trim(),
+          issueDate,
+          issueKey: batchIssueKey,
+          items: selectedEntries.map(({ item, quantity }) => ({
+            name: item.name,
+            productImportTypeLabel: getProductImportTypeLabel(item.productImportType),
+            quantity,
+            sku: item.sku,
+            unit: item.unit,
+          })),
+          note: issueNote.trim(),
+          requester: issueRequester.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        window.alert(
+          `บันทึกคำขอเบิกแล้ว แต่ส่งอีเมลไม่สำเร็จ${data?.error ? `: ${data.error}` : ""}`
+        );
+      }
+    } catch {
+      window.alert("บันทึกคำขอเบิกแล้ว แต่เชื่อมต่อระบบส่งอีเมลไม่สำเร็จ");
+    } finally {
+      setIsSendingIssueEmail(false);
+    }
+
     setPendingIssueBatch(nextTransactions);
     setPendingIssueTransaction(null);
     setIsPendingIssueApproved(false);
     setApprovedDate("");
     setIsApprovalDetailOpen(false);
     setIssueSelections({});
+    setIssuePanelImportType("");
     setIssueRequester("");
     setIssueApprover("");
+    setIssueApproverEmail("");
     setIssueNote("");
     setIsIssuePanelOpen(false);
   }
@@ -1159,8 +1291,10 @@ export default function HomePage() {
     if (sectionId === "issue") {
       setIsIssuePanelOpen(false);
       setIssueSelections({});
+      setIssuePanelImportType("");
       setIssueRequester("");
       setIssueApprover("");
+      setIssueApproverEmail("");
       setIssueNote("");
     }
     setActiveSection(sectionId);
@@ -1251,23 +1385,6 @@ export default function HomePage() {
         })}
       </nav>
 
-      <div className="dashboard-sidebar-status">
-        <div className="flex items-center gap-2">
-          <Warehouse size={18} />
-          <div>
-            <p className="text-[12px] font-bold text-[var(--text-strong)]">คลังสินค้าตึก4</p>
-          </div>
-        </div>
-        <div className="mt-4 border-t border-slate-200 pt-3">
-          <p className="text-[11px] text-[var(--text-muted)]">
-            ข้อมูล ณ {formatDate(getLocalDateValue())}
-          </p>
-          <button type="button" className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-sky-700">
-            <Clock3 size={14} />
-            รีเฟรชข้อมูล
-          </button>
-        </div>
-      </div>
     </>
   );
 
@@ -1314,13 +1431,32 @@ export default function HomePage() {
         <div className="dashboard-content">
           <>
             {activeSection === "import" ? (
-              <section id="import" className="overview-page">
-                <div className="overview-header">
-                  <div>
-                    <h2>ภาพรวมสต๊อกสินค้า</h2>
-                    <p>ภาพรวมสินค้าแยกตามหมวดหมู่และสถานะสต๊อก</p>
-                  </div>
-                </div>
+	              <section id="import" className="overview-page">
+	                <div className="overview-header">
+	                  <div>
+	                    <h2>ภาพรวมสต๊อกสินค้า</h2>
+	                    <p>ภาพรวมสินค้าแยกตามหมวดหมู่และสถานะสต๊อก</p>
+	                  </div>
+                    <div className="overview-actions">
+                      <label className="overview-date-input">
+                        <input
+                          type="date"
+                          value={overviewDateFrom}
+                          max={overviewDateTo}
+                          onChange={(event) => setOverviewDateFrom(event.target.value)}
+                        />
+                      </label>
+                      <span className="overview-date-separator">-</span>
+                      <label className="overview-date-input">
+                        <input
+                          type="date"
+                          value={overviewDateTo}
+                          min={overviewDateFrom}
+                          onChange={(event) => setOverviewDateTo(event.target.value)}
+                        />
+                      </label>
+                    </div>
+	                </div>
 
                 <section className="overview-kpi-grid">
                   {overviewStats.map((stat) => {
@@ -1353,8 +1489,8 @@ export default function HomePage() {
                           placeholder="ค้นหารหัสสินค้า หรือ รายการสินค้า..."
                         />
                       </label>
-                      <div className="overview-table-actions">
-                        <details className="overview-filter-menu">
+	                      <div className="overview-table-actions">
+	                        <details className="overview-filter-menu">
                           <summary>
                             <Filter size={15} />
                             <span>ตัวกรอง: {currentOverviewFilterLabel}</span>
@@ -1375,14 +1511,9 @@ export default function HomePage() {
                               </button>
                             ))}
                           </div>
-                        </details>
-                        <Button type="button" variant="secondary" size="sm">
-                          <Download size={15} />
-                          ส่งออก
-                          <ChevronDown size={14} />
-                        </Button>
-                      </div>
-                    </div>
+	                        </details>
+	                      </div>
+	                    </div>
 
                     <div className="overview-table-wrap">
                       <table className="overview-table">
@@ -1468,36 +1599,8 @@ export default function HomePage() {
                     </div>
                   </section>
 
-                  <aside className="activity-panel">
-                    <div className="activity-panel-header">
-                      <h3>สินค้าเคลื่อนไหวล่าสุด</h3>
-                      <button type="button">ดูทั้งหมด</button>
-                    </div>
-                    <div className="activity-list">
-                      {recentActivities.length > 0 ? (
-                        recentActivities.map((item) => (
-                          <article key={`activity-${item.id}`} className="activity-item">
-                            <div className={`activity-icon ${item.type === "in" ? "activity-icon-in" : "activity-icon-out"}`}>
-                              {item.type === "in" ? <ArrowDownToLine size={18} /> : <ArrowUpFromLine size={18} />}
-                            </div>
-                            <div>
-                              <strong>{item.type === "in" ? "รับเข้าสินค้า" : "เบิกจ่ายสินค้า"}</strong>
-                              <p>{item.name}</p>
-                              <span>จำนวน {formatNumber(item.quantity)} {item.unit}</span>
-                              <small>โดย ระบบคลังสินค้า · {formatDate(item.date)}</small>
-                            </div>
-                          </article>
-                        ))
-                      ) : (
-                        <div className="empty-state">ยังไม่มีรายการเคลื่อนไหว</div>
-                      )}
-                    </div>
-                    <Button type="button" variant="secondary" className="w-full">
-                      ดูรายการใกล้หมดทั้งหมด
-                    </Button>
-                  </aside>
-                </div>
-              </section>
+	                </div>
+	              </section>
             ) : null}
 
             {activeSection === "expiring" && selectedProductImportGroup ? (
@@ -1537,10 +1640,7 @@ export default function HomePage() {
             ) : null}
 
             {activeSection === "receive" ? (
-              <section
-                id="receive"
-                className={`receive-page ${isReceivePanelOpen ? "receive-page-panel-open" : ""}`}
-              >
+              <section id="receive" className="receive-page">
                 <div className="receive-main">
                   <div className="receive-header">
                     <div>
@@ -1550,22 +1650,10 @@ export default function HomePage() {
                     <div className="receive-header-actions">
                       <Button
                         type="button"
-                        onClick={() => {
-                          setForm({
-                            ...createEmptyForm(),
-                            productImportType: selectedImportType,
-                            type: "in",
-                            date: getLocalDateValue(),
-                          });
-                          setIsReceivePanelOpen(true);
-                        }}
+                        onClick={openReceiveDialog}
                       >
                         <Plus size={17} />
                         บันทึกรับเข้า
-                      </Button>
-                      <Button type="button" variant="secondary">
-                        <ScanLine size={16} />
-                        สแกนรหัส
                       </Button>
                     </div>
                   </div>
@@ -1604,8 +1692,13 @@ export default function HomePage() {
                             ))}
                           </div>
                         </details>
-                        <Button type="button" variant="secondary" size="sm">
-                          <Download size={15} />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleReceiveExport}
+                        >
+                          <FileText size={15} />
                           ส่งออก
                           <ChevronDown size={14} />
                         </Button>
@@ -1683,26 +1776,27 @@ export default function HomePage() {
                   </section>
                 </div>
 
-                {isReceivePanelOpen ? (
-                    <aside className="receive-panel">
-                  <div className="receive-panel-header">
-                    <div>
-                      <h3>บันทึกรับเข้า</h3>
-                      <p>ข้อมูลรับเข้า</p>
-                    </div>
-                    <button
-                      type="button"
-                      aria-label="ปิดฟอร์ม"
-                      onClick={() => {
-                        setIsReceivePanelOpen(false);
-                        setForm(createEmptyForm());
-                      }}
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
+              </section>
+            ) : null}
 
-                  <form className="receive-form" onSubmit={handleSubmit}>
+            <Dialog
+              open={isReceivePanelOpen}
+              onOpenChange={(open) => {
+                if (!open) {
+                  closeReceiveDialog();
+                  return;
+                }
+
+                setIsReceivePanelOpen(true);
+              }}
+            >
+              <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[720px]">
+                <DialogHeader>
+                  <DialogTitle>บันทึกรับเข้า</DialogTitle>
+                  <DialogDescription>เพิ่มรายการรับเข้าโดยไม่บังพื้นที่ตารางหลัก</DialogDescription>
+                </DialogHeader>
+
+                <form className="receive-form" onSubmit={handleSubmit}>
                     <label>
                       <span>หมวดหลัก *</span>
                       <select
@@ -1771,9 +1865,9 @@ export default function HomePage() {
                       <label>
                         <span>ล็อตผลิต / วันที่ผลิต</span>
                         <input
+                          type="date"
                           value={form.issueKey}
                           onChange={(event) => updateForm("issueKey", event.target.value)}
-                          placeholder="LOT-240617-01"
                         />
                       </label>
                       <label>
@@ -1864,20 +1958,15 @@ export default function HomePage() {
                       <Button
                         type="button"
                         variant="secondary"
-                        onClick={() => {
-                          setIsReceivePanelOpen(false);
-                          setForm(createEmptyForm());
-                        }}
+                        onClick={closeReceiveDialog}
                       >
                         ยกเลิก
                       </Button>
                       <Button type="submit">บันทึกรายการ</Button>
                     </div>
-                  </form>
-                    </aside>
-                ) : null}
-              </section>
-            ) : null}
+                </form>
+              </DialogContent>
+            </Dialog>
 
             {activeSection === "issue" ? (
               <section
@@ -1896,20 +1985,16 @@ export default function HomePage() {
                       />
                     </label>
                     <div className="issue-toolbar-actions">
-                      <label className="issue-type-filter">
-                        <span>ตัวกรองประเภทสินค้า</span>
-                        <select
-                          value={issueImportTypeFilter}
-                          onChange={(event) => {
-                            setIssueImportTypeFilter(event.target.value as OverviewFilter);
-                            setIssueSelections({});
-                          }}
-                        >
-                          <option value="all">ทั้งหมด</option>
-                          <option value="resale">ซื้อมาขายไป</option>
-                          <option value="stable">สินค้า stable</option>
-                        </select>
-                      </label>
+                      <IssueTypeCombobox
+                        open={isIssueTypeFilterOpen}
+                        setOpen={setIsIssueTypeFilterOpen}
+                        value={issueImportTypeFilter}
+                        options={issueFilterOptions}
+                        onValueChange={(value) => {
+                          setIssueImportTypeFilter(value as OverviewFilter);
+                          setIssueSelections({});
+                        }}
+                      />
                       <Button
                         type="button"
                         variant="secondary"
@@ -1918,6 +2003,7 @@ export default function HomePage() {
                           setIssueImportTypeFilter("all");
                           setSearchTerm("");
                           setIssueSelections({});
+                          setIssuePanelImportType("");
                         }}
                       >
                         <Filter size={15} />
@@ -2070,6 +2156,7 @@ export default function HomePage() {
                         aria-label="ปิดฟอร์ม"
                         onClick={() => {
                           setIsIssuePanelOpen(false);
+                          setIssuePanelImportType("");
                         }}
                       >
                         <X size={18} />
@@ -2078,9 +2165,24 @@ export default function HomePage() {
 
                     <div className="issue-quick-form issue-quick-form-panel">
                       <label>
+                        <span>ประเภทสินค้า *</span>
+                        <select
+                          value={issuePanelImportType}
+                          onChange={(event) => {
+                            setIssuePanelImportType(event.target.value as ProductImportType | "");
+                            setIssueSelections({});
+                          }}
+                        >
+                          <option value="">เลือกประเภทสินค้า</option>
+                          <option value="resale">ซื้อมาขายไป</option>
+                          <option value="stable">สินค้า stable</option>
+                        </select>
+                      </label>
+                      <label>
                         <span>เลือกสินค้าเข้ารายการ</span>
                         <select
                           value=""
+                          disabled={!issuePanelImportType}
                           onChange={(event) => {
                             if (!event.target.value) {
                               return;
@@ -2089,8 +2191,12 @@ export default function HomePage() {
                             toggleIssueSelection(event.target.value, true);
                           }}
                         >
-                          <option value="">เลือกสินค้า</option>
-                          {issueListItems.map((item) => (
+                          <option value="">
+                            {issuePanelImportType
+                              ? "เลือกรายการสินค้า"
+                              : "เลือกประเภทสินค้าก่อน"}
+                          </option>
+                          {issuePanelInventoryItems.map((item) => (
                             <option key={`issue-panel-option-${item.key}`} value={item.key}>
                               {item.name} {item.sku ? `(${item.sku})` : ""} - คงเหลือ{" "}
                               {formatNumber(item.balance)} {item.unit}
@@ -2112,6 +2218,15 @@ export default function HomePage() {
                           value={issueApprover}
                           onChange={(event) => setIssueApprover(event.target.value)}
                           placeholder="ระบุชื่อผู้อนุมัติ"
+                        />
+                      </label>
+                      <label>
+                        <span>อีเมลผู้อนุมัติ *</span>
+                        <input
+                          type="email"
+                          value={issueApproverEmail}
+                          onChange={(event) => setIssueApproverEmail(event.target.value)}
+                          placeholder="เช่น approver@company.com"
                         />
                       </label>
                       <div className="issue-selection-list">
@@ -2183,15 +2298,21 @@ export default function HomePage() {
                           onClick={() => {
                             setIsIssuePanelOpen(false);
                             setIssueSelections({});
+                            setIssuePanelImportType("");
                             setIssueRequester("");
                             setIssueApprover("");
+                            setIssueApproverEmail("");
                             setIssueNote("");
                           }}
                         >
                           ยกเลิก
                         </Button>
-                        <Button type="button" onClick={handleSelectedIssueBatch}>
-                          บันทึกเบิกสินค้า
+                        <Button
+                          type="button"
+                          onClick={handleSelectedIssueBatch}
+                          disabled={isSendingIssueEmail}
+                        >
+                          {isSendingIssueEmail ? "กำลังส่งอีเมล..." : "บันทึกเบิกสินค้า"}
                         </Button>
                       </div>
                     </div>
@@ -2535,9 +2656,6 @@ export default function HomePage() {
                     </p>
                   </div>
                   <div className="dashboard-header-actions">
-                    <button type="button" onClick={handleSeedData} className="secondary-button">
-                      โหลดข้อมูลตัวอย่าง
-                    </button>
                     <button type="button" onClick={handleReset} className="danger-button">
                       ล้างข้อมูลทั้งหมด
                     </button>

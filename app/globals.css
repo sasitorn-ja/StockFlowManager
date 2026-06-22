@@ -64,14 +64,14 @@ textarea {
   .dashboard-sidebar {
     background: var(--surface);
     border-right: 1px solid #edf1f5;
-    @apply fixed bottom-0 left-0 top-0 z-30 hidden w-[236px] flex-col overflow-y-auto lg:flex;
+    @apply fixed bottom-0 left-0 top-0 z-30 hidden w-[208px] flex-col overflow-y-auto lg:flex;
   }
 
   .dashboard-sidebar-mobile {
     background: var(--surface);
     border-right: 1px solid var(--border-soft);
     box-shadow: 0 16px 36px rgba(2, 6, 23, 0.12);
-    @apply fixed inset-y-0 left-0 z-40 flex w-[236px] max-w-[85vw] flex-col overflow-y-auto transition-transform duration-200 lg:hidden;
+    @apply fixed inset-y-0 left-0 z-40 flex w-[208px] max-w-[85vw] flex-col overflow-y-auto transition-transform duration-200 lg:hidden;
   }
 
   .dashboard-overlay {
@@ -80,7 +80,7 @@ textarea {
   }
 
   .dashboard-main {
-    @apply min-h-screen lg:pl-[236px];
+    @apply min-h-screen lg:pl-[208px];
   }
 
   .dashboard-header {
@@ -134,7 +134,7 @@ textarea {
 
   .dashboard-sidebar-brand {
     border-bottom: 1px solid #edf1f5;
-    @apply flex h-[76px] items-center gap-3 px-5;
+    @apply flex h-[76px] items-center gap-3 px-4;
   }
 
   .brand-mark {
@@ -144,7 +144,7 @@ textarea {
 
   .brand-title {
     color: #12406d;
-    @apply text-2xl font-extrabold leading-6;
+    @apply text-xl font-extrabold leading-6;
   }
 
   .brand-subtitle {
@@ -153,13 +153,7 @@ textarea {
   }
 
   .dashboard-nav {
-    @apply space-y-2 px-3 py-4;
-  }
-
-  .dashboard-sidebar-status {
-    background: #ffffff;
-    border: 1px solid var(--border-soft);
-    @apply mx-4 mb-4 mt-auto rounded-lg p-4;
+    @apply space-y-2 px-2 py-4;
   }
 
   .dashboard-card {
@@ -223,7 +217,7 @@ textarea {
 
   .dashboard-nav-item {
     color: #475569;
-    @apply relative flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold outline-none transition-colors;
+    @apply relative flex h-10 w-full items-center gap-2.5 rounded-lg px-3 text-[12px] font-semibold outline-none transition-colors;
   }
 
   .dashboard-nav-item:hover,
@@ -267,7 +261,22 @@ textarea {
   }
 
   .overview-actions {
-    @apply flex flex-wrap gap-3;
+    @apply flex flex-wrap items-center gap-3;
+  }
+
+  .overview-date-input {
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-soft);
+    @apply flex h-11 min-w-[178px] items-center rounded-[20px] bg-white px-5;
+  }
+
+  .overview-date-input input {
+    @apply h-full w-full bg-transparent text-base font-semibold text-[var(--text-strong)] outline-none;
+  }
+
+  .overview-date-separator {
+    color: var(--text-muted);
+    @apply text-xl font-semibold;
   }
 
   .overview-kpi-grid {
@@ -322,11 +331,10 @@ textarea {
   }
 
   .overview-grid {
-    @apply grid gap-4 xl:grid-cols-[minmax(0,1fr)_264px];
+    @apply grid gap-4;
   }
 
-  .overview-table-card,
-  .activity-panel {
+  .overview-table-card {
     background: #ffffff;
     border: 1px solid var(--border-soft);
     box-shadow: var(--shadow-soft);
@@ -391,12 +399,12 @@ textarea {
   }
 
   .overview-table-wrap {
-    @apply overflow-x-auto;
+    @apply overflow-x-hidden;
   }
 
   .overview-table {
     border-collapse: collapse;
-    @apply w-full min-w-[880px] table-fixed;
+    @apply w-full table-auto;
   }
 
   .overview-table thead tr {
@@ -406,7 +414,7 @@ textarea {
   .overview-table th,
   .overview-table td {
     border-bottom: 1px solid var(--table-border);
-    @apply px-4 py-3 text-left align-middle text-[12px];
+    @apply px-3 py-3 text-left align-middle text-[12px];
   }
 
   .overview-table th {
@@ -469,63 +477,6 @@ textarea {
   .overview-pagination button.active {
     background: #0b63bd;
     color: #ffffff;
-  }
-
-  .activity-panel {
-    @apply flex flex-col gap-4 p-4;
-  }
-
-  .activity-panel-header {
-    @apply flex items-center justify-between gap-2;
-  }
-
-  .activity-panel-header h3 {
-    color: var(--text-strong);
-    @apply text-base font-bold;
-  }
-
-  .activity-panel-header button {
-    color: #0b63bd;
-    @apply text-[12px] font-bold;
-  }
-
-  .activity-list {
-    @apply grid gap-4;
-  }
-
-  .activity-item {
-    border-bottom: 1px solid var(--border-soft);
-    @apply grid grid-cols-[36px_1fr] gap-3 pb-4;
-  }
-
-  .activity-icon {
-    @apply flex h-9 w-9 items-center justify-center rounded-full;
-  }
-
-  .activity-icon-in {
-    background: #ecfdf5;
-    color: #059669;
-  }
-
-  .activity-icon-out {
-    background: #f5f3ff;
-    color: #7c3aed;
-  }
-
-  .activity-item strong {
-    color: var(--text-strong);
-    @apply block text-sm font-bold;
-  }
-
-  .activity-item p {
-    color: var(--text-body);
-    @apply mt-1 text-[12px] leading-5;
-  }
-
-  .activity-item span,
-  .activity-item small {
-    color: var(--text-muted);
-    @apply block text-[11px] leading-5;
   }
 
   .receive-page {
@@ -819,24 +770,27 @@ textarea {
   }
 
   .issue-type-filter {
-    @apply flex min-w-[220px] flex-col gap-1 sm:min-w-[190px];
+    @apply flex min-w-[220px] flex-col gap-1 sm:min-w-[220px];
   }
 
   .issue-type-filter span {
     color: var(--text-body);
-    @apply text-[11px] font-bold sm:sr-only;
+    @apply text-[11px] font-bold;
   }
 
-  .issue-type-filter select {
+  .issue-type-filter-button {
     background: #ffffff;
-    border: 1px solid var(--border);
+    border-color: var(--border);
+    box-shadow: var(--shadow-soft);
     color: var(--text-body);
-    @apply h-9 w-full rounded-md px-3 text-[13px] font-semibold outline-none transition-colors;
+    @apply h-10 w-full justify-between rounded-xl px-3 text-[13px] font-semibold;
   }
 
-  .issue-type-filter select:focus {
-    border-color: #60a5fa;
-    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
+  .issue-type-filter-button:hover,
+  .issue-type-filter-button:focus-visible {
+    background: #ffffff;
+    border-color: #bfdbfe;
+    color: var(--text-strong);
   }
 
   .issue-table {
