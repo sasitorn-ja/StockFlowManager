@@ -7,6 +7,7 @@ export type Transaction = {
   name: string;
   sku: string;
   category: string;
+  imageDataUrl?: string;
   productImportType: ProductImportType;
   unit: string;
   type: TransactionType;
@@ -28,6 +29,7 @@ export type InventoryItem = {
   name: string;
   sku: string;
   category: string;
+  imageDataUrl?: string;
   productImportType: ProductImportType;
   unit: string;
   totalIn: number;
@@ -43,6 +45,7 @@ export type FormState = {
   name: string;
   sku: string;
   category: string;
+  imageDataUrl: string;
   productImportType: ProductImportType;
   unit: string;
   type: TransactionType;

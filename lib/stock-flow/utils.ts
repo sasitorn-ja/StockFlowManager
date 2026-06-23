@@ -69,6 +69,7 @@ export function createEmptyForm(): FormState {
     name: "",
     sku: "",
     category: "",
+    imageDataUrl: "",
     productImportType: "resale",
     unit: "",
     type: "in",
@@ -100,6 +101,7 @@ export function normalizeTransactions(value: unknown): Transaction[] {
         name: toStringValue(item.name).trim(),
         sku: toStringValue(item.sku).trim(),
         category: toStringValue(item.category).trim() || "-",
+        imageDataUrl: toStringValue(item.imageDataUrl).trim(),
         productImportType: toProductImportType(item.productImportType),
         unit: toStringValue(item.unit).trim(),
         type: toTransactionType(item.type),
@@ -127,6 +129,7 @@ export function buildInventoryMap(transactions: Transaction[]) {
       name: transaction.name,
       sku: transaction.sku,
       category: transaction.category,
+      imageDataUrl: transaction.imageDataUrl,
       productImportType: transaction.productImportType ?? "resale",
       unit: transaction.unit,
       totalIn: 0,
@@ -148,6 +151,10 @@ export function buildInventoryMap(transactions: Transaction[]) {
 
     if (transaction.price > 0) {
       entry.price = transaction.price;
+    }
+
+    if (transaction.imageDataUrl) {
+      entry.imageDataUrl = transaction.imageDataUrl;
     }
 
     if ((transaction.costPrice ?? 0) > 0) {

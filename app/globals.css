@@ -188,6 +188,14 @@ textarea {
     @apply flex flex-col gap-3 py-2 pb-4 md:flex-row md:items-start md:justify-between;
   }
 
+  .history-header-left {
+    @apply flex flex-col gap-3;
+  }
+
+  .history-header-approve {
+    @apply flex justify-start;
+  }
+
   .dashboard-category-switch {
     background: #f0f9ff;
     border: 1px solid #bae6fd;
@@ -589,57 +597,59 @@ textarea {
     box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
   }
 
+  .receive-form input[type="file"] {
+    @apply h-auto p-2;
+  }
+
   .cost-currency-control {
-    @apply grid grid-cols-[minmax(0,1fr)_132px] gap-2;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    @apply grid h-11 grid-cols-[minmax(0,1fr)_140px] items-center overflow-hidden rounded-md;
   }
 
   .cost-currency-control input,
   .cost-currency-control select {
-    @apply min-w-0;
+    box-shadow: none;
+    @apply h-full min-w-0 border-0 bg-transparent;
+  }
+
+  .cost-currency-control input:focus,
+  .cost-currency-control select:focus {
+    box-shadow: none;
+  }
+
+  .cost-currency-control select {
+    border-left: 1px solid var(--border-soft);
+    @apply rounded-none px-4;
   }
 
   .receive-form-grid {
     @apply grid gap-3 sm:grid-cols-2;
   }
 
-  .receive-balance-summary {
-    border-top: 1px solid var(--border-soft);
-    @apply mt-2 pt-4;
-  }
-
-  .receive-balance-summary h4 {
-    color: var(--text-strong);
-    @apply mb-3 text-sm font-extrabold;
-  }
-
-  .receive-balance-summary > div {
+  .receive-image-preview {
     border: 1px solid var(--border-soft);
-    @apply grid overflow-hidden rounded-lg sm:grid-cols-3;
-  }
-
-  .receive-balance-summary article {
     background: #f8fafc;
-    border-right: 1px solid var(--border-soft);
-    @apply grid min-h-[86px] place-items-center gap-1 p-3 text-center last:border-r-0;
+    @apply overflow-hidden rounded-lg p-2;
   }
 
-  .receive-balance-summary article:last-child {
-    background: #eff6ff;
+  .receive-image-preview img {
+    @apply h-40 w-full rounded-md object-cover;
   }
 
-  .receive-balance-summary span {
-    color: var(--text-muted);
-    @apply text-[11px] font-bold;
+  .receive-image-trigger {
+    border: 1px solid var(--border-soft);
+    background: #ffffff;
+    color: var(--ink);
+    @apply inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition hover:bg-slate-50;
   }
 
-  .receive-balance-summary strong {
-    color: var(--text-strong);
-    @apply text-lg font-extrabold leading-6;
+  .receive-dialog-image {
+    @apply overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2;
   }
 
-  .receive-balance-summary small {
-    color: var(--text-muted);
-    @apply text-[11px] font-semibold;
+  .receive-dialog-image img {
+    @apply max-h-[70vh] w-full rounded-lg object-contain;
   }
 
   .receive-panel-actions {
@@ -766,11 +776,11 @@ textarea {
   }
 
   .issue-toolbar-actions {
-    @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end;
+    @apply flex flex-col gap-2 md:flex-row md:flex-nowrap md:items-end md:justify-end;
   }
 
   .issue-type-filter {
-    @apply flex min-w-[220px] flex-col gap-1 sm:min-w-[220px];
+    @apply flex min-w-0 flex-col gap-1 md:w-[320px] md:shrink-0;
   }
 
   .issue-type-filter span {
@@ -937,6 +947,14 @@ textarea {
     @apply flex items-center gap-2;
   }
 
+  .approval-footer {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .approval-right-actions {
+    @apply flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row sm:justify-end;
+  }
+
   .approval-status-cell {
     @apply flex items-center gap-2;
   }
@@ -1043,40 +1061,58 @@ textarea {
   .history-group-row td {
     background: #ffffff;
     border-top: 0;
-    border-bottom: 0;
+    border-bottom: 1px solid var(--table-border);
   }
 
-  .history-group-row td:first-child {
-    border-left: 2px solid #93c5fd;
-  }
-
-  .history-group-row td:last-child {
-    border-right: 2px solid #93c5fd;
-  }
-
-  .history-group-start td {
-    border-top: 2px solid #93c5fd;
-    @apply pt-4;
-  }
-
-  .history-group-end td {
-    border-bottom: 2px solid #93c5fd;
-    @apply pb-4;
-  }
-
-  .history-group-start:not(.history-group-end) td {
-    background: #f8fbff;
-  }
-
-  .history-group-row:not(.history-group-start):not(.history-group-end) td,
-  .history-group-end:not(.history-group-start) td {
-    background: #f8fbff;
+  .history-group-start td,
+  .history-group-end td,
+  .history-group-row td {
+    @apply pt-3 pb-3;
   }
 
   .history-group-label {
-    background: #eff6ff;
-    color: #0f5fb4;
-    @apply mt-1 inline-flex rounded-md px-2 py-1 text-[11px] font-bold;
+    color: var(--text-muted);
+    @apply mt-1 inline-flex text-[11px] font-semibold;
+  }
+
+  .history-table-section {
+    border-top: 1px solid var(--border-soft);
+    @apply pt-5;
+  }
+
+  .history-table-header {
+    @apply mb-3;
+  }
+
+  .data-table {
+    border-collapse: collapse;
+    @apply w-full min-w-[720px] table-auto;
+  }
+
+  .data-table thead tr {
+    background: #f8fafc;
+  }
+
+  .data-table th,
+  .data-table td {
+    border-right: 1px solid var(--table-border);
+    border-bottom: 1px solid var(--table-border);
+    @apply px-3 py-3 text-left align-middle text-[12px];
+  }
+
+  .data-table th:first-child,
+  .data-table td:first-child {
+    border-left: 1px solid var(--table-border);
+  }
+
+  .data-table th {
+    color: var(--text-muted);
+    @apply font-bold;
+  }
+
+  .data-table td {
+    color: var(--text-body);
+    @apply leading-5;
   }
 
   .empty-state {
