@@ -1,4 +1,11 @@
-import type { StatCard } from "@/types/stock-flow";
+export type StatCard = {
+  label: string;
+  value: string;
+  unit?: string;
+  helper?: string;
+  tone?: "sky" | "emerald" | "amber" | "violet";
+  icon?: any;
+};
 
 type StatsGridProps = {
   stats: StatCard[];
