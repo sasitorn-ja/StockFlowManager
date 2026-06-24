@@ -1,12 +1,12 @@
 import { EXPIRY_WARNING_DAYS } from "@/lib/stock-flow/constants";
 import type {
   CostCurrency,
-  FormState,
   InventoryItem,
   ProductImportType,
   Transaction,
   TransactionType,
 } from "@/types/stock-flow";
+import type { FormState } from "@/app/(dashboard)/receive/types";
 
 const productImportTypes = new Set<ProductImportType>(["resale", "stable"]);
 const transactionTypes = new Set<TransactionType>(["in", "out"]);
