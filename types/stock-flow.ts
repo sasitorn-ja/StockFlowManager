@@ -41,29 +41,4 @@ export type InventoryItem = {
   nearestExpiryDate: string;
 };
 
-export type FormState = {
-  name: string;
-  sku: string;
-  category: string;
-  imageDataUrl: string;
-  productImportType: ProductImportType;
-  unit: string;
-  type: TransactionType;
-  quantity: string;
-  price: string;
-  costPrice: string;
-  costCurrency: CostCurrency;
-  date: string;
-  expiryDate: string;
-  issueKey: string;
-  requester: string;
-  note: string;
-};
 
-export type StatCard = {
-  label: string;
-  value: string;
-  unit?: string;
-  helper?: string;
-  tone?: "sky" | "emerald" | "amber" | "violet";
-};

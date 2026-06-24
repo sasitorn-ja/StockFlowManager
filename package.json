@@ -12,6 +12,7 @@
     "node": ">=20.9.0"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@radix-ui/react-dialog": "^1.1.16",
     "@radix-ui/react-popover": "^1.1.17",
     "class-variance-authority": "^0.7.1",
