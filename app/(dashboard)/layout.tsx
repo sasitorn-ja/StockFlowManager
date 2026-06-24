@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { TransactionProvider } from "./TransactionContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -127,7 +128,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </header>
 
-        <div className="dashboard-content">{children}</div>
+        <div className="dashboard-content">
+            <TransactionProvider>{children}</TransactionProvider>
+          </div>
       </div>
     </main>
   );

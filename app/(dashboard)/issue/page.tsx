@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useTransactions } from "../TransactionContext";
 import { useRouter } from "next/navigation";
 import { Search, Filter, PackageMinus, X, Trash2, Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,6 @@ import {
   createTransactionId,
   getLocalDateValue,
   getProductImportTypeLabel,
-  normalizeTransactions,
   formatDate,
   formatNumber,
 } from "@/lib/stock-flow/utils";
@@ -119,7 +119,7 @@ const filterOptions: { value: OverviewFilter; label: string }[] = [
 
 export default function IssuePage() {
   const router = useRouter();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions } = useTransactions();
   const [searchTerm, setSearchTerm] = useState("");
   const [issueImportTypeFilter, setIssueImportTypeFilter] = useState<OverviewFilter>("all");
   const [issueSelections, setIssueSelections] = useState<Record<string, string>>({});
@@ -133,21 +133,7 @@ export default function IssuePage() {
   const [isIssueTypeFilterOpen, setIsIssueTypeFilterOpen] = useState(false);
   const [isIssuePanelTypeOpen, setIsIssuePanelTypeOpen] = useState(false);
 
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
-
   useEffect(() => {
-    fetchTransactions();
-
     const cachedDraft = localStorage.getItem("pending_draft");
     if (cachedDraft) {
       try {

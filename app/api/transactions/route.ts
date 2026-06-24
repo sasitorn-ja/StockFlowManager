@@ -3,8 +3,10 @@ import { sql } from "@/lib/db";
 import { createSampleTransactions } from "@/lib/stock-flow/sample-data";
 import { buildItemKey } from "@/lib/stock-flow/utils";
 
-// Helper function to create the transactions table if it doesn't exist
+let tableChecked = false;
+
 async function ensureTableExists() {
+  if (tableChecked) return;
   try {
     // Check if table exists
     await sql`SELECT 1 FROM transactions LIMIT 1;`;
@@ -71,6 +73,7 @@ async function ensureTableExists() {
       throw error;
     }
   }
+  tableChecked = true;
 }
 
 // GET all transactions

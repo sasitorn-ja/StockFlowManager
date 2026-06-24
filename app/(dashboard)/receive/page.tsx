@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChangeEvent, FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { Plus, Search, Filter, ChevronDown, FileText, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,12 +18,12 @@ import {
   createTransactionId,
   getLocalDateValue,
   formatDate,
-  normalizeTransactions,
   formatNumber,
   formatCurrency,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, CostCurrency, ProductImportType } from "@/types/stock-flow";
 import type { FormState } from "./types";
+import { useTransactions } from "../TransactionContext";
 
 type OverviewFilter = "all" | ProductImportType;
 
@@ -41,28 +41,12 @@ const filterOptions: { value: OverviewFilter; label: string }[] = [
 ];
 
 export default function ReceivePage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions, refresh } = useTransactions();
   const [searchTerm, setSearchTerm] = useState("");
   const [receiveFilter, setReceiveFilter] = useState<OverviewFilter>("all");
   const [form, setForm] = useState<FormState>(createEmptyForm);
   const [isReceivePanelOpen, setIsReceivePanelOpen] = useState(false);
   const [receiveImagePreview, setReceiveImagePreview] = useState<{ src: string; title: string } | null>(null);
-
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
@@ -249,7 +233,7 @@ export default function ReceivePage() {
       body: JSON.stringify(transaction),
     }).then((res) => {
       if (res.ok) {
-        fetchTransactions();
+        refresh();
         closeReceiveDialog();
       } else {
         window.alert("ไม่สามารถบันทึกรายการสินค้าเข้าฐานข้อมูล Neon ได้");

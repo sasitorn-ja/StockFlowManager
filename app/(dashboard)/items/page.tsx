@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
 import {
   buildInventoryMap,
-  normalizeTransactions,
   buildItemKey,
   formatDate,
   formatNumber,
   getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, InventoryItem } from "@/types/stock-flow";
+import { useTransactions } from "../TransactionContext";
 
 type ItemsSectionProps = {
   inventory: InventoryItem[];
@@ -100,24 +100,7 @@ function ItemsSection({ inventory, transactions }: ItemsSectionProps) {
 }
 
 export default function ItemsPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
-
+  const { transactions } = useTransactions();
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
   return <ItemsSection inventory={inventory} transactions={transactions} />;

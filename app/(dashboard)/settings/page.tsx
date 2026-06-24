@@ -18,13 +18,13 @@ import {
   buildInventoryMap,
   buildItemKey,
   getLocalDateValue,
-  normalizeTransactions,
   formatDate,
   formatNumber,
   formatCurrency,
   getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
-import type { Transaction, InventoryItem, ProductImportType } from "@/types/stock-flow";
+import type { InventoryItem, ProductImportType } from "@/types/stock-flow";
+import { useTransactions } from "../TransactionContext";
 
 const inputClassName = "control-input";
 
@@ -280,7 +280,7 @@ function SettingsSection({
 }
 
 export default function SettingsPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions, refresh } = useTransactions();
   const [dbInfo, setDbInfo] = useState<{
     connected: boolean;
     host: string;
@@ -305,17 +305,6 @@ export default function SettingsPage() {
     expiryDate: "",
   });
 
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
 
   async function fetchDbInfo() {
     setIsLoadingDb(true);
@@ -336,7 +325,6 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    fetchTransactions();
     fetchDbInfo();
   }, []);
 
@@ -379,7 +367,7 @@ export default function SettingsPage() {
       method: "DELETE",
     }).then((res) => {
       if (res.ok) {
-        fetchTransactions();
+        refresh();
         fetchDbInfo();
       } else {
         window.alert("ไม่สามารถลบข้อมูลสินค้าออกจากฐานข้อมูล Neon ได้");
@@ -427,7 +415,7 @@ export default function SettingsPage() {
       }),
     }).then((res) => {
       if (res.ok) {
-        fetchTransactions();
+        refresh();
         fetchDbInfo();
         setIsEditProductDialogOpen(false);
         setEditingItemKey("");

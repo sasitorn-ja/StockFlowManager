@@ -1,19 +1,19 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import {
   buildInventoryMap,
   buildItemKey,
-  normalizeTransactions,
   formatDate,
   formatNumber,
   formatCurrencyWithLabel,
   getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
 import type { Transaction } from "@/types/stock-flow";
+import { useTransactions } from "../TransactionContext";
 
 export type IssueDeliveryDocument = {
   transaction: Transaction;
@@ -251,23 +251,7 @@ function DeliveryNoteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const issueKey = searchParams.get("issueKey") || "";
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  const { transactions } = useTransactions();
 
   const deliveryDocument = useMemo<IssueDeliveryDocument | null>(() => {
     if (!issueKey || transactions.length === 0) {

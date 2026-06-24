@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Database, PackageCheck, Clock3, ClipboardPlus, PackageMinus, Search, Filter, ChevronDown } from "lucide-react";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import {
@@ -11,10 +11,10 @@ import {
   formatNumber,
   formatDate,
   getProductImportTypeLabel,
-  normalizeTransactions,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, ProductImportType, InventoryItem } from "@/types/stock-flow";
 import type { StatCard } from "@/components/stock-flow/StatsGrid";
+import { useTransactions } from "../TransactionContext";
 
 type OverviewFilter = "all" | ProductImportType;
 
@@ -25,27 +25,11 @@ const overviewFilterOptions: { value: OverviewFilter; label: string }[] = [
 ];
 
 export default function OverviewPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions } = useTransactions();
   const [searchTerm, setSearchTerm] = useState("");
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>("all");
   const [overviewDateFrom, setOverviewDateFrom] = useState(() => addDays(getLocalDateValue(), -6));
   const [overviewDateTo, setOverviewDateTo] = useState(getLocalDateValue);
-
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
@@ -252,9 +236,7 @@ export default function OverviewPage() {
                     .slice()
                     .sort((a, b) => a.name.localeCompare(b.name, "th"))
                     .map((item) => {
-                      const latestTransaction = transactions
-                        .filter((transaction) => buildItemKey(transaction) === item.key)
-                        .sort((a, b) => b.createdAt - a.createdAt)[0];
+                      const latestTransaction = latestTransactionByItemKey.get(item.key);
                       const status =
                         item.balance <= LOW_STOCK_THRESHOLD
                           ? "ต้องสั่งเพิ่ม"

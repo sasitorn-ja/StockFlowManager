@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { PackageMinus, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,11 @@ import {
   formatNumber,
   formatCurrency,
   getLocalDateValue,
-  normalizeTransactions,
   formatDate,
   formatCurrencyWithLabel,
   getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
+import { useTransactions } from "../TransactionContext";
 import type { Transaction } from "@/types/stock-flow";
 import type { StatCard } from "@/components/stock-flow/StatsGrid";
 
@@ -154,23 +154,7 @@ function HistorySection({
 
 export default function HistoryPage() {
   const router = useRouter();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  const { transactions } = useTransactions();
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 

@@ -17,33 +17,20 @@ import {
   formatCurrencyWithLabel,
   getLocalDateValue,
   getProductImportTypeLabel,
-  normalizeTransactions,
 } from "@/lib/stock-flow/utils";
+import { useTransactions } from "../TransactionContext";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import type { Transaction, InventoryItem } from "@/types/stock-flow";
 
 export default function ApprovePage() {
   const router = useRouter();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions } = useTransactions();
   const [pendingIssueBatch, setPendingIssueBatch] = useState<Transaction[]>([]);
   const [isPendingIssueApproved, setIsPendingIssueApproved] = useState(false);
   const [approvedDate, setApprovedDate] = useState("");
   const [isApprovalDetailOpen, setIsApprovalDetailOpen] = useState(false);
 
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
-
   useEffect(() => {
-    fetchTransactions();
     // Read pending batch from localStorage
     const cached = localStorage.getItem("pending_issue_batch");
     if (cached) {
