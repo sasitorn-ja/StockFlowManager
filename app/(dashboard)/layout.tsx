@@ -15,6 +15,7 @@ import {
   History,
   Clock3,
   Settings,
+  UserCheck,
 } from "lucide-react";
 
 type DashboardLayoutProps = {
@@ -30,30 +31,72 @@ const navigationItems = [
   { label: "ประวัติรายการ", href: "/history", icon: History },
   { label: "ใกล้หมดสต๊อก / โครงการ", href: "/expiring", icon: Clock3 },
   { label: "ตั้งค่า", href: "/settings", icon: Settings },
+  { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState("employee");
+  const [simulatedUsername, setSimulatedUsername] = useState("พนักงาน");
+  const [allUsers, setAllUsers] = useState<{ username: string; isAdmin: boolean }[]>([]);
   const pathname = usePathname();
+
+  async function fetchUsers() {
+    try {
+      const res = await fetch("/api/admin-users");
+      if (res.ok) {
+        const data = await res.json();
+        setAllUsers(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch simulated users", e);
+    }
+  }
 
   useEffect(() => {
     const cachedRole = localStorage.getItem("simulated_role") || "employee";
+    const cachedUsername = localStorage.getItem("simulated_username") || "พนักงาน";
     setUserRole(cachedRole);
+    setSimulatedUsername(cachedUsername);
     
-    // Ensure initial username
-    if (!localStorage.getItem("simulated_username")) {
-      localStorage.setItem("simulated_username", "พนักงาน");
-    }
+    fetchUsers();
+
+    const handleRoleChangedExternal = () => {
+      setUserRole(localStorage.getItem("simulated_role") || "employee");
+      setSimulatedUsername(localStorage.getItem("simulated_username") || "พนักงาน");
+    };
+
+    window.addEventListener("simulated-role-changed", handleRoleChangedExternal);
+    window.addEventListener("admin-users-changed", fetchUsers);
+
+    return () => {
+      window.removeEventListener("simulated-role-changed", handleRoleChangedExternal);
+      window.removeEventListener("admin-users-changed", fetchUsers);
+    };
   }, []);
 
-  function handleRoleChange(newRole: string) {
-    setUserRole(newRole);
-    localStorage.setItem("simulated_role", newRole);
+  async function handleUsernameChange(newUsername: string) {
+    setSimulatedUsername(newUsername);
+    localStorage.setItem("simulated_username", newUsername);
+
+    let foundUser = allUsers.find((u) => u.username === newUsername);
     
-    let name = "พนักงาน";
-    if (newRole === "admin") name = "แอดมิน";
-    localStorage.setItem("simulated_username", name);
+    if (!foundUser) {
+      try {
+        const res = await fetch("/api/admin-users");
+        if (res.ok) {
+          const data = (await res.json()) as { username: string; isAdmin: boolean }[];
+          setAllUsers(data);
+          foundUser = data.find((u) => u.username === newUsername);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const nextRole = foundUser?.isAdmin ? "admin" : "employee";
+    setUserRole(nextRole);
+    localStorage.setItem("simulated_role", nextRole);
 
     window.dispatchEvent(new Event("simulated-role-changed"));
   }
@@ -84,6 +127,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       <nav className="dashboard-nav" aria-label="เมนูหลัก">
         {navigationItems.map((item) => {
+          // Hide admin rights menu if current role is not admin
+          if (item.href === "/admin-rights" && userRole !== "admin") {
+            return null;
+          }
+
           const Icon = item.icon;
           const isActive = pathname === item.href;
 
@@ -149,15 +197,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           <div className="flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/50 px-3 py-1 text-xs shadow-sm">
-            <span className="font-semibold text-sky-800">จำลองบทบาท:</span>
+            <span className="font-semibold text-sky-800">จำลองผู้ใช้:</span>
             <select
-              value={userRole}
-              onChange={(e) => handleRoleChange(e.target.value)}
+              value={simulatedUsername}
+              onChange={(e) => handleUsernameChange(e.target.value)}
               className="bg-transparent font-medium text-sky-900 border-none outline-none cursor-pointer focus:ring-0 py-0.5"
               style={{ minWidth: "140px" }}
             >
-              <option value="employee">พนักงาน (ผู้เบิก)</option>
-              <option value="admin">แอดมิน (ผู้อนุมัติ/จ่ายสินค้า)</option>
+              {(() => {
+                const options = [...allUsers];
+                if (simulatedUsername && !options.some((o) => o.username === simulatedUsername)) {
+                  options.push({ username: simulatedUsername, isAdmin: userRole === "admin" });
+                }
+                return options.map((u) => (
+                  <option key={`sim-user-${u.username}`} value={u.username}>
+                    {u.username} ({u.isAdmin ? "แอดมิน" : "พนักงาน"})
+                  </option>
+                ));
+              })()}
             </select>
           </div>
         </header>
