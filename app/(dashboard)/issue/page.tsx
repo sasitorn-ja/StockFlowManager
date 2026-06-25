@@ -148,6 +148,8 @@ export default function IssuePage() {
   useEffect(() => {
     fetchTransactions();
 
+    const currentSimulatedUser = localStorage.getItem("simulated_username") || "พนักงาน";
+
     const cachedDraft = localStorage.getItem("pending_draft");
     if (cachedDraft) {
       try {
@@ -164,6 +166,15 @@ export default function IssuePage() {
       }
       localStorage.removeItem("pending_draft");
     }
+
+    // Handle role changes reactively
+    const handleRoleChange = () => {
+      // Do not auto-prefill to allow a transparent placeholder state
+    };
+    window.addEventListener("simulated-role-changed", handleRoleChange);
+    return () => {
+      window.removeEventListener("simulated-role-changed", handleRoleChange);
+    };
   }, []);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
@@ -234,15 +245,10 @@ export default function IssuePage() {
   }
 
   function updateIssueSelection(itemKey: string, quantity: string) {
-    setIssueSelections((current) => {
-      if (!quantity) {
-        const next = { ...current };
-        delete next[itemKey];
-        return next;
-      }
-
-      return { ...current, [itemKey]: quantity };
-    });
+    setIssueSelections((current) => ({
+      ...current,
+      [itemKey]: quantity,
+    }));
   }
 
   function toggleIssueSelection(itemKey: string, isSelected: boolean) {
@@ -332,22 +338,36 @@ export default function IssuePage() {
       approver: issueApprover.trim(),
       note: issueNote.trim(),
       createdAt: now + index,
-    }));
-
-    // Cache the pending transactions in localStorage so `/approve` can load it
-    localStorage.setItem("pending_issue_batch", JSON.stringify(pendingTransactions));
-    localStorage.setItem("pending_draft", JSON.stringify({
-      approver: issueApprover.trim(),
-      approverEmail: issueApproverEmail.trim(),
-      note: issueNote.trim(),
-      panelImportType: issuePanelImportType,
-      requester: issueRequester.trim(),
-      selections: issueSelections,
+      status: "pending",
     }));
 
     setIsSendingIssueEmail(true);
 
     try {
+      // 1. Persist directly to Neon Database (saves request as 'pending' reservation)
+      const saveRes = await fetch("/api/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pendingTransactions),
+      });
+
+      if (!saveRes.ok) {
+        throw new Error("Failed to save pending requisition in DB");
+      }
+
+      // Add issueKey to local storage my_created_issue_keys to track ownership
+      try {
+        const storedKeys = localStorage.getItem("my_created_issue_keys");
+        const keysList = storedKeys ? JSON.parse(storedKeys) : [];
+        if (!keysList.includes(batchIssueKey)) {
+          keysList.push(batchIssueKey);
+          localStorage.setItem("my_created_issue_keys", JSON.stringify(keysList));
+        }
+      } catch (e) {
+        console.error("Failed to save created issueKey", e);
+      }
+
+      // 2. Dispatch email notification to manager
       const response = await fetch("/api/issue-request-email", {
         method: "POST",
         headers: {
@@ -376,8 +396,10 @@ export default function IssuePage() {
           `บันทึกคำขอเบิกแล้ว แต่ส่งอีเมลไม่สำเร็จ${data?.error ? `: ${data.error}` : ""}`
         );
       }
-    } catch {
-      window.alert("บันทึกคำขอเบิกแล้ว แต่เชื่อมต่อระบบส่งอีเมลไม่สำเร็จ");
+    } catch (error) {
+      window.alert("ไม่สามารถบันทึกข้อมูลใบเบิกสินค้าลงฐานข้อมูลได้ กรุณาลองใหม่อีกครั้ง");
+      setIsSendingIssueEmail(false);
+      return;
     } finally {
       setIsSendingIssueEmail(false);
     }
@@ -608,7 +630,7 @@ export default function IssuePage() {
               <input
                 value={issueRequester}
                 onChange={(event) => setIssueRequester(event.target.value)}
-                placeholder="เช่น ผู้รับผิดชอบ / ผู้ขอเบิก"
+                placeholder="ระบุผู้ขอเบิกสินค้า"
                 list="issue-requester-suggestions"
               />
               <datalist id="issue-requester-suggestions">
@@ -649,19 +671,14 @@ export default function IssuePage() {
                 selectedIssueEntries.map(({ item, quantity }) => (
                   <article key={`selected-issue-${item.key}`} className="issue-selection-item">
                     <div className="issue-selection-item-header">
-                      <label className="issue-selection-check">
-                        <input
-                          type="checkbox"
-                          checked
-                          onChange={(event) => toggleIssueSelection(item.key, event.target.checked)}
-                        />
+                      <div className="issue-selection-check">
                         <span>
                           <strong>{item.name}</strong>
                           <small>
                             {item.sku || "-"} · คงเหลือ {formatNumber(item.balance)} {item.unit}
                           </small>
                         </span>
-                      </label>
+                      </div>
                       <button
                         type="button"
                         className="issue-selection-delete"

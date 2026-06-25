@@ -4,6 +4,7 @@ import type {
   InventoryItem,
   ProductImportType,
   Transaction,
+  TransactionStatus,
   TransactionType,
 } from "@/types/stock-flow";
 import type { FormState } from "@/app/(dashboard)/receive/types";
@@ -11,6 +12,20 @@ import type { FormState } from "@/app/(dashboard)/receive/types";
 const productImportTypes = new Set<ProductImportType>(["resale", "stable"]);
 const transactionTypes = new Set<TransactionType>(["in", "out"]);
 const costCurrencies = new Set<CostCurrency>(["THB", "JPY", "CNY", "USD"]);
+const transactionStatuses = new Set<TransactionStatus>([
+  "pending",
+  "approved",
+  "employee_confirmed",
+  "completed",
+  "cancelled",
+]);
+
+function toTransactionStatus(value: unknown): TransactionStatus | undefined {
+  if (typeof value === "string" && transactionStatuses.has(value as TransactionStatus)) {
+    return value as TransactionStatus;
+  }
+  return undefined;
+}
 
 export function createTransactionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -116,6 +131,7 @@ export function normalizeTransactions(value: unknown): Transaction[] {
         approver: toStringValue(item.approver).trim(),
         note: toStringValue(item.note).trim(),
         createdAt,
+        status: toTransactionStatus(item.status),
       };
     })
     .filter((item) => item.name && item.unit && item.quantity > 0);
@@ -145,8 +161,11 @@ export function buildInventoryMap(transactions: Transaction[]) {
       entry.totalIn += transaction.quantity;
       entry.balance += transaction.quantity;
     } else {
-      entry.totalOut += transaction.quantity;
-      entry.balance -= transaction.quantity;
+      // Deduct from balance for all withdrawal (out) statuses except cancelled (reservation model)
+      if (transaction.status !== "cancelled") {
+        entry.totalOut += transaction.quantity;
+        entry.balance -= transaction.quantity;
+      }
     }
 
     if (transaction.price > 0) {

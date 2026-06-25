@@ -34,12 +34,24 @@ export type IssueDeliveryDocument = {
 type DeliveryNoteSectionProps = {
   deliveryDocument: IssueDeliveryDocument | null;
   setActiveSection: (val: string) => void;
+  isLoading: boolean;
 };
 
 function DeliveryNoteSection({
   deliveryDocument,
   setActiveSection,
+  isLoading,
 }: DeliveryNoteSectionProps) {
+  if (isLoading) {
+    return (
+      <section id="delivery-note" className="grid gap-3">
+        <div className="p-12 text-center text-sm text-[var(--text-muted)] font-medium bg-white rounded-xl border border-[var(--border-soft)] shadow-sm">
+          กำลังดึงข้อมูลใบกำกับเบิกสินค้า...
+        </div>
+      </section>
+    );
+  }
+
   if (!deliveryDocument) {
     return (
       <section id="delivery-note" className="grid gap-3">
@@ -252,8 +264,10 @@ function DeliveryNoteContent() {
   const searchParams = useSearchParams();
   const issueKey = searchParams.get("issueKey") || "";
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   async function fetchTransactions() {
+    setIsLoading(true);
     try {
       const res = await fetch("/api/transactions");
       if (res.ok) {
@@ -262,6 +276,8 @@ function DeliveryNoteContent() {
       }
     } catch (error) {
       console.error("Failed to fetch transactions:", error);
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -280,6 +296,14 @@ function DeliveryNoteContent() {
     }
 
     const firstTransaction = docTransactions[0];
+    // Security check: Only allow approved, completed (or legacy) requisitions to be viewed
+    if (
+      firstTransaction.status &&
+      firstTransaction.status !== "approved" &&
+      firstTransaction.status !== "completed"
+    ) {
+      return null;
+    }
     const currentInventory = buildInventoryMap(transactions);
     const rows = docTransactions.map((transaction) => {
       const currentItem = currentInventory.get(buildItemKey(transaction));
@@ -314,6 +338,7 @@ function DeliveryNoteContent() {
     <DeliveryNoteSection
       deliveryDocument={deliveryDocument}
       setActiveSection={handleBack}
+      isLoading={isLoading}
     />
   );
 }

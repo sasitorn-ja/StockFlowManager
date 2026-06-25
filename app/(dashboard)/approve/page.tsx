@@ -1,36 +1,52 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Eye, CheckCircle2, XCircle, Clock, CheckSquare, Layers, FileCheck, PackageCheck, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatsGrid } from "@/components/stock-flow/StatsGrid";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
 import { StatusBadge } from "@/components/stock-flow/StatusBadge";
 import {
-  buildInventoryMap,
-  buildItemKey,
   formatDate,
   formatNumber,
   formatCurrency,
-  formatCurrencyWithLabel,
-  getLocalDateValue,
-  getProductImportTypeLabel,
   normalizeTransactions,
 } from "@/lib/stock-flow/utils";
-import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
-import type { Transaction, InventoryItem } from "@/types/stock-flow";
+import type { Transaction, TransactionStatus } from "@/types/stock-flow";
 
-export default function ApprovePage() {
+type GroupedRequisition = {
+  issueKey: string;
+  requester: string;
+  approver?: string;
+  note?: string;
+  date: string;
+  createdAt: number;
+  status: TransactionStatus;
+  items: Transaction[];
+  totalQuantity: number;
+  totalCost: number;
+};
+
+type TabType = "all" | TransactionStatus;
+
+export default function RequisitionTrackerPage() {
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [pendingIssueBatch, setPendingIssueBatch] = useState<Transaction[]>([]);
-  const [isPendingIssueApproved, setIsPendingIssueApproved] = useState(false);
-  const [approvedDate, setApprovedDate] = useState("");
-  const [isApprovalDetailOpen, setIsApprovalDetailOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [simulatedRole, setSimulatedRole] = useState("employee");
+  const [simulatedUsername, setSimulatedUsername] = useState("พนักงาน");
+  const [activeTab, setActiveTab] = useState<TabType>("all");
+  const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [myCreatedIssueKeys, setMyCreatedIssueKeys] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
+  // Fetch transactions from the Neon DB
   async function fetchTransactions() {
+    setIsLoading(true);
     try {
       const res = await fetch("/api/transactions");
       if (res.ok) {
@@ -39,319 +55,574 @@ export default function ApprovePage() {
       }
     } catch (error) {
       console.error("Failed to fetch transactions:", error);
+    } finally {
+      setIsLoading(false);
     }
   }
 
+  // Load and listen to the simulated role from layout
   useEffect(() => {
-    fetchTransactions();
-    // Read pending batch from localStorage
-    const cached = localStorage.getItem("pending_issue_batch");
-    if (cached) {
-      setPendingIssueBatch(JSON.parse(cached));
+    // Load created issue keys
+    try {
+      const stored = localStorage.getItem("my_created_issue_keys");
+      if (stored) {
+        setMyCreatedIssueKeys(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error("Failed to parse created issue keys", e);
     }
+
+    const loadSimulatedRole = () => {
+      const role = localStorage.getItem("simulated_role") || "employee";
+      const name = localStorage.getItem("simulated_username") || "พนักงาน";
+      setSimulatedRole(role);
+      setSimulatedUsername(name);
+      
+      // Auto-toggle "show only mine" if employee
+      if (role === "employee") {
+        setShowOnlyMine(true);
+      } else {
+        setShowOnlyMine(false);
+      }
+    };
+
+    loadSimulatedRole();
+    fetchTransactions();
+
+    window.addEventListener("simulated-role-changed", loadSimulatedRole);
+    return () => {
+      window.removeEventListener("simulated-role-changed", loadSimulatedRole);
+    };
   }, []);
 
-  const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
-
-  const pendingIssueBatchStatus = useMemo(() => {
-    if (pendingIssueBatch.length === 0) {
-      return null;
-    }
-
-    const rows = pendingIssueBatch.map((transaction) => {
-      const currentItem = inventory.find((item) => item.key === buildItemKey(transaction));
-      const beforeBalance = currentItem?.balance ?? 0;
-      const afterBalance = beforeBalance - transaction.quantity;
-      const costValue = transaction.quantity * (transaction.costPrice ?? 0);
-
-      return {
-        transaction,
-        beforeBalance,
-        afterBalance,
-        costValue,
+  // Group transactions by issueKey
+  const groupedRequisitions = useMemo(() => {
+    const map = new Map<string, GroupedRequisition>();
+    
+    // Filter out transactions that are issues (type === "out") and have an issueKey
+    const outs = transactions.filter((t) => t.type === "out" && t.issueKey);
+    
+    outs.forEach((t) => {
+      const key = t.issueKey;
+      const current = map.get(key) || {
+        issueKey: key,
+        requester: t.requester || "-",
+        approver: t.approver || "",
+        note: t.note || "-",
+        date: t.date,
+        createdAt: t.createdAt,
+        status: (t.status || "completed") as TransactionStatus, // Default legacy to completed
+        items: [],
+        totalQuantity: 0,
+        totalCost: 0,
       };
+
+      current.items.push(t);
+      current.totalQuantity += t.quantity;
+      current.totalCost += t.quantity * (t.costPrice || t.price || 0);
+      
+      map.set(key, current);
     });
-    const totalQuantity = rows.reduce((sum, row) => sum + row.transaction.quantity, 0);
-    const totalCostValue = rows.reduce((sum, row) => sum + row.costValue, 0);
-    const hasInsufficientStock = rows.some((row) => row.afterBalance < 0);
 
-    return {
-      rows,
-      totalQuantity,
-      totalCostValue,
-      hasInsufficientStock,
-      stats: [
-        {
-          label: "รายการขอเบิก",
-          value: formatNumber(rows.length),
-          unit: "รายการ",
-          helper: "รอตรวจสอบก่อนตัดสต๊อก",
-          tone: "sky" as const,
-        },
-        {
-          label: "จำนวนที่ขอเบิกรวม",
-          value: formatNumber(totalQuantity),
-          unit: "หน่วย",
-          helper: pendingIssueBatch[0]?.issueKey || "รอบเบิกสินค้า",
-          tone: "amber" as const,
-        },
-        {
-          label: "สถานะสต๊อก",
-          value: hasInsufficientStock ? "ยอดไม่พอ" : "พร้อมเบิก",
-          helper: hasInsufficientStock ? "มีบางรายการคงเหลือไม่พอ" : "ทุกสินค้ามียอดพอ",
-          tone: hasInsufficientStock ? "amber" as const : "emerald" as const,
-        },
-        {
-          label: "มูลค่าต้นทุนรวม",
-          value: formatCurrency(totalCostValue),
-          helper: "รวมทุกสกุลแบบตัวเลขอ้างอิง",
-          tone: "violet" as const,
-        },
-      ],
-    };
-  }, [inventory, pendingIssueBatch]);
+    return Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
+  }, [transactions]);
 
-  const pendingIssueCanConfirm =
-    pendingIssueBatch.length > 0 &&
-    Boolean(isPendingIssueApproved) &&
-    (pendingIssueBatchStatus ? !pendingIssueBatchStatus.hasInsufficientStock : false);
-
-  const pendingApprovalDetails = useMemo(() => {
-    if (pendingIssueBatchStatus) {
-      return pendingIssueBatchStatus.rows.map((row) => ({
-        issueKey: row.transaction.issueKey || "-",
-        requester: row.transaction.requester || "-",
-        approver: row.transaction.approver || "-",
-        approvedDate: approvedDate || getLocalDateValue(),
-      }));
-    }
-    return [];
-  }, [approvedDate, pendingIssueBatchStatus]);
-
-  function approvePendingIssue() {
-    setIsPendingIssueApproved(true);
-    setApprovedDate(getLocalDateValue());
-    setIsApprovalDetailOpen(false);
-  }
-
-  function handleBackToEdit() {
-    // Keep pending_draft so `/issue` page can restore it, but clear batch
-    localStorage.removeItem("pending_issue_batch");
-    router.push("/issue");
-  }
-
-  function confirmIssueTransaction() {
-    if (pendingIssueBatch.length === 0) {
-      return;
-    }
-
-    if (!isPendingIssueApproved) {
-      window.alert("ต้องมีคนกด Approved ก่อน จึงจะยืนยันเบิกสินค้าได้");
-      return;
-    }
-
-    const firstTransaction = pendingIssueBatch[0];
-    const documentNo =
-      firstTransaction.issueKey || `ISS-${String(firstTransaction.createdAt).slice(-6)}`;
-
-    // Persist to Neon Database
-    fetch("/api/transactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pendingIssueBatch),
-    }).then((res) => {
-      if (res.ok) {
-        // Clear caches
-        localStorage.removeItem("pending_issue_batch");
-        localStorage.removeItem("pending_draft");
-        // Redirect to delivery note page with query parameters
-        router.push(`/delivery-note?issueKey=${encodeURIComponent(documentNo)}`);
-      } else {
-        window.alert("ไม่สามารถบันทึกข้อมูลใบเบิกรวมเข้าฐานข้อมูล Neon ได้");
+  // Filter based on active role and "Show Only Mine" toggle
+  const ownedRequisitions = useMemo(() => {
+    return groupedRequisitions.filter((req) => {
+      if (showOnlyMine) {
+        const isOwnKey = myCreatedIssueKeys.includes(req.issueKey);
+        const isOwnName = req.requester === simulatedUsername;
+        if (!isOwnKey && !isOwnName) {
+          return false;
+        }
       }
+      return true;
     });
+  }, [groupedRequisitions, showOnlyMine, simulatedUsername, myCreatedIssueKeys]);
+
+  // Filter based on active tab status and search query
+  const filteredRequisitions = useMemo(() => {
+    return ownedRequisitions.filter((req) => {
+      // 1. Tab status filter
+      if (activeTab !== "all" && req.status !== activeTab) {
+        return false;
+      }
+
+      // 2. Search query filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.trim().toLowerCase();
+        const matchesRequester = req.requester.toLowerCase().includes(query);
+        const matchesIssueKey = req.issueKey.toLowerCase().includes(query);
+        const matchesApprover = (req.approver || "").toLowerCase().includes(query);
+        const matchesNote = (req.note || "").toLowerCase().includes(query);
+
+        if (!matchesRequester && !matchesIssueKey && !matchesApprover && !matchesNote) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [ownedRequisitions, activeTab, searchQuery]);
+
+  // Calculations for stats summary cards based on ownership visibility
+  const stats = useMemo(() => {
+    const total = ownedRequisitions.length;
+    const pending = ownedRequisitions.filter((r) => r.status === "pending").length;
+    const reserved = ownedRequisitions.filter((r) => 
+      r.status === "pending" || r.status === "approved" || r.status === "employee_confirmed"
+    ).length;
+    const completed = ownedRequisitions.filter((r) => r.status === "completed").length;
+
+    return [
+      {
+        label: "คำขอเบิกทั้งหมด",
+        value: formatNumber(total),
+        unit: "ใบงาน",
+        helper: "คำขอเบิกสะสมในระบบ",
+        tone: "sky" as const,
+      },
+      {
+        label: "รออนุมัติ (Pending)",
+        value: formatNumber(pending),
+        unit: "ใบงาน",
+        helper: "รอหัวหน้างานตรวจสอบ",
+        tone: "amber" as const,
+      },
+      {
+        label: "คำขออยู่ระหว่างจอง",
+        value: formatNumber(reserved),
+        unit: "ใบงาน",
+        helper: "ยังคงจองยอดไว้ในคลัง",
+        tone: "violet" as const,
+      },
+      {
+        label: "จ่ายของสำเร็จแล้ว",
+        value: formatNumber(completed),
+        unit: "ใบงาน",
+        helper: "พนักงานรับของเรียบร้อย",
+        tone: "emerald" as const,
+      },
+    ];
+  }, [ownedRequisitions]);
+
+  // Expand / collapse single row
+  function toggleRowExpand(issueKey: string) {
+    setExpandedKeys((prev) => ({
+      ...prev,
+      [issueKey]: !prev[issueKey],
+    }));
   }
+
+  // Common status update handler
+  async function updateRequisitionStatus(issueKey: string, newStatus: TransactionStatus, extraBody: Record<string, any> = {}) {
+    setIsUpdating(issueKey);
+    try {
+      const res = await fetch("/api/transactions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_status",
+          issueKey,
+          status: newStatus,
+          ...extraBody,
+        }),
+      });
+
+      if (res.ok) {
+        await fetchTransactions();
+      } else {
+        window.alert("เกิดข้อผิดพลาดในการอัปเดตสถานะใบเบิกสินค้า");
+      }
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      window.alert("ไม่สามารถติดต่อเซิร์ฟเวอร์เพื่ออัปเดตข้อมูลได้");
+    } finally {
+      setIsUpdating(null);
+    }
+  }
+
+  // Role Action Controls
+  const isAdmin = simulatedRole === "admin";
+  const isManagerOrAdmin = isAdmin;
 
   return (
-    <section id="approve" className="grid gap-4">
+    <section id="requisition-tracker" className="grid gap-4">
+      {/* Page Header */}
       <section className="dashboard-card">
         <div className="dashboard-panel-header">
           <div>
             <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
-              Approval Center
+              Requisition Tracker
             </p>
-            <h3 className="dashboard-section-title">Approve ใบเบิกสินค้า</h3>
+            <h3 className="dashboard-section-title">ติดตามสถานะการเบิกสินค้า</h3>
             <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              ใช้สำหรับกดอนุมัติรายการเบิก ก่อนตรวจสอบและยืนยันตัดสต๊อกจริง
+              ตรวจสอบรายการขอเบิก สลับบทบาทเพื่อจำลองการจองและอนุมัติจ่ายสินค้าตามจริง
             </p>
           </div>
-          <div className="dashboard-header-actions">
+          <div className="dashboard-header-actions flex flex-wrap items-center gap-3">
+            {isManagerOrAdmin && (
+              <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-strong)] border border-[var(--border)] px-3 py-1.5 rounded-lg bg-[var(--bg-muted)] hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showOnlyMine}
+                  onChange={(e) => setShowOnlyMine(e.target.checked)}
+                  className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                />
+                <span>แสดงเฉพาะใบเบิกของฉัน ({simulatedUsername})</span>
+              </label>
+            )}
             <Button
               type="button"
-              onClick={approvePendingIssue}
-              disabled={isPendingIssueApproved || pendingIssueBatch.length === 0}
+              onClick={() => router.push("/issue")}
             >
-              {isPendingIssueApproved ? "Approved แล้ว" : "Approved"}
+              สร้างใบเบิกสินค้า
             </Button>
           </div>
         </div>
       </section>
 
-      {pendingIssueBatchStatus ? (
-        <div className="grid gap-4">
-          <StatsGrid stats={pendingIssueBatchStatus.stats} />
+      {/* Stats Summary */}
+      <StatsGrid stats={stats} />
 
-          <DataPanel
-            title="ตารางตรวจสอบใบเบิก"
-            description="ตรวจสอบหลายรายการก่อน Approved และยืนยันตัดสต๊อก"
-          >
-            <Table
-              headers={[
-                "วันที่เบิก",
-                "เลขใบเบิก",
-                "ประเภทสินค้า",
-                "ชื่อผู้ขอเบิก",
-                "ชื่อผู้อนุมัติ",
-                "สถานะ Approved",
-              ]}
-              emptyMessage="ไม่มีรายการรอยืนยัน"
-              columnCount={6}
-            >
-              {pendingIssueBatchStatus.rows.map((row) => (
-                <tr key={`pending-batch-${row.transaction.id}`}>
-                  <td>{formatDate(row.transaction.date)}</td>
-                  <td>
-                    <strong className="font-semibold text-[var(--text-strong)]">
-                      {row.transaction.issueKey || "-"}
-                    </strong>
-                  </td>
-                  <td>{getProductImportTypeLabel(row.transaction.productImportType)}</td>
-                  <td>
-                    <strong className="font-semibold text-[var(--text-strong)]">
-                      {row.transaction.requester || "-"}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong className="font-semibold text-[var(--text-strong)]">
-                      {row.transaction.approver || "-"}
-                    </strong>
-                  </td>
-                  <td>
-                    <div className="approval-status-cell">
-                      <StatusBadge
-                        tone={
-                          row.afterBalance < 0
-                            ? "urgent"
-                            : isPendingIssueApproved
-                              ? "in"
-                              : "warn"
-                        }
-                      >
-                        {row.afterBalance < 0
-                          ? "ยอดไม่พอ"
-                          : isPendingIssueApproved
-                            ? "Approved แล้ว"
-                            : "ยังไม่ Approved"}
-                      </StatusBadge>
-                      {isPendingIssueApproved ? (
-                        <button
-                          type="button"
-                          className={`approval-circle-button approval-circle-button-compact ${
-                            isApprovalDetailOpen ? "approval-circle-button-open" : ""
-                          }`}
-                          onClick={() => setIsApprovalDetailOpen((current) => !current)}
-                          aria-label="ดูรายละเอียดผู้อนุมัติ"
-                          title="ดูรายละเอียดผู้อนุมัติ"
-                        >
-                          {isApprovalDetailOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-          </DataPanel>
-
-          <div className="approval-footer flex items-center justify-between gap-4 rounded-lg border border-[var(--border)] bg-white p-4">
-            {!pendingIssueBatchStatus.hasInsufficientStock ? (
-              <div className="approval-action-group flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={approvePendingIssue}
-                  disabled={isPendingIssueApproved}
-                >
-                  {isPendingIssueApproved ? "Approved แล้ว" : "Approved"}
-                </Button>
-                {isPendingIssueApproved ? (
-                  <button
-                    type="button"
-                    className={`approval-circle-button ${
-                      isApprovalDetailOpen ? "approval-circle-button-open" : ""
-                    }`}
-                    onClick={() => setIsApprovalDetailOpen((current) => !current)}
-                    aria-label="ดูรายละเอียดผู้อนุมัติ"
-                    title="ดูรายละเอียดผู้อนุมัติ"
-                  >
-                    {isApprovalDetailOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              <div />
-            )}
-            <div className="approval-right-actions flex items-center gap-2">
-              <Button type="button" variant="secondary" onClick={handleBackToEdit}>
-                กลับไปแก้ไข
-              </Button>
-              <Button
-                type="button"
-                onClick={confirmIssueTransaction}
-                disabled={!pendingIssueCanConfirm}
+      {/* Filter Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-[var(--border-soft)]">
+        <div className="bg-slate-100/60 p-1.5 rounded-2xl border border-slate-200/60 flex flex-wrap gap-1.5">
+          {(
+            [
+              { value: "all", label: "ทั้งหมด", icon: Layers, activeClass: "bg-slate-800 text-white shadow-md shadow-slate-200" },
+              { value: "pending", label: "รออนุมัติ", icon: Clock, activeClass: "bg-amber-500 text-white shadow-md shadow-amber-100" },
+              { value: "approved", label: "อนุมัติแล้ว (รอจ่ายสินค้า)", icon: FileCheck, activeClass: "bg-sky-500 text-white shadow-md shadow-sky-100" },
+              { value: "completed", label: "จ่ายของสำเร็จ", icon: PackageCheck, activeClass: "bg-emerald-500 text-white shadow-md shadow-emerald-100" },
+              { value: "cancelled", label: "ยกเลิกแล้ว", icon: XCircle, activeClass: "bg-rose-500 text-white shadow-md shadow-rose-100" },
+            ] as { value: TabType; label: string; icon: any; activeClass: string }[]
+          ).map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.value;
+            return (
+              <button
+                key={`tab-${tab.value}`}
+                onClick={() => setActiveTab(tab.value)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all duration-200 outline-none ${
+                  isActive
+                    ? `${tab.activeClass} scale-[1.02]`
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                }`}
               >
-                ยืนยันเบิกสินค้า
-              </Button>
-            </div>
+                <Icon size={14} className={isActive ? "animate-pulse" : "text-slate-400"} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search Filter */}
+          <div className="relative flex h-10 w-[240px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-slate-500 shadow-sm focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-100 transition">
+            <Search size={15} />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ค้นหาชื่อผู้ขอเบิก, เลขใบเบิก..."
+              className="h-full w-full bg-transparent text-[12px] font-semibold text-slate-800 outline-none placeholder:text-slate-400"
+            />
           </div>
 
-          {isPendingIssueApproved && isApprovalDetailOpen ? (
-            <section className="approval-detail-panel rounded-lg border border-[var(--border)] bg-white p-4">
-              <div className="approval-detail-header flex items-center justify-between pb-3 border-b border-[var(--border-soft)] mb-3">
-                <strong>รายละเอียดผู้อนุมัติ</strong>
-                <span className="text-sm text-[var(--text-muted)]">
-                  {formatDate(approvedDate || getLocalDateValue())}
-                </span>
-              </div>
-              <div className="approval-detail-list grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                {pendingApprovalDetails.map((item, index) => (
-                  <article
-                    key={`approval-detail-${item.issueKey}-${index}`}
-                    className="p-3 rounded-md bg-[var(--bg-muted)] border border-[var(--border-muted)]"
-                  >
-                    <span className="block text-[12px] text-[var(--text-muted)]">
-                      เลขใบเบิก {item.issueKey}
-                    </span>
-                    <strong className="block text-sm">{item.approver}</strong>
-                    <small className="block text-[11px] text-[var(--text-subtle)]">
-                      ผู้ขอเบิก: {item.requester}
-                    </small>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
+          <div className="text-[11px] text-[var(--text-subtle)] font-semibold bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/40 shadow-sm flex items-center gap-1.5 h-10">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
+            </span>
+            <span>
+              กำลังแสดง: <strong>{filteredRequisitions.length} ใบงาน</strong> (มุมมอง: <span className="text-sky-700 font-bold">{simulatedUsername}</span>)
+            </span>
+          </div>
         </div>
-      ) : (
-        <DataPanel
-          title="ยังไม่มีรายการรออนุมัติ"
-          description="เมื่อคีย์เบิกจ่ายในเมนูเบิกจ่ายสินค้าแล้ว รายการรออนุมัติจะแสดงในหน้านี้"
-        >
-          <Button type="button" onClick={() => router.push("/issue")}>
-            ไปหน้าเบิกจ่ายสินค้า
-          </Button>
-        </DataPanel>
-      )}
+      </div>
+
+      {/* Main Table */}
+      <DataPanel
+        title="ตารางติดตามเอกสารใบเบิก"
+        description="คลิกไอคอนลูกศรเพื่อขยายดูรายการสินค้าในแต่ละใบขอเบิก"
+      >
+        {isLoading ? (
+          <div className="p-8 text-center text-sm text-[var(--text-muted)]">
+            กำลังโหลดข้อมูลจาก Neon Database...
+          </div>
+        ) : (
+          <Table
+            headers={[
+              "", // Expand arrow
+              "เลขใบเบิก",
+              "วันที่ขอเบิก",
+              "ผู้ขอเบิก",
+              "จำนวนรายการ",
+              "ผู้อนุมัติ",
+              "สถานะ",
+              "จัดการ",
+            ]}
+            emptyMessage="ไม่มีรายการที่สอดคล้องกับแท็บที่เลือก"
+            columnCount={8}
+          >
+            {filteredRequisitions.map((req) => {
+              const isExpanded = expandedKeys[req.issueKey];
+              const isOwnRequisition = req.requester === simulatedUsername || myCreatedIssueKeys.includes(req.issueKey);
+
+              // Render human-friendly status badging
+              let badgeTone: "warn" | "out" | "in" | "urgent" = "warn";
+              let badgeText = "รออนุมัติ";
+              if (req.status === "approved") {
+                badgeTone = "out";
+                badgeText = "อนุมัติแล้ว (รอจ่ายสินค้า)";
+              } else if (req.status === "completed") {
+                badgeTone = "in";
+                badgeText = "รับสินค้าสำเร็จ";
+              } else if (req.status === "cancelled") {
+                badgeTone = "urgent";
+                badgeText = "ยกเลิกรายการ";
+              }
+
+              return (
+                <Fragment key={`group-${req.issueKey}`}>
+                  <tr className="hover:bg-slate-50/50">
+                    <td className="w-10 text-center">
+                      <button
+                        type="button"
+                        onClick={() => toggleRowExpand(req.issueKey)}
+                        className="p-1 rounded hover:bg-slate-200 transition-colors"
+                        aria-label="ขยายรายละเอียด"
+                      >
+                        {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </button>
+                    </td>
+                    <td className="w-[12%] min-w-[110px] font-semibold text-slate-800">
+                      {req.issueKey}
+                    </td>
+                    <td className="w-[12%] min-w-[110px] text-slate-500">{formatDate(req.date)}</td>
+                    <td className="w-[15%] min-w-[120px]">
+                      <span className="font-medium text-slate-700">{req.requester}</span>
+                      {isOwnRequisition && (
+                        <span className="ml-1 text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded">คุณ</span>
+                      )}
+                    </td>
+                    <td className="w-[10%] min-w-[90px] text-right pr-4 text-slate-600">{req.items.length} รายการ</td>
+                    <td className="w-[12%] min-w-[100px] text-slate-500">{req.approver || "-"}</td>
+                    <td className="w-[18%] min-w-[170px]">
+                      <div className="flex items-center">
+                        <StatusBadge tone={badgeTone}>{badgeText}</StatusBadge>
+                      </div>
+                    </td>
+                    <td className="w-[22%] min-w-[220px]">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {/* 1. BUTTON: Manager/Admin Approves pending */}
+                        {req.status === "pending" && isManagerOrAdmin && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isUpdating === req.issueKey}
+                            onClick={() => updateRequisitionStatus(req.issueKey, "approved", { approver: simulatedUsername })}
+                            className="bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded"
+                          >
+                            อนุมัติคำขอ
+                          </Button>
+                        )}
+
+                        {/* 3. BUTTON: Admin Releases goods (final pick up) */}
+                        {req.status === "approved" && isAdmin && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isUpdating === req.issueKey}
+                            onClick={() => updateRequisitionStatus(req.issueKey, "completed")}
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded"
+                          >
+                            ยืนยันจ่ายของจริง
+                          </Button>
+                        )}
+
+                        {/* 5. BUTTON: View Delivery Document (Approved or Completed) */}
+                        {(req.status === "approved" || req.status === "completed") && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => router.push(`/delivery-note?issueKey=${encodeURIComponent(req.issueKey)}`)}
+                            className="text-xs px-2.5 h-8 py-1 rounded flex items-center gap-1.5"
+                          >
+                            <Eye size={12} />
+                            ดูใบเบิกสินค้า
+                          </Button>
+                        )}
+
+                        {/* 4. BUTTON: Cancel at any stage before completed */}
+                        {req.status !== "completed" && req.status !== "cancelled" && (isOwnRequisition || isAdmin) && (
+                          <Button
+                            type="button"
+                            variant="danger"
+                            size="sm"
+                            disabled={isUpdating === req.issueKey}
+                            onClick={() => {
+                              const confirmCancel = window.confirm(`ยืนยันการยกเลิกคำขอ ${req.issueKey}? (สต๊อกที่จองไว้จะเด้งกลับคืนคลังทันที)`);
+                              if (confirmCancel) {
+                                updateRequisitionStatus(req.issueKey, "cancelled");
+                              }
+                            }}
+                            className="text-xs px-2.5 h-8 py-1 rounded"
+                          >
+                            ยกเลิก
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Expanded detail panel */}
+                  {isExpanded && (
+                    <tr className="bg-slate-50/50">
+                      <td colSpan={8} className="p-4 border-l-4 border-sky-400">
+                        <div className="grid gap-3">
+                          <div className="flex flex-col gap-1">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                              รายละเอียดคำขอเบิกในใบงาน ({req.issueKey})
+                            </h4>
+                            <p className="text-xs text-[var(--text-muted)]">
+                              <strong>หมายเหตุ:</strong> {req.note || "-"}
+                            </p>
+                          </div>
+
+                          <div className="overflow-x-auto rounded-lg border bg-white">
+                            <table className="min-w-full text-xs text-left divide-y divide-slate-100">
+                              <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
+                                <tr>
+                                  <th className="px-3 py-2">ชื่อสินค้า</th>
+                                  <th className="px-3 py-2 text-right">จำนวนเบิก</th>
+                                  <th className="px-3 py-2 text-right">ต้นทุนต่อหน่วย</th>
+                                  <th className="px-3 py-2 text-right">ต้นทุนรวม</th>
+                                  <th className="px-3 py-2">ประเภทสินค้า</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {req.items.map((item) => {
+                                  const costVal = item.quantity * (item.costPrice || item.price || 0);
+                                  return (
+                                    <tr key={item.id} className="hover:bg-slate-50/20">
+                                      <td className="px-3 py-2.5 font-medium text-slate-800">
+                                        {item.name}
+                                        {item.sku && <span className="block text-[10px] text-slate-400 font-mono">SKU: {item.sku}</span>}
+                                      </td>
+                                      <td className="px-3 py-2.5 text-right font-semibold">
+                                        {formatNumber(item.quantity)} {item.unit}
+                                      </td>
+                                      <td className="px-3 py-2.5 text-right text-slate-500">
+                                        {formatCurrency(item.costPrice || item.price || 0)}
+                                      </td>
+                                      <td className="px-3 py-2.5 text-right font-semibold text-slate-700">
+                                        {formatCurrency(costVal)}
+                                      </td>
+                                      <td className="px-3 py-2.5 text-slate-500">
+                                        {item.productImportType === "stable" ? "สินค้า stable" : "ซื้อมาขายไป"}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                <tr className="bg-slate-50/35 font-bold">
+                                  <td className="px-3 py-2 text-slate-700">รวมทั้งหมด</td>
+                                  <td className="px-3 py-2 text-right text-slate-800">
+                                    {formatNumber(req.totalQuantity)} หน่วย
+                                  </td>
+                                  <td className="px-3 py-2" />
+                                  <td className="px-3 py-2 text-right text-sky-800 font-semibold">
+                                    {formatCurrency(req.totalCost)}
+                                  </td>
+                                  <td className="px-3 py-2" />
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Requisition Timeline Progress Indicators */}
+                          <div className="mt-2 bg-white border rounded-xl p-4">
+                            <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
+                              ความคืบหน้าคำขอเบิกสินค้า
+                            </h5>
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs font-semibold">
+                              
+                              {/* Step 1: Request */}
+                              <div className="flex items-center gap-2">
+                                <div className="h-7 w-7 rounded-full flex items-center justify-center bg-sky-100 text-sky-600 font-bold">
+                                  1
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-slate-800">ส่งคำขอ & จองสต๊อก</p>
+                                  <span className="block text-[10px] text-slate-400 font-normal">โดย: {req.requester}</span>
+                                </div>
+                                <CheckCircle2 size={16} className="text-emerald-500 shrink-0 ml-auto md:ml-2" />
+                              </div>
+                              
+                              {/* Step 2: Approval */}
+                              <div className="flex items-center gap-2">
+                                <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold ${
+                                  req.status !== "pending" && req.status !== "cancelled"
+                                    ? "bg-sky-100 text-sky-600"
+                                    : "bg-slate-100 text-slate-400"
+                                }`}>
+                                  2
+                                </div>
+                                <div>
+                                  <p className={req.status !== "pending" && req.status !== "cancelled" ? "text-slate-800" : "text-slate-400 font-medium"}>
+                                    อนุมัติแล้ว / รอแอดมินจ่ายของ
+                                  </p>
+                                  {req.approver && (
+                                    <span className="block text-[10px] text-slate-400 font-normal">โดย: {req.approver}</span>
+                                  )}
+                                </div>
+                                {req.status !== "pending" && req.status !== "cancelled" ? (
+                                  <CheckCircle2 size={16} className="text-emerald-500 shrink-0 ml-2" />
+                                ) : req.status === "cancelled" ? (
+                                  <XCircle size={16} className="text-rose-500 shrink-0 ml-2" />
+                                ) : (
+                                  <Clock size={16} className="text-amber-500 shrink-0 ml-2" />
+                                )}
+                              </div>
+
+                              <div className="hidden md:block h-0.5 bg-slate-200 grow mx-2" />
+
+                              {/* Step 3: Final delivery release */}
+                              <div className="flex items-center gap-2">
+                                <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold ${
+                                  req.status === "completed"
+                                    ? "bg-sky-100 text-sky-600"
+                                    : "bg-slate-100 text-slate-400"
+                                }`}>
+                                  3
+                                </div>
+                                <div>
+                                  <p className={req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>
+                                    แอดมินจ่ายของ/ตัดสต๊อกถาวร
+                                  </p>
+                                </div>
+                                {req.status === "completed" ? (
+                                  <CheckSquare size={16} className="text-emerald-500 shrink-0 ml-2" />
+                                ) : req.status === "cancelled" ? (
+                                  <XCircle size={16} className="text-rose-500 shrink-0 ml-2" />
+                                ) : (
+                                  <Clock size={16} className="text-slate-300 shrink-0 ml-2" />
+                                )}
+                              </div>
+
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </Table>
+        )}
+      </DataPanel>
     </section>
   );
 }
