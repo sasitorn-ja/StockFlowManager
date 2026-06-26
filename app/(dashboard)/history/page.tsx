@@ -130,15 +130,25 @@ function HistorySection({
                 <td className="text-[12px] text-[var(--text-muted)]">{item.note || "-"}</td>
                 <td>
                   {isGroupStart ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => openDeliveryDocumentFromHistory(issueKey)}
-                    >
-                      <FileText size={14} />
-                      ดูใบเบิก
-                    </Button>
+                    item.status === "approved" || item.status === "completed" || !item.status ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => openDeliveryDocumentFromHistory(issueKey)}
+                      >
+                        <FileText size={14} />
+                        ดูใบเบิก
+                      </Button>
+                    ) : (
+                      <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold ${
+                        item.status === "pending"
+                          ? "bg-[#fffbeb] text-[#b45309] ring-1 ring-[#fde68a]"
+                          : "bg-[#fff1f2] text-[#be123c] ring-1 ring-[#fecdd3]"
+                      }`}>
+                        {item.status === "pending" ? "รออนุมัติ" : "ยกเลิกแล้ว"}
+                      </span>
+                    )
                   ) : (
                     <span className="text-[12px] text-[var(--text-muted)]">ใบเดียวกัน</span>
                   )}
