@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { TransactionProvider } from "./TransactionContext";
 import {
   Menu,
   X,
@@ -110,60 +111,62 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   );
 
   return (
-    <main className="dashboard-shell">
-      {isMobileMenuOpen ? (
-        <button
-          type="button"
-          className="dashboard-overlay"
-          onClick={closeMobileMenu}
-          aria-label="ปิดเมนู"
-        />
-      ) : null}
+    <TransactionProvider>
+      <main className="dashboard-shell">
+        {isMobileMenuOpen ? (
+          <button
+            type="button"
+            className="dashboard-overlay"
+            onClick={closeMobileMenu}
+            aria-label="ปิดเมนู"
+          />
+        ) : null}
 
-      <aside
-        className={`dashboard-sidebar-mobile ${
-          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        {sidebarContent}
-      </aside>
+        <aside
+          className={`dashboard-sidebar-mobile ${
+            isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          {sidebarContent}
+        </aside>
 
-      <aside className="dashboard-sidebar">{sidebarContent}</aside>
+        <aside className="dashboard-sidebar">{sidebarContent}</aside>
 
-      <div className="dashboard-main">
-        <header className="dashboard-header flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="icon-button lg:hidden"
-              aria-label="เปิดเมนู"
-            >
-              <Menu aria-hidden="true" size={19} />
-            </button>
-            <div className="min-w-0">
-              <h1 className="truncate text-base font-bold text-[var(--text-strong)] md:text-lg">
-                CPAC SB&amp;M Inventory Management
-              </h1>
+        <div className="dashboard-main">
+          <header className="dashboard-header flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="icon-button lg:hidden"
+                aria-label="เปิดเมนู"
+              >
+                <Menu aria-hidden="true" size={19} />
+              </button>
+              <div className="min-w-0">
+                <h1 className="truncate text-base font-bold text-[var(--text-strong)] md:text-lg">
+                  CPAC SB&amp;M Inventory Management
+                </h1>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/50 px-3 py-1 text-xs shadow-sm">
-            <span className="font-semibold text-sky-800">จำลองบทบาท:</span>
-            <select
-              value={userRole}
-              onChange={(e) => handleRoleChange(e.target.value)}
-              className="bg-transparent font-medium text-sky-900 border-none outline-none cursor-pointer focus:ring-0 py-0.5"
-              style={{ minWidth: "140px" }}
-            >
-              <option value="employee">พนักงาน (ผู้เบิก)</option>
-              <option value="admin">แอดมิน (ผู้อนุมัติ/จ่ายสินค้า)</option>
-            </select>
-          </div>
-        </header>
+            <div className="flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/50 px-3 py-1 text-xs shadow-sm">
+              <span className="font-semibold text-sky-800">จำลองบทบาท:</span>
+              <select
+                value={userRole}
+                onChange={(e) => handleRoleChange(e.target.value)}
+                className="bg-transparent font-medium text-sky-900 border-none outline-none cursor-pointer focus:ring-0 py-0.5"
+                style={{ minWidth: "140px" }}
+              >
+                <option value="employee">พนักงาน (ผู้เบิก)</option>
+                <option value="admin">แอดมิน (ผู้อนุมัติ/จ่ายสินค้า)</option>
+              </select>
+            </div>
+          </header>
 
-        <div className="dashboard-content">{children}</div>
-      </div>
-    </main>
+          <div className="dashboard-content">{children}</div>
+        </div>
+      </main>
+    </TransactionProvider>
   );
 }
