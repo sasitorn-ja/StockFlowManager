@@ -12,6 +12,24 @@ let isTableChecked = false;
 async function ensureTableExists() {
   if (isTableChecked) return;
   try {
+    // Ensure admin_users table exists
+    await sql`
+      CREATE TABLE IF NOT EXISTS admin_users (
+        username VARCHAR(255) PRIMARY KEY,
+        is_admin BOOLEAN DEFAULT TRUE,
+        created_at BIGINT
+      );
+    `;
+
+    // Seed default admin if it doesn't exist
+    const admins = await sql`SELECT 1 FROM admin_users WHERE username = 'แอดมิน' LIMIT 1;`;
+    if (admins.length === 0) {
+      await sql`
+        INSERT INTO admin_users (username, is_admin, created_at)
+        VALUES ('แอดมิน', TRUE, ${Date.now()});
+      `;
+    }
+
     // Check if table exists
     await sql`SELECT 1 FROM transactions LIMIT 1;`;
     
@@ -81,7 +99,7 @@ async function ensureTableExists() {
       console.log("Table 'transactions' created and seeded successfully.");
       isTableChecked = true;
     } else {
-      throw error;
+      console.error("Error checking or creating database tables:", error);
     }
   }
 }

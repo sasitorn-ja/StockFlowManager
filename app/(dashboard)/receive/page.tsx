@@ -47,6 +47,7 @@ export default function ReceivePage() {
   const [form, setForm] = useState<FormState>(createEmptyForm);
   const [isReceivePanelOpen, setIsReceivePanelOpen] = useState(false);
   const [receiveImagePreview, setReceiveImagePreview] = useState<{ src: string; title: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
@@ -118,30 +119,60 @@ export default function ReceivePage() {
       return;
     }
 
-    const matchedItem = receiveProductSuggestions.find((item) =>
-      item.name.trim().toLowerCase().startsWith(normalizedValue)
+    const matchedItem = receiveProductSuggestions.find(
+      (item) => item.name.trim().toLowerCase() === normalizedValue
     );
 
-    if (!matchedItem) {
-      setForm((current) => ({
-        ...current,
-        name: value,
-      }));
-      return;
-    }
+    setForm((current) => {
+      const prevNormalized = current.name.trim().toLowerCase();
+      const prevMatchedItem = receiveProductSuggestions.find(
+        (item) => item.name.trim().toLowerCase() === prevNormalized
+      );
 
-    setForm((current) => ({
-      ...current,
-      name: value,
-      sku: matchedItem.sku,
-      category: matchedItem.category,
-      imageDataUrl: matchedItem.imageDataUrl || "",
-      productImportType: matchedItem.productImportType,
-      unit: matchedItem.unit,
-      price: String(matchedItem.price),
-      costPrice: String(matchedItem.costPrice ?? 0),
-      costCurrency: matchedItem.costCurrency ?? "THB",
-    }));
+      let updatedFields = {};
+
+      if (!matchedItem && prevMatchedItem) {
+        const isSkuUnchanged = current.sku === prevMatchedItem.sku;
+        const isCategoryUnchanged = current.category === prevMatchedItem.category;
+        const isUnitUnchanged = current.unit === prevMatchedItem.unit;
+        const isCostPriceUnchanged = current.costPrice === String(prevMatchedItem.costPrice ?? 0);
+        const isPriceUnchanged = current.price === String(prevMatchedItem.price);
+        const isCurrencyUnchanged = current.costCurrency === (prevMatchedItem.costCurrency ?? "THB");
+        const isImageUnchanged = (current.imageDataUrl || "") === (prevMatchedItem.imageDataUrl || "");
+
+        updatedFields = {
+          sku: isSkuUnchanged ? "" : current.sku,
+          category: isCategoryUnchanged ? "" : current.category,
+          unit: isUnitUnchanged ? "" : current.unit,
+          costPrice: isCostPriceUnchanged ? "0" : current.costPrice,
+          price: isPriceUnchanged ? "0" : current.price,
+          costCurrency: isCurrencyUnchanged ? "THB" : current.costCurrency,
+          imageDataUrl: isImageUnchanged ? "" : current.imageDataUrl,
+        };
+      }
+
+      if (matchedItem) {
+        return {
+          ...current,
+          ...updatedFields,
+          name: value,
+          sku: matchedItem.sku,
+          category: matchedItem.category,
+          imageDataUrl: matchedItem.imageDataUrl || "",
+          productImportType: matchedItem.productImportType,
+          unit: matchedItem.unit,
+          price: String(matchedItem.price),
+          costPrice: String(matchedItem.costPrice ?? 0),
+          costCurrency: matchedItem.costCurrency ?? "THB",
+        };
+      }
+
+      return {
+        ...current,
+        ...updatedFields,
+        name: value,
+      };
+    });
   }
 
   function openReceiveDialog() {
@@ -191,6 +222,10 @@ export default function ReceivePage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (isSubmitting) {
+      return;
+    }
+
     const quantity = Number(form.quantity);
     const price = Number(form.price || 0);
     const costPrice = Number(form.costPrice || 0);
@@ -226,19 +261,29 @@ export default function ReceivePage() {
       return;
     }
 
+    setIsSubmitting(true);
+
     // Pessimistically update UI & database
     fetch("/api/transactions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(transaction),
-    }).then((res) => {
-      if (res.ok) {
-        refresh();
-        closeReceiveDialog();
-      } else {
-        window.alert("ไม่สามารถบันทึกรายการสินค้าเข้าฐานข้อมูล Neon ได้");
-      }
-    });
+    })
+      .then((res) => {
+        if (res.ok) {
+          refresh();
+          closeReceiveDialog();
+        } else {
+          window.alert("ไม่สามารถบันทึกรายการสินค้าเข้าฐานข้อมูล Neon ได้");
+        }
+      })
+      .catch((err) => {
+        console.error("Submit error:", err);
+        window.alert("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล");
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   }
 
   const currentReceiveFilterLabel =
@@ -424,63 +469,56 @@ export default function ReceivePage() {
           </DialogHeader>
 
           <form className="receive-form" onSubmit={handleSubmit}>
-            <label>
-              <span>หมวดหลัก *</span>
-              <select
-                value={form.productImportType}
-                onChange={(event) =>
-                  updateForm("productImportType", event.target.value as ProductImportType)
-                }
-              >
-                <option value="resale">ซื้อมาขายไป</option>
-                <option value="stable">สินค้า stable</option>
-              </select>
-            </label>
+            <div className="receive-form-grid">
+              <label>
+                <span>หมวดหลัก *</span>
+                <select
+                  value={form.productImportType}
+                  onChange={(event) =>
+                    updateForm("productImportType", event.target.value as ProductImportType)
+                  }
+                >
+                  <option value="resale">ซื้อมาขายไป</option>
+                  <option value="stable">สินค้า stable</option>
+                </select>
+              </label>
 
-            <label>
-              <span>รายการสินค้า *</span>
-              <input
-                value={form.name}
-                onChange={(event) => handleReceiveProductNameChange(event.target.value)}
-                placeholder="ชื่อรายการสินค้า"
-                list="receive-product-suggestions"
-                required
-              />
-              <datalist id="receive-product-suggestions">
-                {receiveProductSuggestions.map((item) => (
-                  <option key={`receive-product-${item.key}`} value={item.name} />
-                ))}
-              </datalist>
-            </label>
+              <label>
+                <span>หมวดหมู่ *</span>
+                <input
+                  value={form.category}
+                  onChange={(event) => updateForm("category", event.target.value)}
+                  placeholder="เช่น แผ่นพื้นกลวง"
+                />
+              </label>
+            </div>
 
-            <label>
-              <span>หมวดหมู่ *</span>
-              <input
-                value={form.category}
-                onChange={(event) => updateForm("category", event.target.value)}
-                placeholder="เช่น แผ่นพื้นกลวง"
-              />
-            </label>
+            <div className="receive-form-grid">
+              <label>
+                <span>รายการสินค้า *</span>
+                <input
+                  value={form.name}
+                  onChange={(event) => handleReceiveProductNameChange(event.target.value)}
+                  placeholder="ชื่อรายการสินค้า"
+                  list="receive-product-suggestions"
+                  required
+                />
+                <datalist id="receive-product-suggestions">
+                  {receiveProductSuggestions.map((item) => (
+                    <option key={`receive-product-${item.key}`} value={item.name} />
+                  ))}
+                </datalist>
+              </label>
 
-            <label>
-              <span>รหัสสินค้า</span>
-              <input
-                value={form.sku}
-                onChange={(event) => updateForm("sku", event.target.value)}
-                placeholder="PC-HLD350-300"
-              />
-            </label>
-
-            <label>
-              <span>รูปสินค้า</span>
-              <input type="file" accept="image/*" onChange={handleProductImageChange} />
-            </label>
-
-            {form.imageDataUrl ? (
-              <div className="receive-image-preview">
-                <img src={form.imageDataUrl} alt={form.name || "รูปสินค้า"} />
-              </div>
-            ) : null}
+              <label>
+                <span>รหัสสินค้า</span>
+                <input
+                  value={form.sku}
+                  onChange={(event) => updateForm("sku", event.target.value)}
+                  placeholder="เช่น PC-HLD350-300"
+                />
+              </label>
+            </div>
 
             <div className="receive-form-grid">
               <label>
@@ -494,13 +532,50 @@ export default function ReceivePage() {
                   required
                 />
               </label>
+
               <label>
                 <span>หน่วย *</span>
                 <input
                   value={form.unit}
                   onChange={(event) => updateForm("unit", event.target.value)}
-                  placeholder="แผ่น"
+                  placeholder="เช่น แผ่น / ถุง / ชิ้น"
                   required
+                />
+              </label>
+            </div>
+
+            <div className="receive-form-grid">
+              <label>
+                <span>ต้นทุนต่อหน่วย *</span>
+                <div className="cost-currency-control">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.costPrice}
+                    onChange={(event) => updateForm("costPrice", event.target.value)}
+                  />
+                  <select
+                    value={form.costCurrency}
+                    onChange={(event) =>
+                      updateForm("costCurrency", event.target.value as CostCurrency)
+                    }
+                  >
+                    {costCurrencyOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+
+              <label>
+                <span>จุดเก็บ / คลังย่อย</span>
+                <input
+                  value={form.requester}
+                  onChange={(event) => updateForm("requester", event.target.value)}
+                  placeholder="เช่น A01 - ลานวางแผ่นพื้น"
                 />
               </label>
             </div>
@@ -514,6 +589,7 @@ export default function ReceivePage() {
                   onChange={(event) => updateForm("issueKey", event.target.value)}
                 />
               </label>
+
               <label>
                 <span>วันหมดอายุ</span>
                 <input
@@ -524,64 +600,45 @@ export default function ReceivePage() {
               </label>
             </div>
 
-            <label>
-              <span>วันที่รับเข้า *</span>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(event) => updateForm("date", event.target.value)}
-                required
-              />
-            </label>
-
-            <label>
-              <span>จุดเก็บ / คลังย่อย</span>
-              <input
-                value={form.requester}
-                onChange={(event) => updateForm("requester", event.target.value)}
-                placeholder="A01 - ลานวางแผ่นพื้น"
-              />
-            </label>
-
-            <label>
-              <span>หมายเหตุ</span>
-              <input
-                value={form.note}
-                onChange={(event) => updateForm("note", event.target.value)}
-                placeholder="ระบุหมายเหตุ ถ้ามี"
-              />
-            </label>
-
-            <label>
-              <span>ต้นทุนต่อหน่วย *</span>
-              <div className="cost-currency-control">
+            <div className="receive-form-grid">
+              <label>
+                <span>วันที่รับเข้า *</span>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.costPrice}
-                  onChange={(event) => updateForm("costPrice", event.target.value)}
+                  type="date"
+                  value={form.date}
+                  onChange={(event) => updateForm("date", event.target.value)}
+                  required
                 />
-                <select
-                  value={form.costCurrency}
-                  onChange={(event) =>
-                    updateForm("costCurrency", event.target.value as CostCurrency)
-                  }
-                >
-                  {costCurrencyOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              </label>
+
+              <label>
+                <span>หมายเหตุ</span>
+                <input
+                  value={form.note}
+                  onChange={(event) => updateForm("note", event.target.value)}
+                  placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)"
+                />
+              </label>
+            </div>
+
+            <label>
+              <span>รูปสินค้า</span>
+              <input type="file" accept="image/*" onChange={handleProductImageChange} className="cursor-pointer file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200" />
             </label>
+
+            {form.imageDataUrl ? (
+              <div className="receive-image-preview mt-1">
+                <img src={form.imageDataUrl} alt={form.name || "รูปสินค้า"} className="rounded-lg object-cover max-h-48 w-full border" />
+              </div>
+            ) : null}
 
             <div className="receive-panel-actions">
-              <Button type="button" variant="secondary" onClick={closeReceiveDialog}>
+              <Button type="button" variant="secondary" onClick={closeReceiveDialog} disabled={isSubmitting}>
                 ยกเลิก
               </Button>
-              <Button type="submit">บันทึกรายการ</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "กำลังบันทึก..." : "บันทึกรายการ"}
+              </Button>
             </div>
           </form>
         </DialogContent>
@@ -589,4 +646,3 @@ export default function ReceivePage() {
     </>
   );
 }
-

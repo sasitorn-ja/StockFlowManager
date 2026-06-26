@@ -131,9 +131,9 @@ export default function RequisitionTrackerPage() {
   const ownedRequisitions = useMemo(() => {
     return groupedRequisitions.filter((req) => {
       if (showOnlyMine) {
-        const isOwnKey = myCreatedIssueKeys.includes(req.issueKey);
         const isOwnName = req.requester === simulatedUsername;
-        if (!isOwnKey && !isOwnName) {
+        const isLegacyOwnKey = (!req.requester || req.requester === "-" || req.requester === "พนักงาน") && myCreatedIssueKeys.includes(req.issueKey);
+        if (!isOwnName && !isLegacyOwnKey) {
           return false;
         }
       }
@@ -367,7 +367,7 @@ export default function RequisitionTrackerPage() {
           >
             {filteredRequisitions.map((req) => {
               const isExpanded = expandedKeys[req.issueKey];
-              const isOwnRequisition = req.requester === simulatedUsername || myCreatedIssueKeys.includes(req.issueKey);
+              const isOwnRequisition = req.requester === simulatedUsername;
 
               // Render human-friendly status badging
               let badgeTone: "warn" | "out" | "in" | "urgent" = "warn";

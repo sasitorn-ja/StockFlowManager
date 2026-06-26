@@ -266,6 +266,10 @@ export default function IssuePage() {
   }
 
   async function handleSelectedIssueBatch() {
+    if (isSendingIssueEmail) {
+      return;
+    }
+
     const selectedEntries = Object.entries(issueSelections)
       .map(([itemKey, quantityValue]) => {
         const item = inventory.find((candidate) => candidate.key === itemKey);
