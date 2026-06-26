@@ -263,6 +263,11 @@ export default function OverviewPage() {
         >
           {stockFlowChart.rows.map((row) => (
             <div className="overview-bar-group" key={row.date}>
+              <div className="overview-bar-tooltip" role="tooltip">
+                <strong>{row.label}</strong>
+                <span>รับเข้า {formatNumber(row.stockIn)}</span>
+                <span>เบิกจ่าย {formatNumber(row.stockOut)}</span>
+              </div>
               <div className="overview-bars">
                 <div
                   className="overview-bar overview-bar-in"
@@ -272,7 +277,8 @@ export default function OverviewPage() {
                         ? `${Math.max(4, (row.stockIn / stockFlowChart.maxValue) * 100)}%`
                         : "0%",
                   }}
-                  title={`รับเข้า: ${formatNumber(row.stockIn)}`}
+                  aria-label={`${row.label} รับเข้า ${formatNumber(row.stockIn)}`}
+                  tabIndex={0}
                 />
                 <div
                   className="overview-bar overview-bar-out"
@@ -282,7 +288,8 @@ export default function OverviewPage() {
                         ? `${Math.max(4, (row.stockOut / stockFlowChart.maxValue) * 100)}%`
                         : "0%",
                   }}
-                  title={`เบิกจ่าย: ${formatNumber(row.stockOut)}`}
+                  aria-label={`${row.label} เบิกจ่าย ${formatNumber(row.stockOut)}`}
+                  tabIndex={0}
                 />
               </div>
               <span>{row.label}</span>

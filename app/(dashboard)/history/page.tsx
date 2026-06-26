@@ -1,36 +1,65 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PackageMinus, FileText } from "lucide-react";
+import { PackageMinus, FileText, PackagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatsGrid } from "@/components/stock-flow/StatsGrid";
 import { Table } from "@/components/stock-flow/Table";
 import {
-  buildInventoryMap,
   formatNumber,
-  formatCurrency,
   getLocalDateValue,
   formatDate,
   formatCurrencyWithLabel,
   getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
 import { useTransactions } from "../TransactionContext";
-import type { Transaction } from "@/types/stock-flow";
+import type { Transaction, TransactionStatus, TransactionType } from "@/types/stock-flow";
 import type { StatCard } from "@/components/stock-flow/StatsGrid";
 
+type HistoryFilter = "all" | TransactionType;
+
 type HistorySectionProps = {
-  issueOverview: {
+  movementOverview: {
     transactions: Transaction[];
   };
-  issueHistoryStats: StatCard[];
+  movementStats: StatCard[];
+  activeFilter: HistoryFilter;
+  onFilterChange: (filter: HistoryFilter) => void;
   openIssueDialog: () => void;
   openDeliveryDocumentFromHistory: (issueKey: string) => void;
 };
 
+const historyFilters: { value: HistoryFilter; label: string }[] = [
+  { value: "all", label: "ทั้งหมด" },
+  { value: "in", label: "รับเข้า" },
+  { value: "out", label: "เบิกจ่าย" },
+];
+
+function getReceiveDocumentNo(item: Transaction) {
+  const documentSuffix = item.id.replace(/[^a-zA-Z0-9]/g, "").slice(-5).toUpperCase() || "00000";
+  return `IN-${item.date.replaceAll("-", "")}-${documentSuffix}`;
+}
+
+function getTransactionStatusLabel(status?: TransactionStatus) {
+  if (status === "pending") return "รออนุมัติ";
+  if (status === "approved") return "อนุมัติแล้ว";
+  if (status === "employee_confirmed") return "พนักงานยืนยันแล้ว";
+  if (status === "cancelled") return "ยกเลิกแล้ว";
+  return "เสร็จสิ้น";
+}
+
+function getTransactionStatusClass(status?: TransactionStatus) {
+  if (status === "pending") return "stock-pill-warn";
+  if (status === "cancelled") return "stock-pill-danger";
+  return "stock-pill-ok";
+}
+
 function HistorySection({
-  issueOverview,
-  issueHistoryStats,
+  movementOverview,
+  movementStats,
+  activeFilter,
+  onFilterChange,
   openIssueDialog,
   openDeliveryDocumentFromHistory,
 }: HistorySectionProps) {
@@ -39,10 +68,24 @@ function HistorySection({
       <div className="dashboard-category-header">
         <div className="history-header-left">
           <div>
-            <h3 className="dashboard-section-title">ประวัติภาพรวมการขอเบิกสินค้า</h3>
+            <h3 className="dashboard-section-title">ประวัติรับเข้า-เบิกจ่ายสินค้า</h3>
             <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              รวมข้อมูลใบเบิกทั้งหมด จำนวนที่เบิก และรายละเอียดรายการจ่ายออก
+              รวมความเคลื่อนไหวสินค้าเข้าและออก เรียงตามเวลาที่บันทึกล่าสุด
             </p>
+          </div>
+          <div className="dashboard-category-switch history-type-switch">
+            {historyFilters.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                className={`dashboard-category-switch-option ${
+                  activeFilter === item.value ? "dashboard-category-switch-option-active" : ""
+                }`}
+                onClick={() => onFilterChange(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
         </div>
         <Button type="button" variant="secondary" onClick={openIssueDialog}>
@@ -51,60 +94,81 @@ function HistorySection({
         </Button>
       </div>
 
-      <StatsGrid stats={issueHistoryStats} />
+      <StatsGrid stats={movementStats} />
 
       <section className="history-table-section">
         <div className="history-table-header">
           <div>
-            <h2 className="dashboard-section-title">รายการขอเบิกทั้งหมด</h2>
+            <h2 className="dashboard-section-title">รายการเคลื่อนไหวทั้งหมด</h2>
             <p className="dashboard-subtitle">
-              เรียงจากใบเบิกล่าสุดไปเก่าสุด พร้อมประเภทสินค้าและ Key เบิก
+              ใช้ตรวจย้อนหลังได้ทั้งวันที่รับเข้า วันที่เบิก และเวลาที่ระบบบันทึก
             </p>
           </div>
         </div>
         <Table
           headers={[
-            "วันที่เบิก",
-            "Key เบิกสินค้า",
+            "วันที่รายการ / เวลาบันทึก",
+            "ประเภท",
+            "เลขเอกสาร",
             "สินค้า",
             "ประเภทสินค้า",
             "หมวดหมู่",
             "จำนวน",
-            "วันหมดอายุ",
-            "ราคาต้นทุน",
             "มูลค่าต้นทุน",
+            "ผู้เกี่ยวข้อง",
             "หมายเหตุ",
-            "ใบเบิกสินค้า",
+            "สถานะ / เอกสาร",
           ]}
-          emptyMessage="ยังไม่มีประวัติการขอเบิกสินค้า"
+          emptyMessage="ยังไม่มีประวัติรายการสินค้า"
           columnCount={11}
         >
-          {issueOverview.transactions.map((item, index, items) => {
+          {movementOverview.transactions.map((item) => {
             const issueKey = item.issueKey || "-";
-            const previousIssueKey = items[index - 1]?.issueKey || "-";
-            const nextIssueKey = items[index + 1]?.issueKey || "-";
-            const isGroupStart = issueKey !== previousIssueKey;
-            const isGroupEnd = issueKey !== nextIssueKey;
-            const groupCount = items.filter(
-              (candidate) => (candidate.issueKey || "-") === issueKey
-            ).length;
+            const isStockIn = item.type === "in";
+            const documentNo = isStockIn ? getReceiveDocumentNo(item) : issueKey;
+            const relatedPerson = isStockIn
+              ? item.requester || "จุดเก็บไม่ระบุ"
+              : item.requester || "ผู้ขอไม่ระบุ";
 
             return (
-              <tr
-                key={`history-${item.id}`}
-                className={`history-group-row ${isGroupStart ? "history-group-start" : ""} ${
-                  isGroupEnd ? "history-group-end" : ""
-                }`}
-              >
-                <td>{formatDate(item.date)}</td>
+              <tr key={`history-${item.id}`} className="history-group-row">
                 <td>
                   <strong className="font-semibold text-[var(--text-strong)]">
-                    {item.issueKey || "-"}
+                    {formatDate(item.date)}
                   </strong>
-                  {groupCount > 1 && isGroupStart ? (
-                    <div className="history-group-label">
-                      ใบเดียวกัน {formatNumber(groupCount)} รายการ
-                    </div>
+                  <div className="text-[12px] text-[var(--text-muted)]">
+                    บันทึก{" "}
+                    {new Date(item.createdAt).toLocaleTimeString("th-TH", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </td>
+                <td>
+                  <span
+                    className={`history-type-pill ${
+                      isStockIn ? "history-type-pill-in" : "history-type-pill-out"
+                    }`}
+                  >
+                    {isStockIn ? (
+                      <>
+                        <PackagePlus size={13} />
+                        รับเข้า
+                      </>
+                    ) : (
+                      <>
+                        <PackageMinus size={13} />
+                        เบิกจ่าย
+                      </>
+                    )}
+                  </span>
+                </td>
+                <td>
+                  <strong className="font-semibold text-[var(--text-strong)]">
+                    {documentNo}
+                  </strong>
+                  {!isStockIn && issueKey !== "-" ? (
+                    <div className="history-group-label">ใบเบิกสินค้า</div>
                   ) : null}
                 </td>
                 <td>
@@ -117,20 +181,25 @@ function HistorySection({
                   {formatNumber(item.quantity)}{" "}
                   <span className="text-[12px] text-[var(--text-subtle)]">{item.unit}</span>
                 </td>
-                <td>{item.expiryDate ? formatDate(item.expiryDate) : "-"}</td>
-                <td className="text-right">
-                  {formatCurrencyWithLabel(item.costPrice ?? 0, item.costCurrency)}
-                </td>
                 <td className="text-right">
                   {formatCurrencyWithLabel(
                     item.quantity * (item.costPrice ?? 0),
                     item.costCurrency
                   )}
                 </td>
+                <td>
+                  <strong className="font-semibold text-[var(--text-strong)]">
+                    {isStockIn ? "คลัง/จุดเก็บ" : "ผู้ขอเบิก"}
+                  </strong>
+                  <div className="text-[12px] text-[var(--text-muted)]">{relatedPerson}</div>
+                </td>
                 <td className="text-[12px] text-[var(--text-muted)]">{item.note || "-"}</td>
                 <td>
-                  {isGroupStart ? (
-                    item.status === "approved" || item.status === "completed" || !item.status ? (
+                  <div className="history-action-stack">
+                    <span className={`stock-pill ${getTransactionStatusClass(item.status)}`}>
+                      {getTransactionStatusLabel(item.status)}
+                    </span>
+                    {!isStockIn && issueKey !== "-" ? (
                       <Button
                         type="button"
                         variant="secondary"
@@ -140,18 +209,8 @@ function HistorySection({
                         <FileText size={14} />
                         ดูใบเบิก
                       </Button>
-                    ) : (
-                      <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold ${
-                        item.status === "pending"
-                          ? "bg-[#fffbeb] text-[#b45309] ring-1 ring-[#fde68a]"
-                          : "bg-[#fff1f2] text-[#be123c] ring-1 ring-[#fecdd3]"
-                      }`}>
-                        {item.status === "pending" ? "รออนุมัติ" : "ยกเลิกแล้ว"}
-                      </span>
-                    )
-                  ) : (
-                    <span className="text-[12px] text-[var(--text-muted)]">ใบเดียวกัน</span>
-                  )}
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             );
@@ -165,54 +224,76 @@ function HistorySection({
 export default function HistoryPage() {
   const router = useRouter();
   const { transactions } = useTransactions();
+  const [activeFilter, setActiveFilter] = useState<HistoryFilter>("all");
 
-  const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
-
-  const issueOverview = useMemo(() => {
+  const movementOverview = useMemo(() => {
     const today = getLocalDateValue();
-    const issueTransactions = transactions
-      .filter((item) => item.type === "out")
+    const movementTransactions = transactions
+      .filter((item) => activeFilter === "all" || item.type === activeFilter)
       .slice()
       .sort((a, b) => b.createdAt - a.createdAt);
+    const stockInTransactions = transactions.filter((item) => item.type === "in");
+    const stockOutTransactions = transactions.filter((item) => item.type === "out");
 
     return {
-      transactions: issueTransactions,
-      totalRequests: issueTransactions.length,
-      totalQuantity: issueTransactions.reduce((sum, item) => sum + item.quantity, 0),
-      totalCostValue: issueTransactions.reduce(
+      transactions: movementTransactions,
+      totalMovements: movementTransactions.length,
+      stockInCount: stockInTransactions.length,
+      stockOutCount: stockOutTransactions.length,
+      totalQuantity: movementTransactions.reduce((sum, item) => sum + item.quantity, 0),
+      totalCostValue: movementTransactions.reduce(
         (sum, item) => sum + item.quantity * (item.costPrice ?? 0),
         0
       ),
-      todayRequests: issueTransactions.filter((item) => item.date === today).length,
-      latest: issueTransactions.slice(0, 4),
+      todayMovements: movementTransactions.filter((item) => item.date === today).length,
     };
-  }, [transactions]);
+  }, [activeFilter, transactions]);
 
-  const issueHistoryStats: StatCard[] = useMemo(
+  const movementStats: StatCard[] = useMemo(
     () => [
       {
-        label: "ใบเบิกทั้งหมด",
-        value: formatNumber(issueOverview.totalRequests),
+        label: "รายการทั้งหมด",
+        value: formatNumber(movementOverview.totalMovements),
         unit: "รายการ",
-        helper: "นับจากรายการจ่ายออกทั้งหมด",
+        helper: activeFilter === "all" ? "รวมรับเข้าและเบิกจ่าย" : "ตามตัวกรองที่เลือก",
+        tone: "sky",
+      },
+      {
+        label: "รับเข้าสินค้า",
+        value: formatNumber(movementOverview.stockInCount),
+        unit: "รายการ",
+        helper: "ประวัติรับเข้าสินค้าทั้งหมด",
+        tone: "emerald",
+      },
+      {
+        label: "เบิกจ่ายสินค้า",
+        value: formatNumber(movementOverview.stockOutCount),
+        unit: "รายการ",
+        helper: "ประวัติเบิกจ่ายสินค้าทั้งหมด",
+        tone: "orange",
+      },
+      {
+        label: "จำนวนรวม",
+        value: formatNumber(movementOverview.totalQuantity),
+        unit: "หน่วย",
+        helper: "รวมจำนวนตามตัวกรองที่เลือก",
         tone: "amber",
       },
       {
-        label: "ใบเบิกวันนี้",
-        value: formatNumber(issueOverview.todayRequests),
+        label: "มูลค่าต้นทุน",
+        value: formatCurrencyWithLabel(movementOverview.totalCostValue, "THB"),
+        helper: "คำนวณจากต้นทุนของรายการ",
+        tone: "violet",
+      },
+      {
+        label: "รายการวันนี้",
+        value: formatNumber(movementOverview.todayMovements),
         unit: "รายการ",
         helper: "อ้างอิงจากวันที่รายการ",
         tone: "sky",
       },
-      {
-        label: "จำนวนที่เบิกรวม",
-        value: formatNumber(issueOverview.totalQuantity),
-        unit: "หน่วย",
-        helper: "รวมจำนวนสินค้าที่จ่ายออก",
-        tone: "emerald",
-      },
     ],
-    [issueOverview]
+    [activeFilter, movementOverview]
   );
 
   function openIssueDialog() {
@@ -225,8 +306,10 @@ export default function HistoryPage() {
 
   return (
     <HistorySection
-      issueOverview={issueOverview}
-      issueHistoryStats={issueHistoryStats}
+      movementOverview={movementOverview}
+      movementStats={movementStats}
+      activeFilter={activeFilter}
+      onFilterChange={setActiveFilter}
       openIssueDialog={openIssueDialog}
       openDeliveryDocumentFromHistory={openDeliveryDocumentFromHistory}
     />

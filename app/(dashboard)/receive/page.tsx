@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChangeEvent, FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { Plus, Search, Filter, ChevronDown, FileText, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ export default function ReceivePage() {
   const [isReceivePanelOpen, setIsReceivePanelOpen] = useState(false);
   const [receiveImagePreview, setReceiveImagePreview] = useState<{ src: string; title: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [autoRecordTime, setAutoRecordTime] = useState(Date.now());
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
@@ -74,6 +75,26 @@ export default function ReceivePage() {
   const receiveProductSuggestions = useMemo(() => {
     return inventory.slice().sort((a, b) => a.name.localeCompare(b.name, "th"));
   }, [inventory]);
+
+  const autoRecordTimeLabel = useMemo(
+    () =>
+      new Date(autoRecordTime).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [autoRecordTime]
+  );
+
+  useEffect(() => {
+    if (!isReceivePanelOpen) {
+      return;
+    }
+
+    setAutoRecordTime(Date.now());
+    const timerId = window.setInterval(() => setAutoRecordTime(Date.now()), 30000);
+
+    return () => window.clearInterval(timerId);
+  }, [isReceivePanelOpen]);
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -182,6 +203,7 @@ export default function ReceivePage() {
       type: "in",
       date: getLocalDateValue(),
     });
+    setAutoRecordTime(Date.now());
     setIsReceivePanelOpen(true);
   }
 
@@ -194,7 +216,7 @@ export default function ReceivePage() {
     const rows = receiveTransactions.map((item, index) => ({
       "เลขที่รับเข้า": `IN-${item.date.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`,
       "วันที่รับเข้า": formatDate(item.date),
-      "เวลา": new Date(item.createdAt).toLocaleTimeString("th-TH", {
+      "เวลาบันทึก": new Date(item.createdAt).toLocaleTimeString("th-TH", {
         hour: "2-digit",
         minute: "2-digit",
       }),
@@ -354,7 +376,7 @@ export default function ReceivePage() {
                   <tr>
                     <th>เลขที่รับเข้า</th>
                     <th>รูปภาพสินค้า</th>
-                    <th>วันที่รับเข้า</th>
+                    <th>วันที่รับเข้า / เวลาบันทึก</th>
                     <th>จุดเก็บ / คลังย่อย</th>
                     <th>รายการสินค้า</th>
                     <th>จำนวนรายการ</th>
@@ -396,6 +418,7 @@ export default function ReceivePage() {
                           <td>
                             <strong>{formatDate(item.date)}</strong>
                             <span>
+                              บันทึก{" "}
                               {new Date(item.createdAt).toLocaleTimeString("th-TH", {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -465,7 +488,7 @@ export default function ReceivePage() {
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[720px]">
           <DialogHeader>
             <DialogTitle>บันทึกรับเข้า</DialogTitle>
-            <DialogDescription>เพิ่มรายการรับเข้าโดยไม่บังพื้นที่ตารางหลัก</DialogDescription>
+            <DialogDescription>เลือกวันที่รับเข้าเอง ระบบจะบันทึกเวลาทำรายการให้อัตโนมัติ</DialogDescription>
           </DialogHeader>
 
           <form className="receive-form" onSubmit={handleSubmit}>
@@ -609,17 +632,24 @@ export default function ReceivePage() {
                   onChange={(event) => updateForm("date", event.target.value)}
                   required
                 />
+                <small>ใช้วันที่นี้ในรายงาน สต็อก และกราฟภาพรวม</small>
               </label>
 
-              <label>
-                <span>หมายเหตุ</span>
-                <input
-                  value={form.note}
-                  onChange={(event) => updateForm("note", event.target.value)}
-                  placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)"
-                />
-              </label>
+              <div className="receive-auto-time" aria-label="เวลาบันทึกอัตโนมัติ">
+                <span>เวลาบันทึกอัตโนมัติ</span>
+                <strong>{autoRecordTimeLabel}</strong>
+                <small>ระบบเก็บจริงเมื่อกดบันทึกรายการ</small>
+              </div>
             </div>
+
+            <label>
+              <span>หมายเหตุ</span>
+              <input
+                value={form.note}
+                onChange={(event) => updateForm("note", event.target.value)}
+                placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)"
+              />
+            </label>
 
             <label>
               <span>รูปสินค้า</span>

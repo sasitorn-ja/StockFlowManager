@@ -15,7 +15,6 @@ import {
   Database,
   History,
   Clock3,
-  Settings,
   UserCheck,
 } from "lucide-react";
 
@@ -31,7 +30,6 @@ const navigationItems = [
   { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
   { label: "ประวัติรายการ", href: "/history", icon: History },
   { label: "ใกล้หมดสต๊อก / โครงการ", href: "/expiring", icon: Clock3 },
-  { label: "ตั้งค่า", href: "/settings", icon: Settings },
   { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck },
 ];
 
@@ -198,8 +196,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
             </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/50 px-3 py-1 text-xs shadow-sm">
-            <span className="font-semibold text-sky-800">จำลองผู้ใช้:</span>
+          <div className="dashboard-user-switch">
+            <span>จำลองผู้ใช้:</span>
             <select
               value={simulatedUsername}
               onChange={(e) => handleUsernameChange(e.target.value)}
