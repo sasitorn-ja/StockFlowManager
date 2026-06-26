@@ -1,8 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
-import { TransactionProvider } from "./TransactionContext";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -24,18 +23,40 @@ type DashboardLayoutProps = {
 
 const navigationItems = [
   { label: "ภาพรวมสต๊อก", href: "/overview", icon: Home },
+  { label: "รายการสินค้า", href: "/items", icon: Database },
   { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
   { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
-  { label: "รายการสินค้า", href: "/items", icon: Database },
+  { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
   { label: "ประวัติรายการ", href: "/history", icon: History },
   { label: "ใกล้หมดสต๊อก / โครงการ", href: "/expiring", icon: Clock3 },
   { label: "ตั้งค่า", href: "/settings", icon: Settings },
-  { label: "Approve", href: "/approve", icon: PackageCheck },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [userRole, setUserRole] = useState("employee");
   const pathname = usePathname();
+
+  useEffect(() => {
+    const cachedRole = localStorage.getItem("simulated_role") || "employee";
+    setUserRole(cachedRole);
+    
+    // Ensure initial username
+    if (!localStorage.getItem("simulated_username")) {
+      localStorage.setItem("simulated_username", "พนักงาน");
+    }
+  }, []);
+
+  function handleRoleChange(newRole: string) {
+    setUserRole(newRole);
+    localStorage.setItem("simulated_role", newRole);
+    
+    let name = "พนักงาน";
+    if (newRole === "admin") name = "แอดมิน";
+    localStorage.setItem("simulated_username", name);
+
+    window.dispatchEvent(new Event("simulated-role-changed"));
+  }
 
   function closeMobileMenu() {
     setIsMobileMenuOpen(false);
@@ -110,7 +131,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <aside className="dashboard-sidebar">{sidebarContent}</aside>
 
       <div className="dashboard-main">
-        <header className="dashboard-header">
+        <header className="dashboard-header flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -126,11 +147,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </h1>
             </div>
           </div>
+
+          <div className="flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/50 px-3 py-1 text-xs shadow-sm">
+            <span className="font-semibold text-sky-800">จำลองบทบาท:</span>
+            <select
+              value={userRole}
+              onChange={(e) => handleRoleChange(e.target.value)}
+              className="bg-transparent font-medium text-sky-900 border-none outline-none cursor-pointer focus:ring-0 py-0.5"
+              style={{ minWidth: "140px" }}
+            >
+              <option value="employee">พนักงาน (ผู้เบิก)</option>
+              <option value="admin">แอดมิน (ผู้อนุมัติ/จ่ายสินค้า)</option>
+            </select>
+          </div>
         </header>
 
-        <div className="dashboard-content">
-            <TransactionProvider>{children}</TransactionProvider>
-          </div>
+        <div className="dashboard-content">{children}</div>
       </div>
     </main>
   );

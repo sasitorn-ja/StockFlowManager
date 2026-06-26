@@ -3,13 +3,21 @@ import { sql } from "@/lib/db";
 import { createSampleTransactions } from "@/lib/stock-flow/sample-data";
 import { buildItemKey } from "@/lib/stock-flow/utils";
 
-let tableChecked = false;
+export const dynamic = "force-dynamic";
 
+// In-memory cache flag to avoid checking table existence on every query
+let isTableChecked = false;
+
+// Helper function to create the transactions table if it doesn't exist
 async function ensureTableExists() {
-  if (tableChecked) return;
+  if (isTableChecked) return;
   try {
     // Check if table exists
     await sql`SELECT 1 FROM transactions LIMIT 1;`;
+    
+    // Add column if it doesn't exist for existing DBs
+    await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'confirmed';`;
+    isTableChecked = true;
   } catch (error: any) {
     // If table doesn't exist, create it
     if (error?.message?.includes("does not exist") || error?.code === "42P01") {
@@ -34,7 +42,8 @@ async function ensureTableExists() {
           requester VARCHAR(255),
           approver VARCHAR(255),
           note TEXT,
-          "createdAt" BIGINT
+          "createdAt" BIGINT,
+          status VARCHAR(50) DEFAULT 'confirmed'
         );
       `;
 
@@ -44,7 +53,7 @@ async function ensureTableExists() {
         await sql`
           INSERT INTO transactions (
             id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
-            quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, approver, note, "createdAt"
+            quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, approver, note, "createdAt", status
           ) VALUES (
             ${item.id},
             ${item.name},
@@ -64,16 +73,17 @@ async function ensureTableExists() {
             ${item.requester || ""},
             ${item.approver || ""},
             ${item.note || ""},
-            ${item.createdAt}
+            ${item.createdAt},
+            'confirmed'
           )
         `;
       }
       console.log("Table 'transactions' created and seeded successfully.");
+      isTableChecked = true;
     } else {
       throw error;
     }
   }
-  tableChecked = true;
 }
 
 // GET all transactions
@@ -89,7 +99,7 @@ export async function GET() {
         CAST(price AS FLOAT) as price, 
         CAST("costPrice" AS FLOAT) as "costPrice", 
         "costCurrency", date, "expiryDate", "issueKey", 
-        requester, approver, note, "createdAt"
+        requester, approver, note, "createdAt", status
       FROM transactions 
       ORDER BY "createdAt" DESC;
     `;
@@ -118,7 +128,7 @@ export async function POST(request: Request) {
       await sql`
         INSERT INTO transactions (
           id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
-          quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, approver, note, "createdAt"
+          quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, approver, note, "createdAt", status
         ) VALUES (
           ${item.id || `txn-${Date.now()}-${Math.random().toString(36).slice(2)}`},
           ${item.name},
@@ -138,7 +148,8 @@ export async function POST(request: Request) {
           ${item.requester || ""},
           ${item.approver || ""},
           ${item.note || ""},
-          ${item.createdAt || Date.now()}
+          ${item.createdAt || Date.now()},
+          ${item.status || (item.type === 'out' ? 'pending' : 'confirmed')}
         )
       `;
     }
@@ -155,7 +166,25 @@ export async function PUT(request: Request) {
   try {
     await ensureTableExists();
     const body = await request.json();
-    const { action, itemKey, updatedData, id } = body;
+    const { action, itemKey, updatedData, id, issueKey, status } = body;
+
+    // Action 3: Update status for an entire issueKey batch
+    if (action === "update_status" && issueKey && status) {
+      if (body.approver) {
+        await sql`
+          UPDATE transactions
+          SET status = ${status}, approver = ${body.approver}
+          WHERE "issueKey" = ${issueKey}
+        `;
+      } else {
+        await sql`
+          UPDATE transactions
+          SET status = ${status}
+          WHERE "issueKey" = ${issueKey}
+        `;
+      }
+      return NextResponse.json({ success: true });
+    }
 
     // Action 1: Update all transactions matching a product itemKey
     if (action === "update_product" && itemKey && updatedData) {
@@ -219,7 +248,8 @@ export async function PUT(request: Request) {
           "issueKey" = ${body.issueKey || ""},
           requester = ${body.requester || ""},
           approver = ${body.approver || ""},
-          note = ${body.note || ""}
+          note = ${body.note || ""},
+          status = ${body.status || "confirmed"}
         WHERE id = ${id}
       `;
 
