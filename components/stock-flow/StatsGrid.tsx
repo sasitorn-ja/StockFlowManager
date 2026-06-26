@@ -3,7 +3,7 @@ export type StatCard = {
   value: string;
   unit?: string;
   helper?: string;
-  tone?: "sky" | "emerald" | "amber" | "violet" | "orange";
+  tone?: "sky" | "emerald" | "amber" | "violet";
   icon?: any;
 };
 
@@ -17,7 +17,6 @@ export function StatsGrid({ stats }: StatsGridProps) {
     emerald: "bg-emerald-50 text-emerald-600",
     amber: "bg-amber-50 text-amber-600",
     violet: "bg-violet-50 text-violet-600",
-    orange: "bg-orange-50 text-orange-600",
   } as const;
 
   return (
