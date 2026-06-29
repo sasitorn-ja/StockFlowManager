@@ -12,9 +12,9 @@ import {
   formatDate,
   formatNumber,
   formatCurrency,
-  normalizeTransactions,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, TransactionStatus } from "@/types/stock-flow";
+import { useTransactions } from "../TransactionContext";
 
 type GroupedRequisition = {
   issueKey: string;
@@ -33,8 +33,7 @@ type TabType = "all" | TransactionStatus;
 
 export default function RequisitionTrackerPage() {
   const router = useRouter();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { transactions, loading, refresh } = useTransactions();
   const [simulatedRole, setSimulatedRole] = useState("employee");
   const [simulatedUsername, setSimulatedUsername] = useState("พนักงาน");
   const [activeTab, setActiveTab] = useState<TabType>("all");
@@ -43,22 +42,6 @@ export default function RequisitionTrackerPage() {
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [myCreatedIssueKeys, setMyCreatedIssueKeys] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Fetch transactions from the Neon DB
-  async function fetchTransactions() {
-    setIsLoading(true);
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
   // Load and listen to the simulated role from layout
   useEffect(() => {
@@ -87,7 +70,6 @@ export default function RequisitionTrackerPage() {
     };
 
     loadSimulatedRole();
-    fetchTransactions();
 
     window.addEventListener("simulated-role-changed", loadSimulatedRole);
     return () => {
@@ -231,7 +213,7 @@ export default function RequisitionTrackerPage() {
       });
 
       if (res.ok) {
-        await fetchTransactions();
+        await refresh();
       } else {
         window.alert("เกิดข้อผิดพลาดในการอัปเดตสถานะใบเบิกสินค้า");
       }
@@ -346,7 +328,7 @@ export default function RequisitionTrackerPage() {
         title="ตารางติดตามเอกสารใบเบิก"
         description="คลิกไอคอนลูกศรเพื่อขยายดูรายการสินค้าในแต่ละใบขอเบิก"
       >
-        {isLoading ? (
+        {loading ? (
           <div className="p-8 text-center text-sm text-[var(--text-muted)]">
             กำลังโหลดข้อมูลจาก Neon Database...
           </div>

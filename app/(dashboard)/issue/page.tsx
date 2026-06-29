@@ -20,11 +20,11 @@ import {
   createTransactionId,
   getLocalDateValue,
   getProductImportTypeLabel,
-  normalizeTransactions,
   formatDate,
   formatNumber,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, InventoryItem, ProductImportType } from "@/types/stock-flow";
+import { useTransactions } from "../TransactionContext";
 
 type OverviewFilter = "all" | ProductImportType;
 
@@ -119,7 +119,7 @@ const filterOptions: { value: OverviewFilter; label: string }[] = [
 
 export default function IssuePage() {
   const router = useRouter();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions, refresh } = useTransactions();
   const [searchTerm, setSearchTerm] = useState("");
   const [issueImportTypeFilter, setIssueImportTypeFilter] = useState<OverviewFilter>("all");
   const [issueSelections, setIssueSelections] = useState<Record<string, string>>({});
@@ -133,23 +133,7 @@ export default function IssuePage() {
   const [isIssueTypeFilterOpen, setIsIssueTypeFilterOpen] = useState(false);
   const [isIssuePanelTypeOpen, setIsIssuePanelTypeOpen] = useState(false);
 
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
-
   useEffect(() => {
-    fetchTransactions();
-
-    const currentSimulatedUser = localStorage.getItem("simulated_username") || "พนักงาน";
-
     const cachedDraft = localStorage.getItem("pending_draft");
     if (cachedDraft) {
       try {
@@ -358,6 +342,8 @@ export default function IssuePage() {
       if (!saveRes.ok) {
         throw new Error("Failed to save pending requisition in DB");
       }
+
+      await refresh();
 
       // Add issueKey to local storage my_created_issue_keys to track ownership
       try {
@@ -748,4 +734,3 @@ export default function IssuePage() {
     </section>
   );
 }
-

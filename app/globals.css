@@ -170,6 +170,8 @@ textarea {
 
   .dashboard-spotlight-card {
     background:
+      radial-gradient(circle at top left, rgba(186, 230, 253, 0.32), transparent 32%),
+      radial-gradient(circle at top right, rgba(125, 211, 252, 0.22), transparent 34%),
       linear-gradient(90deg, rgba(255, 255, 255, 0.94), rgba(245, 250, 255, 0.9)),
       url("./picture/bg1.png") center / cover;
     border: 1px solid rgba(191, 219, 254, 0.72);

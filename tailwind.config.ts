@@ -26,7 +26,7 @@ const config: Config = {
       },
       backgroundImage: {
         ambient:
-          "radial-gradient(circle at top left, rgba(255,255,255,0.78), transparent 30%), linear-gradient(160deg, #f6f0e5 0%, #efe2cb 52%, #dfd0b5 100%)",
+          "radial-gradient(circle at top left, rgba(255,247,237,0.42), transparent 28%), linear-gradient(160deg, #f8f2e8 0%, #efe2cb 52%, #dfd0b5 100%)",
       },
     },
   },
