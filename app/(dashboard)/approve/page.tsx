@@ -46,6 +46,7 @@ type ConfirmDialogState = {
   confirmLabel: string;
   description: string;
   issueKey: string;
+  requisition?: GroupedRequisition;
   title: string;
 };
 
@@ -175,8 +176,11 @@ export default function RequisitionTrackerPage() {
         const matchesIssueKey = req.issueKey.toLowerCase().includes(query);
         const matchesApprover = (req.approver || "").toLowerCase().includes(query);
         const matchesNote = (req.note || "").toLowerCase().includes(query);
+        const matchesItem = req.items.some((item) =>
+          `${item.name} ${item.sku} ${item.category}`.toLowerCase().includes(query)
+        );
 
-        if (!matchesRequester && !matchesIssueKey && !matchesApprover && !matchesNote) {
+        if (!matchesRequester && !matchesIssueKey && !matchesApprover && !matchesNote && !matchesItem) {
           return false;
         }
       }
@@ -322,6 +326,43 @@ export default function RequisitionTrackerPage() {
             <DialogTitle>{confirmDialog?.title}</DialogTitle>
             <DialogDescription>{confirmDialog?.description}</DialogDescription>
           </DialogHeader>
+          {confirmDialog?.action === "approve" && confirmDialog.requisition ? (
+            <div className="approve-review-summary">
+              <dl className="approve-review-meta">
+                <div>
+                  <dt>ผู้ขอเบิก</dt>
+                  <dd>{confirmDialog.requisition.requester}</dd>
+                </div>
+                <div>
+                  <dt>วันที่ขอเบิก</dt>
+                  <dd>{formatDate(confirmDialog.requisition.date)}</dd>
+                </div>
+                <div>
+                  <dt>เลขใบเบิก</dt>
+                  <dd>{confirmDialog.requisition.issueKey}</dd>
+                </div>
+                <div>
+                  <dt>หมายเหตุ / วัตถุประสงค์</dt>
+                  <dd>{confirmDialog.requisition.note || "-"}</dd>
+                </div>
+              </dl>
+              <div className="approve-review-items">
+                {confirmDialog.requisition.items.map((item) => (
+                  <div key={`approve-review-${item.id}`}>
+                    <span>
+                      <strong>{item.name}</strong>
+                      {item.sku ? <small>SKU: {item.sku}</small> : null}
+                    </span>
+                    <b>{formatNumber(item.quantity)} {item.unit}</b>
+                  </div>
+                ))}
+              </div>
+              <div className="approve-review-total">
+                <span>รวม {formatNumber(confirmDialog.requisition.totalQuantity)} หน่วย</span>
+                <strong>{formatCurrency(confirmDialog.requisition.totalCost)}</strong>
+              </div>
+            </div>
+          ) : null}
           <DialogFooter className="approve-confirm-dialog-footer">
             <Button type="button" variant="secondary" onClick={() => setConfirmDialog(null)}>
               ยกเลิก
@@ -419,7 +460,7 @@ export default function RequisitionTrackerPage() {
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ค้นหาชื่อผู้ขอเบิก, เลขใบเบิก..."
+              placeholder="ค้นหาผู้ขอ เลขใบเบิก หรือสินค้า..."
               className="h-full w-full bg-transparent text-[12px] font-semibold text-slate-800 outline-none placeholder:text-slate-400"
             />
           </div>
@@ -452,7 +493,7 @@ export default function RequisitionTrackerPage() {
               "เลขใบเบิก",
               "วันที่ขอเบิก",
               "ผู้ขอเบิก",
-              "จำนวนรายการ",
+              "สินค้า / จำนวน",
               "ผู้อนุมัติ",
               "สถานะ",
               "จัดการ",
@@ -501,7 +542,13 @@ export default function RequisitionTrackerPage() {
                         <span className="ml-1 text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded">คุณ</span>
                       )}
                     </td>
-                    <td className="w-[10%] min-w-[90px] text-right pr-4 text-slate-600">{req.items.length} รายการ</td>
+                    <td className="w-[16%] min-w-[150px] text-slate-600">
+                      <strong className="block truncate text-slate-700">{req.items[0]?.name || "-"}</strong>
+                      <span className="text-[11px]">
+                        {req.items.length > 1 ? `และอีก ${req.items.length - 1} รายการ · ` : ""}
+                        รวม {formatNumber(req.totalQuantity)} หน่วย
+                      </span>
+                    </td>
                     <td className="w-[12%] min-w-[100px] text-slate-500">{req.approver || "-"}</td>
                     <td className="w-[18%] min-w-[170px]">
                       <div className="flex items-center">
@@ -519,15 +566,16 @@ export default function RequisitionTrackerPage() {
                             onClick={() => {
                               setConfirmDialog({
                                 action: "approve",
-                                confirmLabel: "อนุมัติคำขอ",
-                                description: `ยืนยันการอนุมัติคำขอ ${req.issueKey} ใช่หรือไม่?`,
+                                confirmLabel: "ยืนยันอนุมัติคำขอ",
+                                description: "ตรวจสอบผู้ขอ รายการสินค้า และจำนวนให้ครบก่อนอนุมัติ",
                                 issueKey: req.issueKey,
-                                title: "ยืนยันการอนุมัติ",
+                                requisition: req,
+                                title: "ตรวจสอบก่อนอนุมัติ",
                               });
                             }}
                             className="bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded"
                           >
-                            อนุมัติคำขอ
+                            ตรวจสอบและอนุมัติ
                           </Button>
                         )}
 

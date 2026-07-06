@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Filter, PackageMinus, X, Trash2, Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ComboboxInput } from "@/components/ui/combobox-input";
 import {
   Command,
   CommandEmpty,
@@ -879,31 +880,29 @@ export default function IssuePage() {
           <div className="issue-quick-form issue-quick-form-panel">
             <label>
               <span>ผู้ขอเบิกสินค้า *</span>
-              <input
+              <ComboboxInput
                 value={issueRequester}
-                onChange={(event) => setIssueRequester(event.target.value)}
+                onValueChange={setIssueRequester}
+                options={issueRequesterSuggestions.map((item) => ({
+                  value: item,
+                  label: item,
+                }))}
                 placeholder="ระบุผู้ขอเบิกสินค้า"
-                list="issue-requester-suggestions"
+                searchPlaceholder="ค้นหาหรือพิมพ์ผู้ขอเบิก..."
               />
-              <datalist id="issue-requester-suggestions">
-                {issueRequesterSuggestions.map((item) => (
-                  <option key={`issue-requester-${item}`} value={item} />
-                ))}
-              </datalist>
             </label>
             <label>
               <span>ผู้อนุมัติ *</span>
-              <input
+              <ComboboxInput
                 value={issueApproverContact}
-                onChange={(event) => handleApproverContactChange(event.target.value)}
+                onValueChange={handleApproverContactChange}
+                options={issueApproverInputSuggestions.map((item) => ({
+                  value: item,
+                  label: item,
+                }))}
                 placeholder="พิมพ์หรือเลือกแบบ ชื่อ · อีเมล"
-                list="issue-approver-contact-suggestions"
+                searchPlaceholder="ค้นหาหรือพิมพ์ผู้อนุมัติ..."
               />
-              <datalist id="issue-approver-contact-suggestions">
-                {issueApproverInputSuggestions.map((value) => (
-                  <option key={`issue-approver-contact-list-${value}`} value={value} />
-                ))}
-              </datalist>
             </label>
             <div className="issue-selection-list">
               <div className="issue-selection-list-header">

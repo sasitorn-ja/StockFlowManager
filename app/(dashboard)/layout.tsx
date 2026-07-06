@@ -29,14 +29,25 @@ type UserRole = "employee" | "manager" | "admin";
 const navigationItems = [
   { label: "ภาพรวมสต๊อก", href: "/overview", icon: Home },
   { label: "รายการสินค้า", href: "/items", icon: Database },
-  { label: "Master Data สินค้า", href: "/master-data", icon: Database },
   { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
   { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
   { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
   { label: "ประวัติรายการ", href: "/history", icon: History },
-  { label: "ใกล้หมดสต๊อก / โครงการ", href: "/expiring", icon: Clock3 },
-  { label: "ตั้งค่า", href: "/settings", icon: Settings },
+  { label: "ใกล้หมดสต็อก / โครงการ", href: "/expiring", icon: Clock3 },
+  { label: "Master Data สินค้า", href: "/master-data", icon: Database },
   { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck },
+  { label: "ตั้งค่า", href: "/settings", icon: Settings },
+];
+
+const employeeNavigationItems = [
+  { label: "ภาพรวมสต๊อก", href: "/overview", icon: Home },
+  { label: "รายการสินค้า", href: "/items", icon: Database },
+  { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
+  { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
+  { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
+  { label: "ประวัติรายการ", href: "/history", icon: History },
+  { label: "แจ้งเตือนสต็อก", href: "/expiring", icon: Clock3 },
+  { label: "ตั้งค่า", href: "/settings", icon: Settings },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -118,6 +129,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     setIsMobileMenuOpen(false);
   }
 
+  const roleNavigationItems =
+    userRole === "admin" ? navigationItems : employeeNavigationItems;
+
   const sidebarContent = (
     <>
       <div className="dashboard-sidebar-brand">
@@ -139,11 +153,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       </div>
 
       <nav className="dashboard-nav" aria-label="เมนูหลัก">
-        {navigationItems.map((item) => {
-          if (item.href === "/master-data" && userRole === "employee") {
-            return null;
-          }
-
+        {roleNavigationItems.map((item) => {
           if (item.href === "/admin-rights" && userRole !== "admin") {
             return null;
           }

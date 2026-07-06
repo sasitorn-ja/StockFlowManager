@@ -498,7 +498,7 @@ export default function MasterDataPage() {
     }
   }
 
-  if (userRole === "employee") {
+  if (userRole !== "admin") {
     return (
       <section className="dashboard-card">
         <div className="dashboard-panel-header">
@@ -507,7 +507,7 @@ export default function MasterDataPage() {
             <div>
               <h2 className="dashboard-section-title">Master Data สินค้า</h2>
               <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-                หน้านี้สำหรับแอดมินและผู้จัดการใช้เพิ่มหรือแก้ไขสินค้าใหม่ในระบบเท่านั้น
+                หน้านี้สำหรับแอดมินใช้เพิ่มหรือแก้ไขสินค้าใหม่ในระบบเท่านั้น
               </p>
             </div>
           </div>

@@ -1178,7 +1178,8 @@ textarea {
   }
 
   .issue-quick-form select,
-  .issue-quick-form input {
+  .issue-quick-form input,
+  .issue-quick-form [role="combobox"] {
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid var(--border);
     color: var(--text-body);
@@ -1186,7 +1187,8 @@ textarea {
   }
 
   .issue-quick-form select:focus,
-  .issue-quick-form input:focus {
+  .issue-quick-form input:focus,
+  .issue-quick-form [role="combobox"]:focus-visible {
     border-color: #60a5fa;
     box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
   }
@@ -1813,6 +1815,59 @@ textarea {
     background: rgba(248, 250, 252, 0.76);
     border-top: 1px solid #eef3f8;
     @apply px-7 py-5 sm:justify-end;
+  }
+
+  .approve-review-summary {
+    @apply grid gap-4 px-7 py-5;
+  }
+
+  .approve-review-meta {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  .approve-review-meta > div {
+    border: 1px solid var(--border-soft);
+    background: #f8fafc;
+    @apply rounded-lg px-3 py-2;
+  }
+
+  .approve-review-meta dt {
+    color: var(--text-muted);
+    @apply text-[11px] font-semibold;
+  }
+
+  .approve-review-meta dd {
+    color: var(--text-strong);
+    @apply mt-1 break-words text-sm font-bold;
+  }
+
+  .approve-review-items {
+    border: 1px solid var(--border-soft);
+    @apply max-h-[220px] divide-y overflow-y-auto rounded-lg;
+  }
+
+  .approve-review-items > div {
+    @apply flex items-center justify-between gap-4 px-3 py-2.5 text-sm;
+  }
+
+  .approve-review-items span,
+  .approve-review-items small {
+    @apply block min-w-0;
+  }
+
+  .approve-review-items small {
+    color: var(--text-muted);
+    @apply mt-0.5 text-[10px];
+  }
+
+  .approve-review-items b {
+    @apply shrink-0 text-sky-800;
+  }
+
+  .approve-review-total {
+    background: #eff6ff;
+    color: #1e3a8a;
+    @apply flex items-center justify-between gap-4 rounded-lg px-4 py-3 text-sm font-semibold;
   }
 
   .approve-confirm-dialog-footer .inline-flex {

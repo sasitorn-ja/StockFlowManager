@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { Plus, Search, Filter, ChevronDown, FileText, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
+import { ComboboxInput } from "@/components/ui/combobox-input";
 import {
   Dialog,
   DialogContent,
@@ -228,7 +229,7 @@ export default function ReceivePage() {
     [autoRecordTime]
   );
   const isCategoryReady = Boolean(form.productImportType && form.category.trim());
-  const canCreateNewProduct = simulatedRole === "admin" || simulatedRole === "manager";
+  const canCreateNewProduct = simulatedRole === "admin";
   const hasMatchedCategory = useMemo(() => {
     const normalizedCategory = form.category.trim().toLowerCase();
 
@@ -855,26 +856,22 @@ export default function ReceivePage() {
 
               <label>
                 <span>หมวดหมู่ *</span>
-                <input
+                <ComboboxInput
                   className={showMissingCategoryError ? "receive-input-error" : ""}
                   value={form.category}
-                  onChange={(event) => handleReceiveCategoryChange(event.target.value)}
+                  onValueChange={handleReceiveCategoryChange}
+                  options={receiveCategorySuggestions.map(({ category }) => ({
+                    value: category,
+                    label: category,
+                  }))}
                   placeholder={
                     canCreateNewProduct
                       ? "พิมพ์หมวดหมู่ หรือเลือกจากรายการเดิม"
                       : "เลือกหมวดหมู่จากรายการเดิมก่อน"
                   }
-                  list="receive-category-suggestions"
-                  required
+                  searchPlaceholder="ค้นหาหรือพิมพ์หมวดหมู่..."
+                  allowCustomValue={canCreateNewProduct}
                 />
-                <datalist id="receive-category-suggestions">
-                  {receiveCategorySuggestions.map(({ category }) => (
-                    <option
-                      key={`receive-category-list-${category}`}
-                      value={category}
-                    />
-                  ))}
-                </datalist>
                 {!isCategoryReady ? (
                   <small>กรุณาเลือกหมวดหลักและพิมพ์หรือเลือกหมวดหมู่ก่อน จึงจะกรอกข้อมูลส่วนอื่นได้</small>
                 ) : showMissingCategoryError ? (
@@ -888,27 +885,23 @@ export default function ReceivePage() {
             <div className="receive-form-grid">
               <label>
                 <span>รายการสินค้า *</span>
-                <input
+                <ComboboxInput
                   className={showMissingProductError ? "receive-input-error" : ""}
                   value={form.name}
-                  onChange={(event) => handleReceiveProductNameChange(event.target.value)}
+                  onValueChange={handleReceiveProductNameChange}
+                  options={filteredReceiveProductSuggestions.map((item) => ({
+                    value: item.name,
+                    label: `${item.name}${item.sku ? ` (${item.sku})` : ""}`,
+                  }))}
                   placeholder={
                     canCreateNewProduct
                       ? "พิมพ์ชื่อสินค้า หรือเลือกจากรายการเดิม"
                       : "เลือกสินค้าเดิมจากรายการเท่านั้น"
                   }
-                  list="receive-product-suggestions"
+                  searchPlaceholder="ค้นหาหรือพิมพ์ชื่อสินค้า..."
+                  allowCustomValue={canCreateNewProduct}
                   disabled={!isCategoryReady}
-                  required
                 />
-                <datalist id="receive-product-suggestions">
-                  {filteredReceiveProductSuggestions.map((item) => (
-                    <option
-                      key={`receive-product-${item.key}`}
-                      value={item.name}
-                    >{`${item.name}${item.sku ? ` (${item.sku})` : ""}`}</option>
-                  ))}
-                </datalist>
                 {!canCreateNewProduct ? (
                   showMissingProductError ? (
                     <small className="receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
@@ -982,18 +975,17 @@ export default function ReceivePage() {
 
               <label>
                 <span>จุดเก็บ / คลังย่อย</span>
-                <input
+                <ComboboxInput
                   value={form.requester}
-                  onChange={(event) => updateForm("requester", event.target.value)}
+                  onValueChange={(value) => updateForm("requester", value)}
+                  options={receiveStorageLocationSuggestions.map((item) => ({
+                    value: item,
+                    label: item,
+                  }))}
                   placeholder="เช่น A01 - ลานวางแผ่นพื้น"
-                  list="receive-storage-location-suggestions"
+                  searchPlaceholder="ค้นหาหรือพิมพ์จุดเก็บ..."
                   disabled={!isCategoryReady}
                 />
-                <datalist id="receive-storage-location-suggestions">
-                  {receiveStorageLocationSuggestions.map((item) => (
-                    <option key={`receive-storage-location-${item}`} value={item} />
-                  ))}
-                </datalist>
               </label>
             </div>
 
