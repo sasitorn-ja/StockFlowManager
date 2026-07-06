@@ -63,7 +63,7 @@ export default function RequisitionTrackerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
 
-  // Fetch transactions from the Neon DB
+  // Fetch transactions from the Supabase PostgreSQL
   async function fetchTransactions() {
     setIsLoading(true);
     try {
@@ -443,7 +443,7 @@ export default function RequisitionTrackerPage() {
       >
         {isLoading ? (
           <div className="p-8 text-center text-sm text-[var(--text-muted)]">
-            กำลังโหลดข้อมูลจาก Neon Database...
+            กำลังโหลดข้อมูลจาก Supabase PostgreSQL...
           </div>
         ) : (
           <Table

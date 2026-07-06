@@ -179,8 +179,8 @@ function SettingsSection({
       </DataPanel>
 
       <DataPanel
-        title="ฐานข้อมูล Neon PostgreSQL (Schema View)"
-        description="รายละเอียดคอลัมน์ของตารางข้อมูลและสถานะการเชื่อมต่อแบบเรียลไทม์กับฐานข้อมูล Neon"
+        title="ฐานข้อมูล Supabase PostgreSQL (Schema View)"
+        description="รายละเอียดคอลัมน์ของตารางข้อมูลและสถานะการเชื่อมต่อแบบเรียลไทม์กับฐานข้อมูล Supabase PostgreSQL"
       >
         {isLoadingDb ? (
           <div className="p-4 text-center text-sm text-[var(--text-muted)]">
@@ -371,7 +371,7 @@ export default function SettingsPage() {
         refresh();
         fetchDbInfo();
       } else {
-        window.alert("ไม่สามารถลบข้อมูลสินค้าออกจากฐานข้อมูล Neon ได้");
+        window.alert("ไม่สามารถลบข้อมูลสินค้าออกจากฐานข้อมูล Supabase PostgreSQL ได้");
       }
     });
   }
@@ -421,7 +421,7 @@ export default function SettingsPage() {
         setIsEditProductDialogOpen(false);
         setEditingItemKey("");
       } else {
-        window.alert("ไม่สามารถอัปเดตข้อมูลสินค้าในฐานข้อมูล Neon ได้");
+        window.alert("ไม่สามารถอัปเดตข้อมูลสินค้าในฐานข้อมูล Supabase PostgreSQL ได้");
       }
     });
   }

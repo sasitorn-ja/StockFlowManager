@@ -11,7 +11,7 @@ async function ensureMasterProductTableExists() {
   }
 
   await sql`
-    CREATE TABLE IF NOT EXISTS master_products (
+    CREATE TABLE IF NOT EXISTS stock_flow_master_products (
       id VARCHAR(100) PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       sku VARCHAR(100) DEFAULT '',
@@ -32,21 +32,21 @@ async function ensureMasterProductTableExists() {
     );
   `;
 
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS sku VARCHAR(100) DEFAULT '';`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS category VARCHAR(255) DEFAULT '-';`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS "productImportType" VARCHAR(50) DEFAULT 'resale';`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS "imageDataUrl" TEXT DEFAULT '';`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS unit VARCHAR(50) DEFAULT '';`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT 0;`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS "costPrice" NUMERIC DEFAULT 0;`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS "costCurrency" VARCHAR(10) DEFAULT 'THB';`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS "defaultStorageLocation" VARCHAR(255) DEFAULT '';`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS "defaultExpiryDate" VARCHAR(50) DEFAULT '';`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS vendor VARCHAR(255) DEFAULT '';`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS "createdAt" BIGINT;`;
-  await sql`ALTER TABLE master_products ADD COLUMN IF NOT EXISTS "updatedAt" BIGINT;`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS sku VARCHAR(100) DEFAULT '';`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS category VARCHAR(255) DEFAULT '-';`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "productImportType" VARCHAR(50) DEFAULT 'resale';`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "imageDataUrl" TEXT DEFAULT '';`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS unit VARCHAR(50) DEFAULT '';`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT 0;`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "costPrice" NUMERIC DEFAULT 0;`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "costCurrency" VARCHAR(10) DEFAULT 'THB';`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "defaultStorageLocation" VARCHAR(255) DEFAULT '';`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "defaultExpiryDate" VARCHAR(50) DEFAULT '';`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS vendor VARCHAR(255) DEFAULT '';`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "createdAt" BIGINT;`;
+  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "updatedAt" BIGINT;`;
 
   isMasterProductTableChecked = true;
 }
@@ -59,7 +59,7 @@ async function syncMasterProductsFromTransactions() {
   try {
     const existingProducts = (await sql`
       SELECT id, name, sku, category, "productImportType", unit
-      FROM master_products;
+      FROM stock_flow_master_products;
     `) as Array<{
       id: string;
       name: string;
@@ -95,7 +95,7 @@ async function syncMasterProductsFromTransactions() {
         requester,
         "expiryDate",
         "createdAt"
-      FROM transactions
+      FROM stock_flow_transactions
       WHERE COALESCE(name, '') <> '' AND COALESCE(unit, '') <> ''
       ORDER BY "createdAt" DESC;
     `) as Array<{
@@ -145,7 +145,7 @@ async function syncMasterProductsFromTransactions() {
       const timestamp = Number(product.createdAt || Date.now());
 
       await sql`
-        INSERT INTO master_products (
+        INSERT INTO stock_flow_master_products (
           id,
           name,
           sku,
@@ -191,7 +191,7 @@ async function syncMasterProductsFromTransactions() {
       existingKeys.add(uniqueKey);
     }
   } catch (error) {
-    console.error("Sync master-products from transactions error:", error);
+    console.error("Sync master-products from stock_flow_transactions error:", error);
   }
 }
 
@@ -229,7 +229,7 @@ async function validateDuplicateProduct(
 ) {
   if (normalizedProduct.sku) {
     const skuRows = await sql`
-      SELECT id FROM master_products
+      SELECT id FROM stock_flow_master_products
       WHERE LOWER(sku) = LOWER(${normalizedProduct.sku})
         AND (${excludedId || ""} = '' OR id <> ${excludedId || ""})
       LIMIT 1;
@@ -241,7 +241,7 @@ async function validateDuplicateProduct(
   }
 
   const duplicateRows = await sql`
-    SELECT id FROM master_products
+    SELECT id FROM stock_flow_master_products
     WHERE LOWER(name) = LOWER(${normalizedProduct.name})
       AND LOWER(category) = LOWER(${normalizedProduct.category})
       AND LOWER(unit) = LOWER(${normalizedProduct.unit})
@@ -281,7 +281,7 @@ export async function GET() {
         "isActive",
         "createdAt",
         "updatedAt"
-      FROM master_products
+      FROM stock_flow_master_products
       ORDER BY "isActive" DESC, "updatedAt" DESC, name ASC;
     `;
 
@@ -310,7 +310,7 @@ export async function POST(request: Request) {
     const timestamp = Date.now();
 
     await sql`
-      INSERT INTO master_products (
+      INSERT INTO stock_flow_master_products (
         id,
         name,
         sku,
@@ -369,7 +369,7 @@ export async function PUT(request: Request) {
 
     if (action === "toggle_active") {
       await sql`
-        UPDATE master_products
+        UPDATE stock_flow_master_products
         SET "isActive" = NOT "isActive", "updatedAt" = ${Date.now()}
         WHERE id = ${id};
       `;
@@ -379,7 +379,7 @@ export async function PUT(request: Request) {
 
     const existingRows = await sql`
       SELECT id, name, sku, category, "productImportType", unit
-      FROM master_products
+      FROM stock_flow_master_products
       WHERE id = ${id}
       LIMIT 1;
     `;
@@ -410,7 +410,7 @@ export async function PUT(request: Request) {
     const timestamp = Date.now();
 
     await sql`
-      UPDATE master_products
+      UPDATE stock_flow_master_products
       SET
         name = ${product.name},
         sku = ${product.sku},
@@ -431,7 +431,7 @@ export async function PUT(request: Request) {
     `;
 
     await sql`
-      UPDATE transactions
+      UPDATE stock_flow_transactions
       SET
         name = ${product.name},
         sku = ${product.sku},
@@ -471,7 +471,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "ไม่พบรหัสสินค้าใน Master Data" }, { status: 400 });
     }
 
-    await sql`DELETE FROM master_products WHERE id = ${id};`;
+    await sql`DELETE FROM stock_flow_master_products WHERE id = ${id};`;
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

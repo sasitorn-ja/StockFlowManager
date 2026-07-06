@@ -15,8 +15,8 @@ export function Table({ headers, children, emptyMessage, columnCount }: TablePro
       <table className="data-table min-w-[720px]">
         <thead>
           <tr>
-            {headers.map((header) => (
-              <th key={header}>{header}</th>
+            {headers.map((header, index) => (
+              <th key={`${header}-${index}`}>{header}</th>
             ))}
           </tr>
         </thead>

@@ -14,7 +14,7 @@ const FIXED_USERS: Array<{ username: string; role: UserRole }> = [
 
 async function ensureAdminUsersTable() {
   await sql`
-    CREATE TABLE IF NOT EXISTS admin_users (
+    CREATE TABLE IF NOT EXISTS stock_flow_admin_users (
       username VARCHAR(255) PRIMARY KEY,
       is_admin BOOLEAN DEFAULT TRUE,
       role VARCHAR(50) DEFAULT 'admin',
@@ -22,16 +22,16 @@ async function ensureAdminUsersTable() {
     );
   `;
 
-  await sql`ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'admin';`;
+  await sql`ALTER TABLE stock_flow_admin_users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'admin';`;
   await sql`
-    UPDATE admin_users
+    UPDATE stock_flow_admin_users
     SET role = CASE WHEN is_admin THEN 'admin' ELSE 'employee' END
     WHERE role IS NULL OR role = '';
   `;
 
   for (const user of FIXED_USERS) {
     await sql`
-      INSERT INTO admin_users (username, is_admin, role, created_at)
+      INSERT INTO stock_flow_admin_users (username, is_admin, role, created_at)
       VALUES (${user.username}, ${user.role === "admin"}, ${user.role}, ${Date.now()})
       ON CONFLICT (username) DO NOTHING;
     `;
@@ -44,7 +44,7 @@ export async function GET() {
 
     // 1. Query admin list from database
     const dbAdmins = (await sql`
-      SELECT username, is_admin, role, created_at FROM admin_users;
+      SELECT username, is_admin, role, created_at FROM stock_flow_admin_users;
     `) as { username: string; is_admin: boolean; role?: string; created_at: string | number }[];
 
     const userMap = new Map<
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
     }
 
     const elevatedUsers = (await sql`
-      SELECT username FROM admin_users
+      SELECT username FROM stock_flow_admin_users
       WHERE role IN ('admin', 'manager') AND username <> ${name};
     `) as { username: string }[];
 
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
     const timestamp = Date.now();
 
     await sql`
-      INSERT INTO admin_users (username, is_admin, role, created_at)
+      INSERT INTO stock_flow_admin_users (username, is_admin, role, created_at)
       VALUES (${name}, ${nextRole === "admin"}, ${nextRole}, ${timestamp})
       ON CONFLICT (username)
       DO UPDATE SET is_admin = ${nextRole === "admin"}, role = ${nextRole};

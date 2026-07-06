@@ -639,7 +639,7 @@ export default function ReceivePage() {
           refresh();
           closeReceiveDialog();
         } else {
-          window.alert("ไม่สามารถบันทึกรายการสินค้าเข้าฐานข้อมูล Neon ได้");
+          window.alert("ไม่สามารถบันทึกรายการสินค้าเข้าฐานข้อมูล Supabase PostgreSQL ได้");
         }
       })
       .catch((err) => {

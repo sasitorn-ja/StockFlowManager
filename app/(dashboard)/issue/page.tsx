@@ -620,7 +620,7 @@ export default function IssuePage() {
     setIsSendingIssueEmail(true);
 
     try {
-      // 1. Persist directly to Neon Database (saves request as 'pending' reservation)
+      // 1. Persist directly to Supabase PostgreSQL (saves request as 'pending' reservation)
       const saveRes = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
