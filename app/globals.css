@@ -153,11 +153,11 @@ textarea {
 
   .dashboard-user-switch > span {
     color: var(--sky-deep);
-    @apply font-bold;
+    @apply shrink-0 whitespace-nowrap font-bold;
   }
 
   .dashboard-content {
-    @apply mx-auto grid w-full max-w-[1280px] gap-4 px-4 py-6 md:px-6;
+    @apply grid w-full max-w-none gap-4 px-4 py-6 md:px-6;
   }
 
   .dashboard-content:has(.overview-page) {
@@ -268,6 +268,14 @@ textarea {
 
   .history-header-left {
     @apply flex flex-col gap-3;
+  }
+
+  .history-filter-row {
+    @apply flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3;
+  }
+
+  .history-date-range {
+    @apply shrink-0;
   }
 
   .history-header-approve {
@@ -1025,6 +1033,7 @@ textarea {
 
   .receive-form input,
   .receive-form select,
+  .receive-form [role="combobox"],
   .receive-form textarea {
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid var(--border);
@@ -1034,6 +1043,7 @@ textarea {
 
   .receive-form input:focus,
   .receive-form select:focus,
+  .receive-form [role="combobox"]:focus-visible,
   .receive-form textarea:focus {
     border-color: #60a5fa;
     box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
@@ -1065,17 +1075,20 @@ textarea {
   }
 
   .cost-currency-control input,
-  .cost-currency-control select {
+  .cost-currency-control select,
+  .cost-currency-control [role="combobox"] {
     box-shadow: none;
     @apply h-full min-w-0 border-0 bg-transparent;
   }
 
   .cost-currency-control input:focus,
-  .cost-currency-control select:focus {
+  .cost-currency-control select:focus,
+  .cost-currency-control [role="combobox"]:focus-visible {
     box-shadow: none;
   }
 
-  .cost-currency-control select {
+  .cost-currency-control select,
+  .cost-currency-control [role="combobox"] {
     border-left: 1px solid var(--border-soft);
     @apply rounded-none px-4;
   }
@@ -1253,7 +1266,7 @@ textarea {
   }
 
   .issue-type-filter {
-    @apply flex min-w-0 flex-col gap-1 md:w-[320px] md:shrink-0;
+    @apply flex min-w-0 flex-col gap-1 md:w-[220px] md:shrink-0;
   }
 
   .issue-type-filter span {
@@ -1859,7 +1872,7 @@ textarea {
   }
 
   .master-data-stat-button {
-    @apply mt-0.5 h-8 w-full justify-center rounded-lg px-2.5 text-[12px] md:w-auto;
+    @apply mt-0.5 h-8 w-fit min-w-[108px] justify-self-start rounded-lg px-3 text-[12px];
   }
 
   .master-data-toolbar {
@@ -1930,6 +1943,96 @@ textarea {
 
   .master-data-actions .inline-flex {
     @apply w-full justify-center rounded-xl;
+  }
+
+  .settings-overview-grid {
+    @apply grid gap-3 md:grid-cols-3;
+  }
+
+  .settings-summary-card {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 255, 0.94));
+    border: 1px solid rgba(214, 229, 247, 0.92);
+    box-shadow: var(--shadow-soft), var(--shadow-inset);
+    @apply flex items-start gap-3 rounded-xl p-4;
+  }
+
+  .settings-summary-icon {
+    background: #eef6ff;
+    color: #0b63bd;
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg;
+  }
+
+  .settings-summary-icon-amber {
+    background: #fffbeb;
+    color: #d97706;
+  }
+
+  .settings-summary-icon-emerald {
+    background: #ecfdf5;
+    color: #059669;
+  }
+
+  .settings-summary-card span {
+    color: var(--text-muted);
+    @apply text-[12px] font-semibold leading-5;
+  }
+
+  .settings-summary-card strong {
+    color: var(--text-strong);
+    @apply mt-1 block text-2xl font-extrabold leading-none;
+  }
+
+  .settings-summary-card p {
+    color: var(--text-subtle);
+    @apply mt-1 text-[12px] leading-5;
+  }
+
+  .settings-grid {
+    @apply grid gap-3 xl:grid-cols-2;
+  }
+
+  .settings-form-grid {
+    @apply grid gap-3;
+  }
+
+  .settings-field {
+    @apply grid gap-1.5 text-sm font-semibold text-[var(--text-strong)];
+  }
+
+  .settings-field > span,
+  .settings-toggle > span {
+    color: var(--text-body);
+    @apply text-[12px] font-bold;
+  }
+
+  .settings-toggle {
+    border: 1px solid var(--border-soft);
+    background: rgba(248, 252, 255, 0.78);
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5;
+  }
+
+  .settings-toggle input {
+    @apply h-4 w-4 accent-sky-600;
+  }
+
+  .settings-action-row {
+    @apply flex flex-wrap gap-2 pt-1;
+  }
+
+  .settings-security-list {
+    @apply grid gap-2;
+  }
+
+  .settings-security-list > div {
+    border: 1px solid var(--border-soft);
+    background: rgba(248, 252, 255, 0.78);
+    color: var(--text-body);
+    @apply flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm leading-6;
+  }
+
+  .settings-security-list svg {
+    color: var(--sky);
+    @apply mt-1 shrink-0;
   }
 
   #import,

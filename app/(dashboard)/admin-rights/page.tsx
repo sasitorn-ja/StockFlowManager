@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Shield, UserCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
 
@@ -192,19 +193,21 @@ export default function AdminRightsPage() {
                   {formatTimestamp(user.createdAt)}
                 </td>
                 <td>
-                  <select
+                  <ComboboxSelect
                     value={user.role}
-                    onChange={(event) =>
-                      handleUpdateRole(user.username, event.target.value as AdminUser["role"])
+                    onValueChange={(value) =>
+                      handleUpdateRole(user.username, value as AdminUser["role"])
                     }
                     disabled={user.username === "แอดมิน"}
+                    options={[
+                      { value: "employee", label: "พนักงาน" },
+                      { value: "manager", label: "ผู้จัดการ" },
+                      { value: "admin", label: "แอดมิน" },
+                    ]}
                     className="control-input w-full min-w-[140px]"
                     title={user.username === "แอดมิน" ? "แอดมินหลักไม่สามารถปรับบทบาทได้" : "ปรับบทบาทผู้ใช้"}
-                  >
-                    <option value="employee">พนักงาน</option>
-                    <option value="manager">ผู้จัดการ</option>
-                    <option value="admin">แอดมิน</option>
-                  </select>
+                    searchPlaceholder="ค้นหาบทบาท..."
+                  />
                 </td>
               </tr>
             ))}

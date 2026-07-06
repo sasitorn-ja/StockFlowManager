@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { TransactionProvider } from "./TransactionContext";
 import {
   Menu,
@@ -213,13 +214,10 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
         <div className="dashboard-user-switch">
           <span>จำลองผู้ใช้:</span>
-          <select
+          <ComboboxSelect
             value={simulatedUsername}
-            onChange={(e) => handleUsernameChange(e.target.value)}
-            className="bg-transparent font-medium text-sky-900 border-none outline-none cursor-pointer focus:ring-0 py-0.5"
-            style={{ minWidth: "140px" }}
-          >
-            {(() => {
+            onValueChange={handleUsernameChange}
+            options={(() => {
               const options = [...allUsers];
               if (simulatedUsername && !options.some((o) => o.username === simulatedUsername)) {
                 options.push({
@@ -228,13 +226,16 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                   role: userRole,
                 });
               }
-              return options.map((u) => (
-                <option key={`sim-user-${u.username}`} value={u.username}>
-                  {u.username} ({u.role === "admin" ? "แอดมิน" : u.role === "manager" ? "ผู้จัดการ" : "พนักงาน"})
-                </option>
-              ));
+              return options.map((u) => ({
+                value: u.username,
+                label: `${u.username} (${u.role === "admin" ? "แอดมิน" : u.role === "manager" ? "ผู้จัดการ" : "พนักงาน"})`,
+              }));
             })()}
-          </select>
+            searchPlaceholder="ค้นหาผู้ใช้..."
+            className="h-7 min-w-[180px] border-0 bg-transparent px-1 py-0 text-xs font-semibold text-sky-900 shadow-none hover:bg-sky-50"
+            contentClassName="min-w-[220px]"
+            align="end"
+          />
         </div>
       </header>
 

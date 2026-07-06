@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { Plus, Search, Filter, ChevronDown, FileText, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ComboboxSelect } from "@/components/ui/combobox-select";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +59,11 @@ const costCurrencyOptions: { value: CostCurrency; label: string }[] = [
 const filterOptions: { value: OverviewFilter; label: string }[] = [
   { value: "all", label: "ทั้งหมด" },
   { value: "resale", label: "สินค้าซื้อมาขายไป" },
+  { value: "stable", label: "สินค้าเข้าสต็อก" },
+];
+
+const productImportTypeOptions: { value: ProductImportType; label: string }[] = [
+  { value: "resale", label: "ซื้อมาขายไป" },
   { value: "stable", label: "สินค้าเข้าสต็อก" },
 ];
 
@@ -837,15 +843,14 @@ export default function ReceivePage() {
             <div className="receive-form-grid">
               <label>
                 <span>หมวดหลัก *</span>
-                <select
+                <ComboboxSelect
                   value={form.productImportType}
-                  onChange={(event) =>
-                    updateForm("productImportType", event.target.value as ProductImportType)
+                  onValueChange={(value) =>
+                    updateForm("productImportType", value as ProductImportType)
                   }
-                >
-                  <option value="resale">ซื้อมาขายไป</option>
-                  <option value="stable">สินค้าเข้าสต็อก</option>
-                </select>
+                  options={productImportTypeOptions}
+                  searchPlaceholder="ค้นหาหมวดหลัก..."
+                />
               </label>
 
               <label>
@@ -963,19 +968,15 @@ export default function ReceivePage() {
                     onChange={(event) => updateForm("costPrice", event.target.value)}
                     disabled={!isCategoryReady}
                   />
-                  <select
+                  <ComboboxSelect
                     value={form.costCurrency}
-                    onChange={(event) =>
-                      updateForm("costCurrency", event.target.value as CostCurrency)
+                    onValueChange={(value) =>
+                      updateForm("costCurrency", value as CostCurrency)
                     }
                     disabled={!isCategoryReady}
-                  >
-                    {costCurrencyOptions.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={costCurrencyOptions}
+                    searchPlaceholder="ค้นหาสกุลเงิน..."
+                  />
                 </div>
               </label>
 

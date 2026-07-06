@@ -2,8 +2,9 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Boxes, Database, FileDown, Pencil, RotateCcw, ShieldCheck, SlidersHorizontal, Trash2, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
@@ -16,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   buildInventoryMap,
-  buildItemKey,
   getLocalDateValue,
   formatDate,
   formatNumber,
@@ -28,6 +28,40 @@ import type { InventoryItem, ProductImportType } from "@/types/stock-flow";
 import { useTransactions } from "../TransactionContext";
 
 const inputClassName = "control-input";
+const SETTINGS_STORAGE_KEY = "stock-flow-manager-system-settings-v1";
+
+type AppSettings = {
+  lowStockThreshold: string;
+  expiryWarningDays: string;
+  issuePrefix: string;
+  receivePrefix: string;
+  approvalMode: "required" | "manager_only" | "off";
+  allocationMode: "fefo" | "fifo";
+  requireEmployeeConfirmation: boolean;
+  allowNegativeStock: boolean;
+};
+
+const defaultAppSettings: AppSettings = {
+  lowStockThreshold: "5",
+  expiryWarningDays: "90",
+  issuePrefix: "REQ",
+  receivePrefix: "IN",
+  approvalMode: "required",
+  allocationMode: "fefo",
+  requireEmployeeConfirmation: true,
+  allowNegativeStock: false,
+};
+
+const approvalModeOptions = [
+  { value: "required", label: "ต้องอนุมัติทุกใบเบิก" },
+  { value: "manager_only", label: "เฉพาะผู้จัดการ/แอดมิน" },
+  { value: "off", label: "ไม่ต้องอนุมัติ" },
+];
+
+const allocationModeOptions = [
+  { value: "fefo", label: "FEFO - หมดอายุก่อนออกก่อน" },
+  { value: "fifo", label: "FIFO - รับเข้าก่อนออกก่อน" },
+];
 
 type ProductEditForm = {
   name: string;
@@ -59,6 +93,11 @@ type DbInfo = {
 
 type SettingsSectionProps = {
   inventory: InventoryItem[];
+  transactionsCount: number;
+  appSettings: AppSettings;
+  updateAppSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+  resetAppSettings: () => void;
+  exportBackup: (format: "json" | "csv") => void;
   openEditProductDialog: (item: InventoryItem) => void;
   handleDeleteProduct: (item: InventoryItem) => void;
   isLoadingDb: boolean;
@@ -68,12 +107,22 @@ type SettingsSectionProps = {
 
 function SettingsSection({
   inventory,
+  transactionsCount,
+  appSettings,
+  updateAppSetting,
+  resetAppSettings,
+  exportBackup,
   openEditProductDialog,
   handleDeleteProduct,
   isLoadingDb,
   dbInfo,
   fetchDbInfo,
 }: SettingsSectionProps) {
+  const activeProducts = inventory.filter((item) => item.balance > 0).length;
+  const lowStockProducts = inventory.filter(
+    (item) => item.balance > 0 && item.balance <= Number(appSettings.lowStockThreshold || 0)
+  ).length;
+
   return (
     <section id="settings" className="grid gap-3">
       <section className="dashboard-card">
@@ -84,10 +133,171 @@ function SettingsSection({
             </p>
             <h3 className="dashboard-section-title">ตั้งค่ารายการสินค้า</h3>
             <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              จัดการรายการสินค้าและข้อมูลที่ใช้งานในระบบ
+              ควบคุมเกณฑ์แจ้งเตือน ขั้นตอนอนุมัติ การสำรองข้อมูล และข้อมูลระบบหลัก
             </p>
           </div>
+          <Button type="button" variant="secondary" size="sm" onClick={resetAppSettings}>
+            <RotateCcw size={15} />
+            คืนค่าเริ่มต้น
+          </Button>
         </div>
+      </section>
+
+      <section className="settings-overview-grid">
+        <article className="settings-summary-card">
+          <div className="settings-summary-icon">
+            <Boxes size={18} />
+          </div>
+          <div>
+            <span>สินค้าที่มีสต๊อก</span>
+            <strong>{formatNumber(activeProducts)}</strong>
+            <p>จากสินค้าในคลังทั้งหมด {formatNumber(inventory.length)} รายการ</p>
+          </div>
+        </article>
+        <article className="settings-summary-card">
+          <div className="settings-summary-icon settings-summary-icon-amber">
+            <SlidersHorizontal size={18} />
+          </div>
+          <div>
+            <span>ใกล้สต๊อกต่ำ</span>
+            <strong>{formatNumber(lowStockProducts)}</strong>
+            <p>เกณฑ์ปัจจุบันไม่เกิน {formatNumber(Number(appSettings.lowStockThreshold || 0))} หน่วย</p>
+          </div>
+        </article>
+        <article className="settings-summary-card">
+          <div className="settings-summary-icon settings-summary-icon-emerald">
+            <Workflow size={18} />
+          </div>
+          <div>
+            <span>รายการเคลื่อนไหว</span>
+            <strong>{formatNumber(transactionsCount)}</strong>
+            <p>ใช้สำหรับ export และตรวจสอบย้อนหลัง</p>
+          </div>
+        </article>
+      </section>
+
+      <section className="settings-grid">
+        <DataPanel
+          title="เกณฑ์แจ้งเตือนคลัง"
+          description="ตั้งค่าที่ใช้ประเมินสต๊อกต่ำและสินค้าใกล้หมดอายุ"
+        >
+          <div className="settings-form-grid">
+            <label className="settings-field">
+              <span>เกณฑ์สต๊อกต่ำ</span>
+              <input
+                className={inputClassName}
+                type="number"
+                min="0"
+                value={appSettings.lowStockThreshold}
+                onChange={(event) => updateAppSetting("lowStockThreshold", event.target.value)}
+              />
+            </label>
+            <label className="settings-field">
+              <span>เตือนก่อนหมดอายุ (วัน)</span>
+              <input
+                className={inputClassName}
+                type="number"
+                min="1"
+                value={appSettings.expiryWarningDays}
+                onChange={(event) => updateAppSetting("expiryWarningDays", event.target.value)}
+              />
+            </label>
+          </div>
+        </DataPanel>
+
+        <DataPanel
+          title="Workflow รับเข้า-เบิกจ่าย"
+          description="กำหนดรูปแบบการอนุมัติและการเลือกล็อตสินค้า"
+        >
+          <div className="settings-form-grid">
+            <label className="settings-field">
+              <span>การอนุมัติใบเบิก</span>
+              <ComboboxSelect
+                value={appSettings.approvalMode}
+                onValueChange={(value) => updateAppSetting("approvalMode", value as AppSettings["approvalMode"])}
+                options={approvalModeOptions}
+                className={inputClassName}
+                searchPlaceholder="ค้นหารูปแบบอนุมัติ..."
+              />
+            </label>
+            <label className="settings-field">
+              <span>การเลือกล็อต</span>
+              <ComboboxSelect
+                value={appSettings.allocationMode}
+                onValueChange={(value) => updateAppSetting("allocationMode", value as AppSettings["allocationMode"])}
+                options={allocationModeOptions}
+                className={inputClassName}
+                searchPlaceholder="ค้นหาวิธีเลือกล็อต..."
+              />
+            </label>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={appSettings.requireEmployeeConfirmation}
+                onChange={(event) => updateAppSetting("requireEmployeeConfirmation", event.target.checked)}
+              />
+              <span>ให้พนักงานยืนยันรับของหลังอนุมัติ</span>
+            </label>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={appSettings.allowNegativeStock}
+                onChange={(event) => updateAppSetting("allowNegativeStock", event.target.checked)}
+              />
+              <span>อนุญาตให้เบิกเกินสต๊อก</span>
+            </label>
+          </div>
+        </DataPanel>
+
+        <DataPanel
+          title="เลขเอกสารและข้อมูลสำรอง"
+          description="ตั้ง prefix เอกสารและ export ข้อมูลใช้งาน"
+        >
+          <div className="settings-form-grid">
+            <label className="settings-field">
+              <span>Prefix ใบเบิก</span>
+              <input
+                className={inputClassName}
+                value={appSettings.issuePrefix}
+                onChange={(event) => updateAppSetting("issuePrefix", event.target.value.toUpperCase())}
+              />
+            </label>
+            <label className="settings-field">
+              <span>Prefix ใบรับเข้า</span>
+              <input
+                className={inputClassName}
+                value={appSettings.receivePrefix}
+                onChange={(event) => updateAppSetting("receivePrefix", event.target.value.toUpperCase())}
+              />
+            </label>
+            <div className="settings-action-row">
+              <Button type="button" variant="secondary" onClick={() => exportBackup("json")}>
+                <FileDown size={16} />
+                Export JSON
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => exportBackup("csv")}>
+                <FileDown size={16} />
+                Export CSV
+              </Button>
+            </div>
+          </div>
+        </DataPanel>
+
+        <DataPanel
+          title="ความปลอดภัย"
+          description="สรุปแนวทางป้องกันข้อมูลสำคัญในระบบ"
+        >
+          <div className="settings-security-list">
+            <div>
+              <ShieldCheck size={17} />
+              <span>ไฟล์ `.env` ถูก ignore และไม่ควรนำขึ้น GitHub</span>
+            </div>
+            <div>
+              <Database size={17} />
+              <span>ระบบใช้งาน Supabase table ชุด `stock_flow_*` แยกจากระบบอื่น</span>
+            </div>
+          </div>
+        </DataPanel>
       </section>
 
       <DataPanel
@@ -305,7 +515,94 @@ export default function SettingsPage() {
     costPrice: "0",
     expiryDate: "",
   });
+  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
 
+  useEffect(() => {
+    try {
+      const storedSettings = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (!storedSettings) return;
+
+      setAppSettings({
+        ...defaultAppSettings,
+        ...(JSON.parse(storedSettings) as Partial<AppSettings>),
+      });
+    } catch (error) {
+      console.error("Failed to load system settings", error);
+    }
+  }, []);
+
+  function persistAppSettings(nextSettings: AppSettings) {
+    setAppSettings(nextSettings);
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(nextSettings));
+  }
+
+  function updateAppSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
+    persistAppSettings({ ...appSettings, [key]: value });
+  }
+
+  function resetAppSettings() {
+    persistAppSettings(defaultAppSettings);
+  }
+
+  function downloadTextFile(filename: string, content: string, type: string) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportBackup(format: "json" | "csv") {
+    const exportDate = getLocalDateValue();
+
+    if (format === "json") {
+      downloadTextFile(
+        `stock-flow-backup-${exportDate}.json`,
+        JSON.stringify(
+          {
+            exportedAt: new Date().toISOString(),
+            settings: appSettings,
+            transactions,
+            inventory,
+          },
+          null,
+          2
+        ),
+        "application/json;charset=utf-8"
+      );
+      return;
+    }
+
+    const csvHeaders = [
+      "name",
+      "sku",
+      "category",
+      "productImportType",
+      "unit",
+      "balance",
+      "totalIn",
+      "totalOut",
+      "price",
+      "costPrice",
+      "nearestExpiryDate",
+    ];
+    const csvRows = inventory.map((item) =>
+      csvHeaders
+        .map((key) => {
+          const value = String(item[key as keyof InventoryItem] ?? "");
+          return `"${value.replaceAll('"', '""')}"`;
+        })
+        .join(",")
+    );
+
+    downloadTextFile(
+      `stock-flow-inventory-${exportDate}.csv`,
+      [csvHeaders.join(","), ...csvRows].join("\n"),
+      "text/csv;charset=utf-8"
+    );
+  }
 
   async function fetchDbInfo() {
     setIsLoadingDb(true);
@@ -452,6 +749,11 @@ export default function SettingsPage() {
     <>
       <SettingsSection
         inventory={inventory}
+        transactionsCount={transactions.length}
+        appSettings={appSettings}
+        updateAppSetting={updateAppSetting}
+        resetAppSettings={resetAppSettings}
+        exportBackup={exportBackup}
         openEditProductDialog={openEditProductDialog}
         handleDeleteProduct={handleDeleteProduct}
         isLoadingDb={isLoadingDb}
@@ -501,19 +803,21 @@ export default function SettingsPage() {
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 ประเภทสินค้า
-                <select
+                <ComboboxSelect
                   value={productEditForm.productImportType}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     updateProductEditForm(
                       "productImportType",
-                      event.target.value as ProductImportType
+                      value as ProductImportType
                     )
                   }
+                  options={[
+                    { value: "resale", label: "ซื้อมาขายไป" },
+                    { value: "stable", label: "สินค้าเข้าสต็อก" },
+                  ]}
                   className={inputClassName}
-                >
-                  <option value="resale">ซื้อมาขายไป</option>
-                  <option value="stable">สินค้าเข้าสต็อก</option>
-                </select>
+                  searchPlaceholder="ค้นหาประเภทสินค้า..."
+                />
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">

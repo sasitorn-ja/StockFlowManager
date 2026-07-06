@@ -3,52 +3,42 @@ import { sql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-let isMasterProductTableChecked = false;
+let masterProductTableSetup: Promise<void> | null = null;
 
 async function ensureMasterProductTableExists() {
-  if (isMasterProductTableChecked) {
-    return;
+  if (masterProductTableSetup) {
+    return masterProductTableSetup;
   }
 
-  await sql`
-    CREATE TABLE IF NOT EXISTS stock_flow_master_products (
-      id VARCHAR(100) PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      sku VARCHAR(100) DEFAULT '',
-      category VARCHAR(255) DEFAULT '-',
-      "productImportType" VARCHAR(50) DEFAULT 'resale',
-      "imageDataUrl" TEXT DEFAULT '',
-      unit VARCHAR(50) NOT NULL,
-      price NUMERIC DEFAULT 0,
-      "costPrice" NUMERIC DEFAULT 0,
-      "costCurrency" VARCHAR(10) DEFAULT 'THB',
-      "defaultStorageLocation" VARCHAR(255) DEFAULT '',
-      "defaultExpiryDate" VARCHAR(50) DEFAULT '',
-      vendor VARCHAR(255) DEFAULT '',
-      note TEXT DEFAULT '',
-      "isActive" BOOLEAN DEFAULT TRUE,
-      "createdAt" BIGINT,
-      "updatedAt" BIGINT
-    );
-  `;
+  masterProductTableSetup = (async () => {
+    await sql`
+      CREATE TABLE IF NOT EXISTS stock_flow_master_products (
+        id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        sku VARCHAR(100) DEFAULT '',
+        category VARCHAR(255) DEFAULT '-',
+        "productImportType" VARCHAR(50) DEFAULT 'resale',
+        "imageDataUrl" TEXT DEFAULT '',
+        unit VARCHAR(50) NOT NULL,
+        price NUMERIC DEFAULT 0,
+        "costPrice" NUMERIC DEFAULT 0,
+        "costCurrency" VARCHAR(10) DEFAULT 'THB',
+        "defaultStorageLocation" VARCHAR(255) DEFAULT '',
+        "defaultExpiryDate" VARCHAR(50) DEFAULT '',
+        vendor VARCHAR(255) DEFAULT '',
+        note TEXT DEFAULT '',
+        "isActive" BOOLEAN DEFAULT TRUE,
+        "createdAt" BIGINT,
+        "updatedAt" BIGINT
+      );
+    `;
 
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS sku VARCHAR(100) DEFAULT '';`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS category VARCHAR(255) DEFAULT '-';`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "productImportType" VARCHAR(50) DEFAULT 'resale';`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "imageDataUrl" TEXT DEFAULT '';`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS unit VARCHAR(50) DEFAULT '';`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT 0;`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "costPrice" NUMERIC DEFAULT 0;`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "costCurrency" VARCHAR(10) DEFAULT 'THB';`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "defaultStorageLocation" VARCHAR(255) DEFAULT '';`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "defaultExpiryDate" VARCHAR(50) DEFAULT '';`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS vendor VARCHAR(255) DEFAULT '';`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE;`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "createdAt" BIGINT;`;
-  await sql`ALTER TABLE stock_flow_master_products ADD COLUMN IF NOT EXISTS "updatedAt" BIGINT;`;
+  })().catch((error) => {
+    masterProductTableSetup = null;
+    throw error;
+  });
 
-  isMasterProductTableChecked = true;
+  return masterProductTableSetup;
 }
 
 function createMasterProductId() {

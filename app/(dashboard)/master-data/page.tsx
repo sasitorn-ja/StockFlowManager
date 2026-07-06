@@ -4,6 +4,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Boxes, PackageCheck, Pencil, Plus, Search, ShieldAlert, Store, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ComboboxSelect } from "@/components/ui/combobox-select";
 import {
   Dialog,
   DialogContent,
@@ -66,6 +67,11 @@ const costCurrencyOptions: { value: CostCurrency; label: string }[] = [
   { value: "JPY", label: "เยน (JPY)" },
   { value: "CNY", label: "หยวน (CNY)" },
   { value: "USD", label: "ดอลลาร์ (USD)" },
+];
+
+const productImportTypeOptions: { value: ProductImportType; label: string }[] = [
+  { value: "resale", label: "ซื้อมาขายไป" },
+  { value: "stable", label: "สินค้าเข้าสต็อก" },
 ];
 
 function buildMasterProductKey(product: {
@@ -261,40 +267,38 @@ export default function MasterDataPage() {
       isSyncingMissingProductsRef.current = true;
 
       try {
-        await Promise.all(
-          missingProducts.map(async (product) => {
-            const res = await fetch("/api/master-products", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                name: product.name,
-                sku: product.sku,
-                category: product.category,
-                productImportType: product.productImportType,
-                imageDataUrl: product.imageDataUrl || "",
-                unit: product.unit,
-                price: product.price ?? 0,
-                costPrice: product.costPrice ?? 0,
-                costCurrency: product.costCurrency ?? "THB",
-                defaultStorageLocation: product.defaultStorageLocation || "",
-                defaultExpiryDate: product.defaultExpiryDate || "",
-                vendor: product.vendor || "",
-                note: product.note || "",
-                isActive: true,
-              }),
-            });
+        for (const product of missingProducts) {
+          const res = await fetch("/api/master-products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: product.name,
+              sku: product.sku,
+              category: product.category,
+              productImportType: product.productImportType,
+              imageDataUrl: product.imageDataUrl || "",
+              unit: product.unit,
+              price: product.price ?? 0,
+              costPrice: product.costPrice ?? 0,
+              costCurrency: product.costCurrency ?? "THB",
+              defaultStorageLocation: product.defaultStorageLocation || "",
+              defaultExpiryDate: product.defaultExpiryDate || "",
+              vendor: product.vendor || "",
+              note: product.note || "",
+              isActive: true,
+            }),
+          });
 
-            if (!res.ok) {
-              const data = (await res.json().catch(() => null)) as { error?: string } | null;
-              if (
-                data?.error !== "รหัสสินค้านี้มีอยู่แล้วใน Master Data" &&
-                data?.error !== "สินค้านี้มีอยู่แล้วใน Master Data"
-              ) {
-                throw new Error(data?.error || "ไม่สามารถซิงก์สินค้าเข้า Master Data ได้");
-              }
+          if (!res.ok) {
+            const data = (await res.json().catch(() => null)) as { error?: string } | null;
+            if (
+              data?.error !== "รหัสสินค้านี้มีอยู่แล้วใน Master Data" &&
+              data?.error !== "สินค้านี้มีอยู่แล้วใน Master Data"
+            ) {
+              throw new Error(data?.error || "ไม่สามารถซิงก์สินค้าเข้า Master Data ได้");
             }
-          })
-        );
+          }
+        }
 
         await fetchMasterProducts();
       } catch (error) {
@@ -311,13 +315,21 @@ export default function MasterDataPage() {
     setIsLoading(true);
     try {
       const res = await fetch("/api/master-products");
-      const data = (await res.json()) as ProductMaster[] | { error?: string };
+      const data: unknown = await res.json().catch(() => null);
 
       if (!res.ok || !Array.isArray(data)) {
-        throw new Error((data as { error?: string })?.error || "ไม่สามารถดึงข้อมูล Master Data ได้");
+        const errorMessage =
+          data &&
+          typeof data === "object" &&
+          "error" in data &&
+          typeof data.error === "string"
+            ? data.error
+            : "ไม่สามารถดึงข้อมูล Master Data ได้";
+
+        throw new Error(errorMessage);
       }
 
-      setMasterProducts(data);
+      setMasterProducts(data as ProductMaster[]);
     } catch (error) {
       console.error(error);
       window.alert("ไม่สามารถโหลด Master Data สินค้าได้");
@@ -589,17 +601,19 @@ export default function MasterDataPage() {
                   placeholder="ค้นหาชื่อสินค้า, รหัส, หมวดหมู่..."
                 />
               </label>
-              <select
+              <ComboboxSelect
                 value={statusFilter}
-                onChange={(event) =>
-                  setStatusFilter(event.target.value as "all" | "active" | "inactive")
+                onValueChange={(value) =>
+                  setStatusFilter(value as "all" | "active" | "inactive")
                 }
+                options={[
+                  { value: "all", label: "ทุกสถานะ" },
+                  { value: "active", label: "เปิดใช้งาน" },
+                  { value: "inactive", label: "ปิดใช้งาน" },
+                ]}
                 className="master-data-filter"
-              >
-                <option value="all">ทุกสถานะ</option>
-                <option value="active">เปิดใช้งาน</option>
-                <option value="inactive">ปิดใช้งาน</option>
-              </select>
+                searchPlaceholder="ค้นหาสถานะ..."
+              />
             </div>
           }
         >
@@ -723,16 +737,15 @@ export default function MasterDataPage() {
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 หมวดหลัก *
-                <select
+                <ComboboxSelect
                   value={form.productImportType}
-                  onChange={(event) =>
-                    updateForm("productImportType", event.target.value as ProductImportType)
+                  onValueChange={(value) =>
+                    updateForm("productImportType", value as ProductImportType)
                   }
+                  options={productImportTypeOptions}
                   className={inputClassName}
-                >
-                  <option value="resale">ซื้อมาขายไป</option>
-                  <option value="stable">สินค้าเข้าสต็อก</option>
-                </select>
+                  searchPlaceholder="ค้นหาหมวดหลัก..."
+                />
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
@@ -810,29 +823,27 @@ export default function MasterDataPage() {
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 สกุลเงินต้นทุน
-                <select
+                <ComboboxSelect
                   value={form.costCurrency}
-                  onChange={(event) => updateForm("costCurrency", event.target.value as CostCurrency)}
+                  onValueChange={(value) => updateForm("costCurrency", value as CostCurrency)}
+                  options={costCurrencyOptions}
                   className={inputClassName}
-                >
-                  {costCurrencyOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  searchPlaceholder="ค้นหาสกุลเงิน..."
+                />
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 สถานะใช้งาน
-                <select
+                <ComboboxSelect
                   value={form.isActive ? "active" : "inactive"}
-                  onChange={(event) => updateForm("isActive", event.target.value === "active")}
+                  onValueChange={(value) => updateForm("isActive", value === "active")}
+                  options={[
+                    { value: "active", label: "เปิดใช้งาน" },
+                    { value: "inactive", label: "ปิดใช้งาน" },
+                  ]}
                   className={inputClassName}
-                >
-                  <option value="active">เปิดใช้งาน</option>
-                  <option value="inactive">ปิดใช้งาน</option>
-                </select>
+                  searchPlaceholder="ค้นหาสถานะ..."
+                />
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">
@@ -845,8 +856,8 @@ export default function MasterDataPage() {
                 <textarea
                   value={form.note}
                   onChange={(event) => updateForm("note", event.target.value)}
-                  className={`${inputClassName} min-h-[120px] h-auto py-3`}
-                  rows={4}
+                  className={`${inputClassName} min-h-[64px] h-auto resize-y py-2.5`}
+                  rows={2}
                   placeholder="บันทึกรายละเอียดเพิ่มเติมของสินค้า"
                 />
               </label>

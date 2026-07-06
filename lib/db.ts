@@ -6,5 +6,6 @@ if (!process.env.DATABASE_URL) {
 
 export const sql = postgres(process.env.DATABASE_URL, {
   max: 5,
+  prepare: false,
   ssl: "require",
 });

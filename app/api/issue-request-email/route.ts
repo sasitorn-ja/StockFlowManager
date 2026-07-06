@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import nodemailer from "nodemailer";
 
 type IssueEmailRow = {
   name: string;
@@ -83,7 +84,7 @@ function buildEmailHtml(input: {
             <p style="margin:0;color:#475569;">${escapeHtml(input.note || "-")}</p>
           </div>
           <a href="${escapeHtml(
-            `${input.appUrl}/#issue`
+            `${input.appUrl}/approve`
           )}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;">เปิดหน้าตรวจสอบใบเบิก</a>
         </div>
       </div>
@@ -92,13 +93,18 @@ function buildEmailHtml(input: {
 }
 
 export async function POST(request: Request) {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.APPROVAL_EMAIL_FROM;
+  const mailHost = process.env.MAIL_HOST;
+  const mailPort = Number(process.env.MAIL_PORT || 465);
+  const mailUsername = process.env.MAIL_USERNAME;
+  const mailPassword = process.env.MAIL_PASSWORD;
+  const fromEmail = process.env.MAIL_FROM_ADDRESS || mailUsername;
+  const fromName = process.env.MAIL_FROM_NAME || "Stock Flow Manager";
+  const mailEncryption = (process.env.MAIL_ENCRYPTION || "SSL").toUpperCase();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
 
-  if (!resendApiKey || !fromEmail) {
+  if (!mailHost || !mailUsername || !mailPassword || !fromEmail) {
     return NextResponse.json(
-      { error: "Email service is not configured. Set RESEND_API_KEY and APPROVAL_EMAIL_FROM." },
+      { error: "Email service is not configured. Check MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD and MAIL_FROM_ADDRESS." },
       { status: 500 }
     );
   }
@@ -123,16 +129,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing required request email fields." }, { status: 400 });
   }
 
-  const resendResponse = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": issueKey,
+  const transporter = nodemailer.createTransport({
+    host: mailHost,
+    port: mailPort,
+    secure: mailPort === 465 || mailEncryption === "SSL",
+    auth: {
+      user: mailUsername,
+      pass: mailPassword,
     },
-    body: JSON.stringify({
-      from: fromEmail,
-      to: [approverEmail],
+  });
+
+  try {
+    const result = await transporter.sendMail({
+      from: {
+        name: fromName,
+        address: fromEmail,
+      },
+      to: {
+        name: approverName,
+        address: approverEmail,
+      },
       subject: `คำขอเบิกสินค้าใหม่ ${issueKey}`,
       html: buildEmailHtml({
         appUrl,
@@ -143,17 +159,18 @@ export async function POST(request: Request) {
         note,
         requester,
       }),
-      text: `มีคำขอเบิกสินค้าใหม่ ${issueKey} จาก ${requester} กรุณาตรวจสอบที่ ${appUrl}/#issue`,
-    }),
-  });
+      text: `มีคำขอเบิกสินค้าใหม่ ${issueKey} จาก ${requester} กรุณาตรวจสอบที่ ${appUrl}/approve`,
+    });
 
-  if (!resendResponse.ok) {
+    return NextResponse.json({ ok: true, id: result.messageId });
+  } catch (error) {
+    console.error("Failed to send approval email via SMTP:", error);
     return NextResponse.json(
-      { error: "Failed to send approval email.", detail: await resendResponse.text() },
+      {
+        error: "Failed to send approval email.",
+        detail: error instanceof Error ? error.message : "Unknown SMTP error",
+      },
       { status: 502 }
     );
   }
-
-  const result = (await resendResponse.json()) as { id?: string };
-  return NextResponse.json({ ok: true, id: result.id ?? null });
 }

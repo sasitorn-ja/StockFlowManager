@@ -83,49 +83,51 @@ function HistorySection({
               รวมความเคลื่อนไหวสินค้าเข้าและออก เรียงตามเวลาที่บันทึกล่าสุด
             </p>
           </div>
-          <div className="dashboard-category-switch history-type-switch">
-            {historyFilters.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                className={`dashboard-category-switch-option ${
-                  activeFilter === item.value ? "dashboard-category-switch-option-active" : ""
-                }`}
-                onClick={() => onFilterChange(item.value)}
-              >
-                {item.label}
-              </button>
-            ))}
+          <div className="history-filter-row">
+            <div className="dashboard-category-switch history-type-switch">
+              {historyFilters.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  className={`dashboard-category-switch-option ${
+                    activeFilter === item.value ? "dashboard-category-switch-option-active" : ""
+                  }`}
+                  onClick={() => onFilterChange(item.value)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="overview-date-range history-date-range">
+              <label className="overview-date-input">
+                <span>จากวันที่</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  min={earliestDate}
+                  max={dateTo}
+                  onChange={(event) => onDateFromChange(event.target.value)}
+                />
+              </label>
+              <span className="overview-date-separator">-</span>
+              <label className="overview-date-input">
+                <span>ถึงวันที่</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom}
+                  max={getLocalDateValue()}
+                  onChange={(event) => onDateToChange(event.target.value)}
+                />
+              </label>
+            </div>
           </div>
         </div>
         <Button type="button" variant="secondary" onClick={openIssueDialog}>
           <PackageMinus size={16} />
           สร้างใบเบิกใหม่
         </Button>
-      </div>
-
-      <div className="overview-date-range">
-        <label className="overview-date-input">
-          <span>จากวันที่</span>
-          <input
-            type="date"
-            value={dateFrom}
-            min={earliestDate}
-            max={dateTo}
-            onChange={(event) => onDateFromChange(event.target.value)}
-          />
-        </label>
-        <span className="overview-date-separator">-</span>
-        <label className="overview-date-input">
-          <span>ถึงวันที่</span>
-          <input
-            type="date"
-            value={dateTo}
-            min={dateFrom}
-            max={getLocalDateValue()}
-            onChange={(event) => onDateToChange(event.target.value)}
-          />
-        </label>
       </div>
 
       <StatsGrid stats={movementStats} />
