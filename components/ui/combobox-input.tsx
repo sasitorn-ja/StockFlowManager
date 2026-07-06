@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -63,12 +63,12 @@ export function ComboboxInput({
           disabled={disabled}
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between font-normal", className)}
+          className={cn("w-full justify-between", className)}
         >
           <span className={cn("min-w-0 truncate", !value && "text-slate-400")}>
             {(activeOption?.label ?? value) || placeholder}
           </span>
-          <ChevronsUpDown size={15} className="shrink-0 text-slate-500" />
+          <ChevronDown size={15} className="shrink-0 text-slate-500" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[--radix-popover-trigger-width] p-0">

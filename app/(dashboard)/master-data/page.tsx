@@ -716,26 +716,6 @@ export default function MasterDataPage() {
           <form className="grid gap-4 p-4" onSubmit={handleSubmit}>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                ชื่อสินค้า *
-                <input
-                  value={form.name}
-                  onChange={(event) => updateForm("name", event.target.value)}
-                  className={inputClassName}
-                  required
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                รหัสสินค้า
-                <input
-                  value={form.sku}
-                  onChange={(event) => updateForm("sku", sanitizeSku(event.target.value))}
-                  className={inputClassName}
-                  inputMode="text"
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 หมวดหลัก *
                 <ComboboxSelect
                   value={form.productImportType}
@@ -758,6 +738,26 @@ export default function MasterDataPage() {
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                ชื่อสินค้า *
+                <input
+                  value={form.name}
+                  onChange={(event) => updateForm("name", event.target.value)}
+                  className={inputClassName}
+                  required
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                รหัสสินค้า
+                <input
+                  value={form.sku}
+                  onChange={(event) => updateForm("sku", sanitizeSku(event.target.value))}
+                  className={inputClassName}
+                  inputMode="text"
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 หน่วยนับ *
                 <input
                   value={form.unit}
@@ -768,44 +768,16 @@ export default function MasterDataPage() {
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                จุดเก็บมาตรฐาน
-                <input
-                  value={form.defaultStorageLocation}
-                  onChange={(event) => updateForm("defaultStorageLocation", event.target.value)}
+                สถานะใช้งาน
+                <ComboboxSelect
+                  value={form.isActive ? "active" : "inactive"}
+                  onValueChange={(value) => updateForm("isActive", value === "active")}
+                  options={[
+                    { value: "active", label: "เปิดใช้งาน" },
+                    { value: "inactive", label: "ปิดใช้งาน" },
+                  ]}
                   className={inputClassName}
-                  placeholder="เช่น A01 - ลานวางแผ่นพื้น"
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                วันหมดอายุ
-                <input
-                  type="date"
-                  value={form.defaultExpiryDate}
-                  onChange={(event) => updateForm("defaultExpiryDate", event.target.value)}
-                  className={inputClassName}
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                ผู้ขาย
-                <input
-                  value={form.vendor}
-                  onChange={(event) => updateForm("vendor", event.target.value)}
-                  className={inputClassName}
-                  placeholder="เช่น บริษัทผู้ขาย / ร้านค้า"
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                ราคาขายมาตรฐาน
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.price}
-                  onChange={(event) => updateForm("price", event.target.value)}
-                  className={inputClassName}
+                  searchPlaceholder="ค้นหาสถานะ..."
                 />
               </label>
 
@@ -833,16 +805,44 @@ export default function MasterDataPage() {
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                สถานะใช้งาน
-                <ComboboxSelect
-                  value={form.isActive ? "active" : "inactive"}
-                  onValueChange={(value) => updateForm("isActive", value === "active")}
-                  options={[
-                    { value: "active", label: "เปิดใช้งาน" },
-                    { value: "inactive", label: "ปิดใช้งาน" },
-                  ]}
+                ราคาขายมาตรฐาน
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.price}
+                  onChange={(event) => updateForm("price", event.target.value)}
                   className={inputClassName}
-                  searchPlaceholder="ค้นหาสถานะ..."
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                ผู้ขาย
+                <input
+                  value={form.vendor}
+                  onChange={(event) => updateForm("vendor", event.target.value)}
+                  className={inputClassName}
+                  placeholder="เช่น บริษัทผู้ขาย / ร้านค้า"
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                จุดเก็บมาตรฐาน
+                <input
+                  value={form.defaultStorageLocation}
+                  onChange={(event) => updateForm("defaultStorageLocation", event.target.value)}
+                  className={inputClassName}
+                  placeholder="เช่น A01 - ลานวางแผ่นพื้น"
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                วันหมดอายุ
+                <input
+                  type="date"
+                  value={form.defaultExpiryDate}
+                  onChange={(event) => updateForm("defaultExpiryDate", event.target.value)}
+                  className={inputClassName}
                 />
               </label>
 
