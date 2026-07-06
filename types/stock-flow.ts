@@ -43,4 +43,29 @@ export type InventoryItem = {
   nearestExpiryDate: string;
 };
 
+export type InventoryLotItem = InventoryItem & {
+  baseItemKey: string;
+  createdAt: number;
+  receivedDate: string;
+  expiryDate: string;
+};
 
+export type ProductMaster = {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  productImportType: ProductImportType;
+  imageDataUrl?: string;
+  unit: string;
+  price: number;
+  costPrice: number;
+  costCurrency: CostCurrency;
+  defaultStorageLocation?: string;
+  defaultExpiryDate?: string;
+  vendor?: string;
+  note?: string;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+};

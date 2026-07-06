@@ -22,6 +22,7 @@ import {
   formatNumber,
   formatCurrency,
   getProductImportTypeLabel,
+  sanitizeSku,
 } from "@/lib/stock-flow/utils";
 import type { InventoryItem, ProductImportType } from "@/types/stock-flow";
 import { useTransactions } from "../TransactionContext";
@@ -91,7 +92,7 @@ function SettingsSection({
 
       <DataPanel
         title="รายการสินค้าทั้งหมด"
-        description="รวมสินค้าทั้งซื้อมาขายไปและสินค้า stable ในหน้าเดียว"
+        description="รวมสินค้าทั้งซื้อมาขายไปและสินค้าเข้าสต็อกในหน้าเดียว"
       >
         <Table
           headers={[
@@ -341,7 +342,7 @@ export default function SettingsPage() {
     setEditingItemKey(item.key);
     setProductEditForm({
       name: item.name,
-      sku: item.sku,
+      sku: sanitizeSku(item.sku),
       category: item.category,
       productImportType: item.productImportType,
       imageDataUrl: item.imageDataUrl || "",
@@ -395,7 +396,7 @@ export default function SettingsPage() {
 
     const updatedData = {
       name: nextName,
-      sku: productEditForm.sku.trim(),
+      sku: sanitizeSku(productEditForm.sku.trim()),
       category: productEditForm.category.trim() || "-",
       productImportType: productEditForm.productImportType,
       imageDataUrl: productEditForm.imageDataUrl,
@@ -483,8 +484,9 @@ export default function SettingsPage() {
                 รหัสสินค้า
                 <input
                   value={productEditForm.sku}
-                  onChange={(event) => updateProductEditForm("sku", event.target.value)}
+                  onChange={(event) => updateProductEditForm("sku", sanitizeSku(event.target.value))}
                   className={inputClassName}
+                  inputMode="text"
                 />
               </label>
 
@@ -510,7 +512,7 @@ export default function SettingsPage() {
                   className={inputClassName}
                 >
                   <option value="resale">ซื้อมาขายไป</option>
-                  <option value="stable">สินค้า stable</option>
+                  <option value="stable">สินค้าเข้าสต็อก</option>
                 </select>
               </label>
 
@@ -596,4 +598,3 @@ export default function SettingsPage() {
     </>
   );
 }
-

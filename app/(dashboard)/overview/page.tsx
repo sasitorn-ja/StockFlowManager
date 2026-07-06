@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BarChart3, ClipboardPlus, Database, PackageMinus } from "lucide-react";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import {
@@ -13,10 +13,38 @@ import {
 import type { Transaction } from "@/types/stock-flow";
 import { useTransactions } from "../TransactionContext";
 
+const MAX_OVERVIEW_DAY_RANGE = 29;
+
+function clampDate(value: string, min: string, max: string) {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
 export default function OverviewPage() {
   const { transactions } = useTransactions();
   const [overviewDateFrom, setOverviewDateFrom] = useState(() => addDays(getLocalDateValue(), -6));
   const [overviewDateTo, setOverviewDateTo] = useState(getLocalDateValue);
+
+  const earliestAllowedOverviewDateFrom = useMemo(
+    () => addDays(overviewDateTo, -MAX_OVERVIEW_DAY_RANGE),
+    [overviewDateTo]
+  );
+
+  useEffect(() => {
+    if (overviewDateFrom < earliestAllowedOverviewDateFrom) {
+      setOverviewDateFrom(earliestAllowedOverviewDateFrom);
+    }
+  }, [earliestAllowedOverviewDateFrom, overviewDateFrom]);
+
+  const handleOverviewDateFromChange = (value: string) => {
+    setOverviewDateFrom(clampDate(value, earliestAllowedOverviewDateFrom, overviewDateTo));
+  };
+
+  const handleOverviewDateToChange = (value: string) => {
+    const clampedTo = clampDate(value, overviewDateFrom, getLocalDateValue());
+    setOverviewDateTo(clampedTo);
+  };
 
   const transactionsUntilOverviewDate = useMemo(
     () => transactions.filter((item) => item.date <= overviewDateTo),
@@ -32,6 +60,15 @@ export default function OverviewPage() {
     [transactionsUntilOverviewDate]
   );
 
+  const lowStockInventory = useMemo(
+    () =>
+      inventory
+        .filter((item) => item.balance <= LOW_STOCK_THRESHOLD)
+        .sort((a, b) => a.balance - b.balance)
+        .slice(0, 5),
+    [inventory]
+  );
+
   const overviewStats = useMemo(() => {
     const stockInToday = transactions
       .filter((item) => item.date === overviewDateTo && item.type === "in")
@@ -39,7 +76,7 @@ export default function OverviewPage() {
     const stockOutToday = transactions
       .filter((item) => item.date === overviewDateTo && item.type === "out")
       .reduce((sum, item) => sum + item.quantity, 0);
-    const lowStockItems = inventory.filter((item) => item.balance <= LOW_STOCK_THRESHOLD).length;
+    const lowStockCount = inventory.filter((item) => item.balance <= LOW_STOCK_THRESHOLD).length;
 
     return [
       {
@@ -68,11 +105,12 @@ export default function OverviewPage() {
       },
       {
         label: "สินค้าใกล้หมดสต็อก",
-        value: formatNumber(lowStockItems),
+        value: formatNumber(lowStockCount),
         unit: "รายการ",
         helper: `คงเหลือไม่เกิน ${LOW_STOCK_THRESHOLD}`,
         icon: AlertTriangle,
         tone: "amber" as const,
+        valueTone: "danger" as const,
       },
     ];
   }, [inventory, overviewDateTo, transactions]);
@@ -188,8 +226,9 @@ export default function OverviewPage() {
             <input
               type="date"
               value={overviewDateFrom}
+              min={earliestAllowedOverviewDateFrom}
               max={overviewDateTo}
-              onChange={(event) => setOverviewDateFrom(event.target.value)}
+              onChange={(event) => handleOverviewDateFromChange(event.target.value)}
             />
           </label>
           <span className="overview-date-separator">-</span>
@@ -200,7 +239,7 @@ export default function OverviewPage() {
               value={overviewDateTo}
               min={overviewDateFrom}
               max={getLocalDateValue()}
-              onChange={(event) => setOverviewDateTo(event.target.value)}
+              onChange={(event) => handleOverviewDateToChange(event.target.value)}
             />
           </label>
         </div>
@@ -218,7 +257,9 @@ export default function OverviewPage() {
               )}
               <div>
                 <p>{stat.label}</p>
-                <strong>{stat.value}</strong>
+                <strong className={stat.valueTone === "danger" ? "text-red-600" : ""}>
+                  {stat.value}
+                </strong>
                 {stat.unit ? <span>{stat.unit}</span> : null}
               </div>
               <small>{stat.helper}</small>
@@ -329,14 +370,32 @@ export default function OverviewPage() {
                 <strong>{formatNumber(inventoryStatus.normal)}</strong>
               </div>
               <div>
-                <span><i className="status-dot-warning" /> สินค้าใกล้จุดเตือน</span>
-                <strong>{formatNumber(inventoryStatus.warning)}</strong>
-              </div>
-              <div>
                 <span><i className="status-dot-low" /> สินค้าต่ำกว่ากำหนด</span>
                 <strong>{formatNumber(inventoryStatus.low)}</strong>
               </div>
             </div>
+          </div>
+          <div className="overview-low-stock-list">
+            <div className="overview-low-stock-heading">
+              <strong>สินค้าที่ใกล้หมดสต็อก</strong>
+              <span>{lowStockInventory.length} รายการ</span>
+            </div>
+            {lowStockInventory.length > 0 ? (
+              lowStockInventory.map((item) => (
+                <div className="overview-low-stock-item" key={item.key}>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <span>{item.sku}</span>
+                  </div>
+                  <div>
+                    <strong className="text-red-600">{formatNumber(item.balance)}</strong>
+                    <span>{item.unit}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="overview-low-stock-empty">ไม่มีสินค้าที่ใกล้หมดในขณะนี้</div>
+            )}
           </div>
         </article>
 

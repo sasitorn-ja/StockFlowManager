@@ -16,15 +16,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import {
-  buildInventoryMap,
+  buildInventoryLotMap,
   createTransactionId,
   getLocalDateValue,
   getProductImportTypeLabel,
+  normalizeTransactions,
   formatDate,
   formatNumber,
 } from "@/lib/stock-flow/utils";
-import type { Transaction, InventoryItem, ProductImportType } from "@/types/stock-flow";
-import { useTransactions } from "../TransactionContext";
+import type { Transaction, InventoryLotItem, ProductImportType } from "@/types/stock-flow";
 
 type OverviewFilter = "all" | ProductImportType;
 
@@ -114,33 +114,140 @@ function IssueTypeCombobox({
 const filterOptions: { value: OverviewFilter; label: string }[] = [
   { value: "all", label: "ทั้งหมด" },
   { value: "resale", label: "สินค้าซื้อมาขายไป" },
-  { value: "stable", label: "สินค้า stable" },
+  { value: "stable", label: "สินค้าเข้าสต็อก" },
 ];
+
+type IssueLotItem = InventoryLotItem & {
+  lotLabel: string;
+  lotSummary: string;
+};
+
+type IssueProductItem = {
+  key: string;
+  name: string;
+  sku: string;
+  category: string;
+  productImportType: ProductImportType;
+  unit: string;
+  totalBalance: number;
+  lots: IssueLotItem[];
+};
+
+type IssueSelectionValue = {
+  quantity: string;
+};
+
+type ApproverContactOption = {
+  email: string;
+  label: string;
+  name: string;
+};
+
+const ISSUE_APPROVER_CONTACT_STORAGE_KEY = "issue-approver-contact-suggestions";
+const ALLOWED_APPROVER_NAMES = ["แอดมิน", "ผู้จัดการ"] as const;
+
+function isAllowedApproverName(name: string) {
+  return ALLOWED_APPROVER_NAMES.includes(name.trim() as (typeof ALLOWED_APPROVER_NAMES)[number]);
+}
+
+function formatApproverContactLabel(name: string, email: string) {
+  return [name.trim(), email.trim()].filter(Boolean).join(" · ");
+}
+
+function parseApproverContactValue(value: string) {
+  const emailMatch = value.match(/([^\s<>@]+@[^\s<>]+\.[^\s<>]+)\s*>?$/);
+  if (emailMatch) {
+    const email = emailMatch[1].trim().toLowerCase();
+    const name = value
+      .replace(emailMatch[0], "")
+      .replace(/[<·]/g, "")
+      .trim();
+
+    return { email, name };
+  }
+
+  return { email: "", name: value.trim() };
+}
+
+function sortLotsForAutoAllocation(a: IssueLotItem, b: IssueLotItem) {
+  if (a.expiryDate && b.expiryDate) {
+    return a.expiryDate.localeCompare(b.expiryDate) || a.receivedDate.localeCompare(b.receivedDate) || a.createdAt - b.createdAt;
+  }
+
+  if (a.expiryDate && !b.expiryDate) {
+    return -1;
+  }
+
+  if (!a.expiryDate && b.expiryDate) {
+    return 1;
+  }
+
+  return a.receivedDate.localeCompare(b.receivedDate) || a.createdAt - b.createdAt;
+}
+
+function buildAutoAllocationPlan(item: IssueProductItem, quantity: number) {
+  const plan: Array<{ lot: IssueLotItem; quantity: number }> = [];
+  let remaining = quantity;
+
+  for (const lot of item.lots.slice().sort(sortLotsForAutoAllocation)) {
+    if (remaining <= 0) {
+      break;
+    }
+
+    const allocatedQuantity = Math.min(lot.balance, remaining);
+    if (allocatedQuantity <= 0) {
+      continue;
+    }
+
+    plan.push({ lot, quantity: allocatedQuantity });
+    remaining -= allocatedQuantity;
+  }
+
+  return { plan, remaining };
+}
 
 export default function IssuePage() {
   const router = useRouter();
-  const { transactions, refresh } = useTransactions();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [issueImportTypeFilter, setIssueImportTypeFilter] = useState<OverviewFilter>("all");
-  const [issueSelections, setIssueSelections] = useState<Record<string, string>>({});
+  const [issueSelections, setIssueSelections] = useState<Record<string, IssueSelectionValue>>({});
   const [isIssuePanelOpen, setIsIssuePanelOpen] = useState(false);
-  const [issuePanelImportType, setIssuePanelImportType] = useState<ProductImportType | "">("");
   const [issueRequester, setIssueRequester] = useState("");
+  const [issueApproverContact, setIssueApproverContact] = useState("");
   const [issueApprover, setIssueApprover] = useState("");
   const [issueApproverEmail, setIssueApproverEmail] = useState("");
+  const [issueApproverContactSuggestions, setIssueApproverContactSuggestions] = useState<
+    ApproverContactOption[]
+  >([]);
   const [issueNote, setIssueNote] = useState("");
   const [isSendingIssueEmail, setIsSendingIssueEmail] = useState(false);
   const [isIssueTypeFilterOpen, setIsIssueTypeFilterOpen] = useState(false);
-  const [isIssuePanelTypeOpen, setIsIssuePanelTypeOpen] = useState(false);
+
+  async function fetchTransactions() {
+    try {
+      const res = await fetch("/api/transactions");
+      if (res.ok) {
+        const data = await res.json();
+        setTransactions(normalizeTransactions(data));
+      }
+    } catch (error) {
+      console.error("Failed to fetch transactions:", error);
+    }
+  }
 
   useEffect(() => {
+    fetchTransactions();
+
     const cachedDraft = localStorage.getItem("pending_draft");
     if (cachedDraft) {
       try {
         const draft = JSON.parse(cachedDraft);
         setIssueSelections(draft.selections || {});
-        setIssuePanelImportType(draft.panelImportType || "");
         setIssueRequester(draft.requester || "");
+        setIssueApproverContact(
+          formatApproverContactLabel(draft.approver || "", draft.approverEmail || "")
+        );
         setIssueApprover(draft.approver || "");
         setIssueApproverEmail(draft.approverEmail || "");
         setIssueNote(draft.note || "");
@@ -149,6 +256,28 @@ export default function IssuePage() {
         console.error("Failed to parse cached draft", e);
       }
       localStorage.removeItem("pending_draft");
+    }
+
+    try {
+      const storedContacts = localStorage.getItem(ISSUE_APPROVER_CONTACT_STORAGE_KEY);
+      if (storedContacts) {
+        const parsedContacts = JSON.parse(storedContacts);
+        if (Array.isArray(parsedContacts)) {
+          setIssueApproverContactSuggestions(
+            parsedContacts.filter(
+              (value): value is ApproverContactOption =>
+                Boolean(value) &&
+                typeof value === "object" &&
+                typeof value.name === "string" &&
+                typeof value.email === "string" &&
+                typeof value.label === "string" &&
+                isAllowedApproverName(value.name)
+            )
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load approver contact suggestions", error);
     }
 
     // Handle role changes reactively
@@ -161,14 +290,77 @@ export default function IssuePage() {
     };
   }, []);
 
-  const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
+  const inventoryLots = useMemo(() => {
+    const lots = [...buildInventoryLotMap(transactions).values()]
+      .filter((item) => item.balance > 0)
+      .sort((a, b) => {
+        const typeCompare = getProductImportTypeLabel(a.productImportType).localeCompare(
+          getProductImportTypeLabel(b.productImportType),
+          "th"
+        );
+
+        return (
+          typeCompare ||
+          a.name.localeCompare(b.name, "th") ||
+          a.receivedDate.localeCompare(b.receivedDate) ||
+          a.expiryDate.localeCompare(b.expiryDate) ||
+          a.createdAt - b.createdAt
+        );
+      });
+
+    const lotCounter = new Map<string, number>();
+
+    return lots.map((item) => {
+      const nextSequence = (lotCounter.get(item.baseItemKey) ?? 0) + 1;
+      lotCounter.set(item.baseItemKey, nextSequence);
+
+      return {
+        ...item,
+        lotLabel: `ล็อต ${nextSequence}`,
+        lotSummary: `รับเข้า ${formatDate(item.receivedDate)}${
+          item.expiryDate ? ` · หมดอายุ ${formatDate(item.expiryDate)}` : " · ไม่มีวันหมดอายุ"
+        }`,
+      };
+    });
+  }, [transactions]);
+
+  const inventory = useMemo(() => {
+    const grouped = new Map<string, IssueProductItem>();
+
+    inventoryLots.forEach((lot) => {
+      const entry = grouped.get(lot.baseItemKey) || {
+        key: lot.baseItemKey,
+        name: lot.name,
+        sku: lot.sku,
+        category: lot.category,
+        productImportType: lot.productImportType,
+        unit: lot.unit,
+        totalBalance: 0,
+        lots: [],
+      };
+
+      entry.totalBalance += lot.balance;
+      entry.lots.push(lot);
+      grouped.set(lot.baseItemKey, entry);
+    });
+
+    return Array.from(grouped.values()).map((item) => ({
+      ...item,
+      lots: item.lots.slice().sort(
+        (a, b) =>
+          a.receivedDate.localeCompare(b.receivedDate) ||
+          a.expiryDate.localeCompare(b.expiryDate) ||
+          a.createdAt - b.createdAt
+      ),
+    }));
+  }, [inventoryLots]);
 
   const issueListItems = useMemo(() => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
 
     return inventory
       .filter((item) => {
-        if (item.balance <= 0) {
+        if (item.totalBalance <= 0) {
           return false;
         }
 
@@ -176,10 +368,14 @@ export default function IssuePage() {
           return false;
         }
 
-        const haystack = `${item.name} ${item.sku} ${item.category}`.toLowerCase();
+        const haystack = `${item.name} ${item.sku} ${item.category} ${item.lots
+          .map((lot) => `${lot.lotLabel} ${lot.receivedDate} ${lot.expiryDate}`)
+          .join(" ")}`.toLowerCase();
         return haystack.includes(normalizedSearchTerm);
       })
-      .sort((a, b) => a.name.localeCompare(b.name, "th"));
+      .sort(
+        (a, b) => a.name.localeCompare(b.name, "th") || a.sku.localeCompare(b.sku, "th")
+      );
   }, [inventory, issueImportTypeFilter, searchTerm]);
 
   const issueRequesterSuggestions = useMemo(() => {
@@ -199,52 +395,117 @@ export default function IssuePage() {
         transactions
           .filter((item) => item.type === "out")
           .map((item) => item.approver?.trim())
-          .filter((value): value is string => Boolean(value))
+          .filter(
+            (value): value is string =>
+              typeof value === "string" && Boolean(value) && isAllowedApproverName(value)
+          )
       )
     ).sort((a, b) => a.localeCompare(b, "th"));
   }, [transactions]);
 
+  const issueApproverInputSuggestions = useMemo(() => {
+    const prioritizedContacts = new Map<string, string>();
+
+    issueApproverContactSuggestions.forEach((item) => {
+      if (!item.email.trim() || !isAllowedApproverName(item.name)) {
+        return;
+      }
+
+      prioritizedContacts.set(item.name.trim(), item.label);
+    });
+
+    return Array.from(prioritizedContacts.values()).sort((a, b) => a.localeCompare(b, "th"));
+  }, [issueApproverContactSuggestions]);
+
   const selectedIssueEntries = useMemo(
     () =>
       Object.entries(issueSelections)
-        .map(([itemKey, quantity]) => {
+        .map(([itemKey, selection]) => {
           const item = inventory.find((candidate) => candidate.key === itemKey);
-          return item ? { item, quantity } : null;
+          return item ? { item, selection } : null;
         })
-        .filter((entry): entry is { item: InventoryItem; quantity: string } => Boolean(entry)),
+        .filter(
+          (entry): entry is { item: IssueProductItem; selection: IssueSelectionValue } => Boolean(entry)
+        ),
     [inventory, issueSelections]
   );
 
-  function openIssuePanelForItem(item?: InventoryItem) {
+  function openIssuePanelForItem(item?: IssueProductItem) {
     if (item) {
-      setIssuePanelImportType(item.productImportType);
       setIssueSelections((current) => ({
         ...current,
-        [item.key]: current[item.key] || "1",
+        [item.key]:
+          current[item.key] || {
+            quantity: "1",
+          },
       }));
-    } else {
-      setIssuePanelImportType("");
     }
     setIsIssuePanelOpen(true);
   }
 
-  function updateIssueSelection(itemKey: string, quantity: string) {
+  function updateIssueSelection(itemKey: string, nextValue: Partial<IssueSelectionValue>) {
     setIssueSelections((current) => ({
       ...current,
-      [itemKey]: quantity,
+      [itemKey]: {
+        quantity: current[itemKey]?.quantity ?? "1",
+        ...nextValue,
+      },
     }));
   }
 
   function toggleIssueSelection(itemKey: string, isSelected: boolean) {
     setIssueSelections((current) => {
       const next = { ...current };
+      const item = inventory.find((candidate) => candidate.key === itemKey);
 
-      if (isSelected) {
-        next[itemKey] = next[itemKey] || "1";
+      if (isSelected && item) {
+        next[itemKey] = next[itemKey] || {
+          quantity: "1",
+        };
       } else {
         delete next[itemKey];
       }
 
+      return next;
+    });
+  }
+
+  function handleApproverContactChange(value: string) {
+    setIssueApproverContact(value);
+
+    const matchedContact = issueApproverContactSuggestions.find((item) => item.label === value);
+    if (matchedContact) {
+      setIssueApprover(matchedContact.name);
+      setIssueApproverEmail(matchedContact.email);
+      return;
+    }
+
+    const parsedValue = parseApproverContactValue(value);
+    setIssueApprover(parsedValue.name);
+    setIssueApproverEmail(parsedValue.email);
+  }
+
+  function rememberApproverContact(name: string, email: string) {
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedName || !normalizedEmail || !isAllowedApproverName(normalizedName)) {
+      return;
+    }
+
+    const nextContact = {
+      name: normalizedName,
+      email: normalizedEmail,
+      label: formatApproverContactLabel(normalizedName, normalizedEmail),
+    };
+
+    setIssueApproverContactSuggestions((current) => {
+      const next = [
+        nextContact,
+        ...current.filter(
+          (item) => item.email !== normalizedEmail || item.name !== normalizedName
+        ),
+      ];
+      localStorage.setItem(ISSUE_APPROVER_CONTACT_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
   }
@@ -255,11 +516,13 @@ export default function IssuePage() {
     }
 
     const selectedEntries = Object.entries(issueSelections)
-      .map(([itemKey, quantityValue]) => {
+      .map(([itemKey, selection]) => {
         const item = inventory.find((candidate) => candidate.key === itemKey);
-        return { item, quantity: Number(quantityValue) };
+        return { item, quantity: Number(selection.quantity) };
       })
-      .filter((entry): entry is { item: InventoryItem; quantity: number } => Boolean(entry.item));
+      .filter(
+        (entry): entry is { item: IssueProductItem; quantity: number } => Boolean(entry.item)
+      );
 
     if (selectedEntries.length === 0) {
       window.alert("เลือกสินค้าที่ต้องการเบิกก่อน");
@@ -276,15 +539,22 @@ export default function IssuePage() {
       return;
     }
 
+    if (!isAllowedApproverName(issueApprover)) {
+      window.alert("ผู้อนุมัติเลือกได้เฉพาะ แอดมิน หรือ ผู้จัดการ เท่านั้น");
+      return;
+    }
+
     if (!issueApproverEmail.trim()) {
-      window.alert("กรอกอีเมลผู้อนุมัติก่อนบันทึก");
+      window.alert("กรอกผู้อนุมัติให้มีทั้งชื่อและอีเมลก่อนบันทึก");
       return;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(issueApproverEmail.trim())) {
-      window.alert("กรอกอีเมลผู้อนุมัติให้ถูกต้อง");
+      window.alert("กรอกผู้อนุมัติในรูปแบบ ชื่อ · อีเมล ให้ถูกต้อง");
       return;
     }
+
+    rememberApproverContact(issueApprover, issueApproverEmail);
 
     const invalidEntry = selectedEntries.find(
       ({ quantity }) => !Number.isFinite(quantity) || quantity <= 0
@@ -295,11 +565,26 @@ export default function IssuePage() {
       return;
     }
 
-    const overBalanceEntry = selectedEntries.find(({ item, quantity }) => quantity > item.balance);
+    const overBalanceEntry = selectedEntries.find(({ item, quantity }) => quantity > item.totalBalance);
 
     if (overBalanceEntry) {
       window.alert(
-        `เบิก ${overBalanceEntry.item.name} ไม่ได้ เพราะคงเหลือเพียง ${overBalanceEntry.item.balance} ${overBalanceEntry.item.unit}`
+        `เบิก ${overBalanceEntry.item.name} ไม่ได้ เพราะคงเหลือรวมเพียง ${overBalanceEntry.item.totalBalance} ${overBalanceEntry.item.unit}`
+      );
+      return;
+    }
+
+    const allocationPlans = selectedEntries.map(({ item, quantity }) => ({
+      item,
+      quantity,
+      ...buildAutoAllocationPlan(item, quantity),
+    }));
+
+    const failedAllocation = allocationPlans.find((entry) => entry.remaining > 0);
+
+    if (failedAllocation) {
+      window.alert(
+        `ไม่สามารถจัดสรรล็อตของ ${failedAllocation.item.name} ได้ครบตามจำนวนที่ขอ กรุณาตรวจสอบสต๊อกอีกครั้ง`
       );
       return;
     }
@@ -307,27 +592,30 @@ export default function IssuePage() {
     const now = Date.now();
     const issueDate = getLocalDateValue();
     const batchIssueKey = `ISS-${String(now).slice(-6)}`;
-    const pendingTransactions: Transaction[] = selectedEntries.map(({ item, quantity }, index) => ({
-      id: createTransactionId(),
-      name: item.name,
-      sku: item.sku,
-      category: item.category,
-      productImportType: item.productImportType,
-      unit: item.unit,
-      type: "out",
-      quantity,
-      price: item.price,
-      costPrice: item.costPrice ?? 0,
-      costCurrency: item.costCurrency ?? "THB",
-      date: issueDate,
-      expiryDate: item.nearestExpiryDate,
-      issueKey: batchIssueKey,
-      requester: issueRequester.trim(),
-      approver: issueApprover.trim(),
-      note: issueNote.trim(),
-      createdAt: now + index,
-      status: "pending",
-    }));
+    let allocationSequence = 0;
+    const pendingTransactions: Transaction[] = allocationPlans.flatMap(({ item, plan }) =>
+      plan.map(({ lot, quantity }) => ({
+        id: createTransactionId(),
+        name: item.name,
+        sku: item.sku,
+        category: item.category,
+        productImportType: item.productImportType,
+        unit: item.unit,
+        type: "out",
+        quantity,
+        price: lot.price,
+        costPrice: lot.costPrice ?? 0,
+        costCurrency: lot.costCurrency ?? "THB",
+        date: issueDate,
+        expiryDate: lot.expiryDate,
+        issueKey: batchIssueKey,
+        requester: issueRequester.trim(),
+        approver: issueApprover.trim(),
+        note: issueNote.trim(),
+        createdAt: now + allocationSequence++,
+        status: "pending",
+      }))
+    );
 
     setIsSendingIssueEmail(true);
 
@@ -342,8 +630,6 @@ export default function IssuePage() {
       if (!saveRes.ok) {
         throw new Error("Failed to save pending requisition in DB");
       }
-
-      await refresh();
 
       // Add issueKey to local storage my_created_issue_keys to track ownership
       try {
@@ -372,7 +658,7 @@ export default function IssuePage() {
             name: item.name,
             productImportTypeLabel: getProductImportTypeLabel(item.productImportType),
             quantity,
-            sku: item.sku,
+            sku: `${item.sku || "-"} · จัดล็อตอัตโนมัติ`,
             unit: item.unit,
           })),
           note: issueNote.trim(),
@@ -396,8 +682,8 @@ export default function IssuePage() {
 
     // Reset local selection states and navigate to /approve
     setIssueSelections({});
-    setIssuePanelImportType("");
     setIssueRequester("");
+    setIssueApproverContact("");
     setIssueApprover("");
     setIssueApproverEmail("");
     setIssueNote("");
@@ -419,7 +705,7 @@ export default function IssuePage() {
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="ค้นหารายการสินค้า, รหัส, หมายเหตุ..."
+              placeholder="ค้นหาสินค้า, รหัส, หมวดหมู่..."
             />
           </label>
           <div className="issue-toolbar-actions">
@@ -434,7 +720,6 @@ export default function IssuePage() {
               onValueChange={(value) => {
                 const nextValue = value as OverviewFilter;
                 setIssueImportTypeFilter(nextValue);
-                setIssuePanelImportType(nextValue === "all" ? "" : nextValue);
                 setIssueSelections({});
               }}
             />
@@ -446,7 +731,6 @@ export default function IssuePage() {
                 setIssueImportTypeFilter("all");
                 setSearchTerm("");
                 setIssueSelections({});
-                setIssuePanelImportType("");
               }}
             >
               <Filter size={15} />
@@ -476,7 +760,9 @@ export default function IssuePage() {
                         setIssueSelections((current) => {
                           const next = { ...current };
                           issueListItems.forEach((item) => {
-                            next[item.key] = next[item.key] || "1";
+                            next[item.key] = next[item.key] || {
+                              quantity: "1",
+                            };
                           });
                           return next;
                         });
@@ -489,17 +775,17 @@ export default function IssuePage() {
                 </th>
                 <th>รหัสสินค้า</th>
                 <th>รายการสินค้า</th>
+                <th>การจัดสรร</th>
                 <th>หมวดหลัก</th>
                 <th>คงเหลือ</th>
                 <th>หน่วย</th>
                 <th>สถานะ</th>
-                <th aria-label="จัดการ" />
               </tr>
             </thead>
             <tbody>
               {issueListItems.length > 0 ? (
                 issueListItems.map((item) => {
-                  const isWaiting = item.balance <= LOW_STOCK_THRESHOLD * 3;
+                  const isWaiting = item.totalBalance <= LOW_STOCK_THRESHOLD * 3;
 
                   return (
                     <tr key={`issue-list-${item.key}`}>
@@ -520,13 +806,19 @@ export default function IssuePage() {
                       <td>
                         <strong>{item.name}</strong>
                         <span>
-                          {item.nearestExpiryDate
-                            ? `หมดอายุ ${formatDate(item.nearestExpiryDate)}`
-                            : "ไม่มีวันหมดอายุ"}
+                          ระบบจะเลือกล็อตให้อัตโนมัติตามวันหมดอายุหรือวันรับเข้า
+                        </span>
+                      </td>
+                      <td>
+                        <strong>{item.lots.some((lot) => Boolean(lot.expiryDate)) ? "FEFO" : "FIFO"}</strong>
+                        <span>
+                          {item.lots.length > 1
+                            ? `พร้อมจัดสรรจาก ${formatNumber(item.lots.length)} ล็อต`
+                            : "ระบบตัดล็อตให้อัตโนมัติ"}
                         </span>
                       </td>
                       <td>{getProductImportTypeLabel(item.productImportType)}</td>
-                      <td className="text-right font-semibold">{formatNumber(item.balance)}</td>
+                      <td className="text-right font-semibold">{formatNumber(item.totalBalance)}</td>
                       <td>{item.unit}</td>
                       <td>
                         <span
@@ -535,22 +827,12 @@ export default function IssuePage() {
                           {isWaiting ? "รอจัดสรร" : "พร้อมเบิก"}
                         </span>
                       </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="issue-row-action"
-                          onClick={() => openIssuePanelForItem(item)}
-                          aria-label={`เบิก ${item.name}`}
-                        >
-                          ⋮
-                        </button>
-                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={8}>
                     <div className="empty-state">ยังไม่มีสินค้าพร้อมเบิกจ่าย</div>
                   </td>
                 </tr>
@@ -588,7 +870,6 @@ export default function IssuePage() {
               aria-label="ปิดฟอร์ม"
               onClick={() => {
                 setIsIssuePanelOpen(false);
-                setIssuePanelImportType("");
               }}
             >
               <X size={18} />
@@ -596,25 +877,6 @@ export default function IssuePage() {
           </div>
 
           <div className="issue-quick-form issue-quick-form-panel">
-            <IssueTypeCombobox
-              label="ประเภทสินค้า *"
-              open={isIssuePanelTypeOpen}
-              setOpen={setIsIssuePanelTypeOpen}
-              value={issuePanelImportType}
-              options={[
-                { value: "resale", label: "ซื้อมาขายไป" },
-                { value: "stable", label: "สินค้า stable" },
-              ]}
-              placeholder="เลือกประเภทสินค้า"
-              searchPlaceholder="ค้นหาประเภทสินค้า..."
-              emptyText="ไม่พบประเภทสินค้าที่ค้นหา"
-              onValueChange={(value) => {
-                const nextValue = value as ProductImportType;
-                setIssuePanelImportType(nextValue);
-                setIssueImportTypeFilter(nextValue);
-                setIssueSelections({});
-              }}
-            />
             <label>
               <span>ผู้ขอเบิกสินค้า *</span>
               <input
@@ -630,27 +892,18 @@ export default function IssuePage() {
               </datalist>
             </label>
             <label>
-              <span>ชื่อผู้อนุมัติ *</span>
+              <span>ผู้อนุมัติ *</span>
               <input
-                value={issueApprover}
-                onChange={(event) => setIssueApprover(event.target.value)}
-                placeholder="ระบุชื่อผู้อนุมัติ"
-                list="issue-approver-suggestions"
+                value={issueApproverContact}
+                onChange={(event) => handleApproverContactChange(event.target.value)}
+                placeholder="พิมพ์หรือเลือกแบบ ชื่อ · อีเมล"
+                list="issue-approver-contact-suggestions"
               />
-              <datalist id="issue-approver-suggestions">
-                {issueApproverSuggestions.map((item) => (
-                  <option key={`issue-approver-${item}`} value={item} />
+              <datalist id="issue-approver-contact-suggestions">
+                {issueApproverInputSuggestions.map((value) => (
+                  <option key={`issue-approver-contact-list-${value}`} value={value} />
                 ))}
               </datalist>
-            </label>
-            <label>
-              <span>อีเมลผู้อนุมัติ *</span>
-              <input
-                type="email"
-                value={issueApproverEmail}
-                onChange={(event) => setIssueApproverEmail(event.target.value)}
-                placeholder="เช่น approver@company.com"
-              />
             </label>
             <div className="issue-selection-list">
               <div className="issue-selection-list-header">
@@ -658,14 +911,21 @@ export default function IssuePage() {
                 <strong>{formatNumber(selectedIssueEntries.length)} รายการ</strong>
               </div>
               {selectedIssueEntries.length > 0 ? (
-                selectedIssueEntries.map(({ item, quantity }) => (
+                selectedIssueEntries.map(({ item, selection }) => {
+                  const requestedQuantity = Number(selection.quantity);
+                  const allocationPreview =
+                    Number.isFinite(requestedQuantity) && requestedQuantity > 0
+                      ? buildAutoAllocationPlan(item, requestedQuantity)
+                      : { plan: [], remaining: 0 };
+
+                  return (
                   <article key={`selected-issue-${item.key}`} className="issue-selection-item">
                     <div className="issue-selection-item-header">
                       <div className="issue-selection-check">
                         <span>
                           <strong>{item.name}</strong>
                           <small>
-                            {item.sku || "-"} · คงเหลือ {formatNumber(item.balance)} {item.unit}
+                            {item.sku || "-"} · คงเหลือรวม {formatNumber(item.totalBalance)} {item.unit}
                           </small>
                         </span>
                       </div>
@@ -679,21 +939,41 @@ export default function IssuePage() {
                         <Trash2 size={16} />
                       </button>
                     </div>
+                    <div className="text-[12px] text-[var(--text-muted)]">
+                      ระบบจะเลือกล็อตให้อัตโนมัติแบบ{" "}
+                      {item.lots.some((lot) => Boolean(lot.expiryDate)) ? "FEFO (หมดอายุก่อน)" : "FIFO (เข้าก่อนออกก่อน)"}
+                    </div>
                     <label className="issue-selection-quantity">
                       <span>จำนวน</span>
                       <input
                         type="number"
                         min="1"
-                        max={item.balance}
+                        max={item.totalBalance}
                         step="1"
-                        value={quantity}
-                        onChange={(event) => updateIssueSelection(item.key, event.target.value)}
+                        value={selection.quantity}
+                        onChange={(event) =>
+                          updateIssueSelection(item.key, { quantity: event.target.value })
+                        }
                       />
                     </label>
+                    <div className="text-[12px] text-[var(--text-muted)]">
+                      {allocationPreview.plan.length > 0 ? (
+                        <>
+                          ระบบจะจัดสรรจาก {formatNumber(allocationPreview.plan.length)} ล็อต รวม{" "}
+                          {formatNumber(
+                            allocationPreview.plan.reduce((sum, entry) => sum + entry.quantity, 0)
+                          )}{" "}
+                          {item.unit}
+                        </>
+                      ) : (
+                        <>กรอกจำนวนที่ต้องการเบิก แล้วระบบจะคำนวณล็อตให้อัตโนมัติ</>
+                      )}
+                    </div>
                   </article>
-                ))
+                  );
+                })
               ) : (
-                <div className="empty-state">เลือกสินค้าได้จาก checkbox ในตาราง</div>
+                <div className="empty-state">เลือกสินค้าได้จาก checkbox ในตาราง แล้วกรอกจำนวนที่ต้องการเบิก</div>
               )}
             </div>
             <label>
@@ -711,8 +991,8 @@ export default function IssuePage() {
                 onClick={() => {
                   setIsIssuePanelOpen(false);
                   setIssueSelections({});
-                  setIssuePanelImportType("");
                   setIssueRequester("");
+                  setIssueApproverContact("");
                   setIssueApprover("");
                   setIssueApproverEmail("");
                   setIssueNote("");

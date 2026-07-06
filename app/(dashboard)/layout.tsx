@@ -16,28 +16,41 @@ import {
   History,
   Clock3,
   UserCheck,
+  Settings,
 } from "lucide-react";
 
 type DashboardLayoutProps = {
   children: ReactNode;
 };
 
+type UserRole = "employee" | "manager" | "admin";
+
 const navigationItems = [
   { label: "ภาพรวมสต๊อก", href: "/overview", icon: Home },
   { label: "รายการสินค้า", href: "/items", icon: Database },
+  { label: "Master Data สินค้า", href: "/master-data", icon: Database },
   { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
   { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
   { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
   { label: "ประวัติรายการ", href: "/history", icon: History },
   { label: "ใกล้หมดสต๊อก / โครงการ", href: "/expiring", icon: Clock3 },
+  { label: "ตั้งค่า", href: "/settings", icon: Settings },
   { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  return (
+    <TransactionProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </TransactionProvider>
+  );
+}
+
+function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [userRole, setUserRole] = useState("employee");
-  const [simulatedUsername, setSimulatedUsername] = useState("พนักงาน");
-  const [allUsers, setAllUsers] = useState<{ username: string; isAdmin: boolean }[]>([]);
+  const [userRole, setUserRole] = useState<UserRole>("employee");
+  const [simulatedUsername, setSimulatedUsername] = useState("สมชาย");
+  const [allUsers, setAllUsers] = useState<{ username: string; isAdmin: boolean; role: UserRole }[]>([]);
   const pathname = usePathname();
 
   async function fetchUsers() {
@@ -53,16 +66,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   useEffect(() => {
-    const cachedRole = localStorage.getItem("simulated_role") || "employee";
-    const cachedUsername = localStorage.getItem("simulated_username") || "พนักงาน";
+    const cachedRole = (localStorage.getItem("simulated_role") as UserRole) || "employee";
+    const cachedUsername = localStorage.getItem("simulated_username") || "สมชาย";
     setUserRole(cachedRole);
     setSimulatedUsername(cachedUsername);
     
     fetchUsers();
 
     const handleRoleChangedExternal = () => {
-      setUserRole(localStorage.getItem("simulated_role") || "employee");
-      setSimulatedUsername(localStorage.getItem("simulated_username") || "พนักงาน");
+      setUserRole((localStorage.getItem("simulated_role") as UserRole) || "employee");
+      setSimulatedUsername(localStorage.getItem("simulated_username") || "สมชาย");
     };
 
     window.addEventListener("simulated-role-changed", handleRoleChangedExternal);
@@ -84,7 +97,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       try {
         const res = await fetch("/api/admin-users");
         if (res.ok) {
-          const data = (await res.json()) as { username: string; isAdmin: boolean }[];
+          const data = (await res.json()) as { username: string; isAdmin: boolean; role: UserRole }[];
           setAllUsers(data);
           foundUser = data.find((u) => u.username === newUsername);
         }
@@ -93,7 +106,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       }
     }
 
-    const nextRole = foundUser?.isAdmin ? "admin" : "employee";
+    const nextRole = foundUser?.role ?? "employee";
     setUserRole(nextRole);
     localStorage.setItem("simulated_role", nextRole);
 
@@ -126,7 +139,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       <nav className="dashboard-nav" aria-label="เมนูหลัก">
         {navigationItems.map((item) => {
-          // Hide admin rights menu if current role is not admin
+          if (item.href === "/master-data" && userRole === "employee") {
+            return null;
+          }
+
           if (item.href === "/admin-rights" && userRole !== "admin") {
             return null;
           }
@@ -148,7 +164,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 size={17}
                 strokeWidth={2.1}
               />
-              <span>{item.label}</span>
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
             </Link>
           );
         })}
@@ -157,71 +173,73 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   );
 
   return (
-    <TransactionProvider>
-      <main className="dashboard-shell">
-        {isMobileMenuOpen ? (
-          <button
-            type="button"
-            className="dashboard-overlay"
-            onClick={closeMobileMenu}
-            aria-label="ปิดเมนู"
-          />
-        ) : null}
+    <main className="dashboard-shell">
+      {isMobileMenuOpen ? (
+        <button
+          type="button"
+          className="dashboard-overlay"
+          onClick={closeMobileMenu}
+          aria-label="ปิดเมนู"
+        />
+      ) : null}
 
-        <aside
-          className={`dashboard-sidebar-mobile ${
-            isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          {sidebarContent}
-        </aside>
+      <aside
+        className={`dashboard-sidebar-mobile ${
+          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {sidebarContent}
+      </aside>
 
-        <aside className="dashboard-sidebar">{sidebarContent}</aside>
+      <aside className="dashboard-sidebar">{sidebarContent}</aside>
 
-        <div className="dashboard-main">
-          <header className="dashboard-header flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="icon-button lg:hidden"
-                aria-label="เปิดเมนู"
-              >
-                <Menu aria-hidden="true" size={19} />
-              </button>
-              <div className="min-w-0">
-                <h1 className="truncate text-base font-bold text-[var(--text-strong)] md:text-lg">
-                  CPAC SB&amp;M Inventory Management
-                </h1>
-              </div>
-            </div>
-
-          <div className="dashboard-user-switch">
-            <span>จำลองผู้ใช้:</span>
-            <select
-              value={simulatedUsername}
-              onChange={(e) => handleUsernameChange(e.target.value)}
-              className="bg-transparent font-medium text-sky-900 border-none outline-none cursor-pointer focus:ring-0 py-0.5"
-              style={{ minWidth: "140px" }}
+      <div className="dashboard-main">
+        <header className="dashboard-header flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="icon-button lg:hidden"
+              aria-label="เปิดเมนู"
             >
-              {(() => {
-                const options = [...allUsers];
-                if (simulatedUsername && !options.some((o) => o.username === simulatedUsername)) {
-                  options.push({ username: simulatedUsername, isAdmin: userRole === "admin" });
-                }
-                return options.map((u) => (
-                  <option key={`sim-user-${u.username}`} value={u.username}>
-                    {u.username} ({u.isAdmin ? "แอดมิน" : "พนักงาน"})
-                  </option>
-                ));
-              })()}
-            </select>
+              <Menu aria-hidden="true" size={19} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-bold text-[var(--text-strong)] md:text-lg">
+                CPAC SB&amp;M Inventory Management
+              </h1>
+            </div>
           </div>
-        </header>
 
-          <div className="dashboard-content">{children}</div>
+        <div className="dashboard-user-switch">
+          <span>จำลองผู้ใช้:</span>
+          <select
+            value={simulatedUsername}
+            onChange={(e) => handleUsernameChange(e.target.value)}
+            className="bg-transparent font-medium text-sky-900 border-none outline-none cursor-pointer focus:ring-0 py-0.5"
+            style={{ minWidth: "140px" }}
+          >
+            {(() => {
+              const options = [...allUsers];
+              if (simulatedUsername && !options.some((o) => o.username === simulatedUsername)) {
+                options.push({
+                  username: simulatedUsername,
+                  isAdmin: userRole === "admin",
+                  role: userRole,
+                });
+              }
+              return options.map((u) => (
+                <option key={`sim-user-${u.username}`} value={u.username}>
+                  {u.username} ({u.role === "admin" ? "แอดมิน" : u.role === "manager" ? "ผู้จัดการ" : "พนักงาน"})
+                </option>
+              ));
+            })()}
+          </select>
         </div>
-      </main>
-    </TransactionProvider>
+      </header>
+
+        <div className="dashboard-content">{children}</div>
+      </div>
+    </main>
   );
 }

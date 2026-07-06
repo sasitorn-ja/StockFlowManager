@@ -1,17 +1,17 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import {
   buildInventoryMap,
   buildItemKey,
+  normalizeTransactions,
   formatDate,
   formatNumber,
 } from "@/lib/stock-flow/utils";
 import type { Transaction } from "@/types/stock-flow";
-import { useTransactions } from "../TransactionContext";
 
 export type IssueDeliveryDocument = {
   transaction: Transaction;
@@ -76,7 +76,7 @@ function DeliveryNoteSection({
           <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
             Delivery Note
           </p>
-          <h3 className="dashboard-section-title">ใบกำกับเบิกสินค้า</h3>
+          <h3 className="dashboard-section-title">เอกสารเบิกสินค้า</h3>
         </div>
         <Button type="button" variant="secondary" onClick={() => setActiveSection("history")}>
           กลับไปประวัติภาพรวม
@@ -85,7 +85,77 @@ function DeliveryNoteSection({
 
       <article className="delivery-document">
         <header className="delivery-document-header">
-          <h2>ใบกำกับเบิกสินค้า</h2>
+          <h2>ใบจัดของ</h2>
+          <p>เอกสารสำหรับจัดเตรียมสินค้าออกจากคลัง</p>
+        </header>
+
+        <div className="delivery-document-meta">
+          <div>
+            <p>จาก คลังสินค้า</p>
+            <p>ถึง {deliveryDocument.transaction.requester || "-"}</p>
+          </div>
+          <div className="text-right">
+            <p>
+              หมายเลข <strong>{deliveryDocument.documentNo}</strong>
+            </p>
+            <p>วันที่ {formatDate(deliveryDocument.approvedDate)}</p>
+          </div>
+        </div>
+
+        <div className="delivery-table-wrap">
+          <table className="delivery-table">
+            <thead>
+              <tr>
+                <th>ลำดับ</th>
+                <th>รหัสสินค้า</th>
+                <th>ชื่อสินค้า</th>
+                <th>วันหมดอายุ</th>
+                <th>จำนวน</th>
+                <th>หน่วย</th>
+              </tr>
+            </thead>
+            <tbody>
+              {documentTransactions.map((transaction, index) => (
+                <tr key={`delivery-row-${transaction.id || index + 1}`}>
+                  <td>{index + 1}</td>
+                  <td>{transaction.sku || "-"}</td>
+                  <td>{transaction.name}</td>
+                  <td>{transaction.expiryDate ? formatDate(transaction.expiryDate) : "-"}</td>
+                  <td className="text-right">{formatNumber(transaction.quantity)}</td>
+                  <td>{transaction.unit}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-3 text-left text-sm text-[var(--text-strong)]">
+          <p>
+            หมายเหตุ {deliveryDocument.transaction.note?.trim() || "................................"}
+          </p>
+        </div>
+
+        <div className="delivery-print-spacer" aria-hidden="true" />
+
+        <section className="delivery-summary-grid">
+          <div>
+            <p>ผู้จัดของ ..............................................</p>
+            <p>ตรวจสอบสินค้า ........................................</p>
+          </div>
+          <div>
+            <p>พื้นที่จัดเตรียม ......................................</p>
+          </div>
+          <div>
+            <p>เวลาจัดของ ....../....../...... ............ น.</p>
+            <p>ผู้รับมอบจากคลัง ................................</p>
+          </div>
+        </section>
+      </article>
+
+      <article className="delivery-document delivery-document-break">
+        <header className="delivery-document-header">
+          <h2>ใบกำกับส่งของ</h2>
+          <p>เอกสารสำหรับส่งมอบสินค้าให้ผู้ขอเบิก</p>
         </header>
 
         <div className="delivery-document-meta">
@@ -116,7 +186,7 @@ function DeliveryNoteSection({
             </thead>
             <tbody>
               {documentTransactions.map((transaction, index) => (
-                <tr key={`delivery-row-${transaction.id || index + 1}`}>
+                <tr key={`delivery-note-row-${transaction.id || index + 1}`}>
                   <td>{index + 1}</td>
                   <td>ISSUE</td>
                   <td>{deliveryDocument.documentNo}</td>
@@ -180,7 +250,27 @@ function DeliveryNoteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const issueKey = searchParams.get("issueKey") || "";
-  const { transactions, loading } = useTransactions();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  async function fetchTransactions() {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/transactions");
+      if (res.ok) {
+        const data = await res.json();
+        setTransactions(normalizeTransactions(data));
+      }
+    } catch (error) {
+      console.error("Failed to fetch transactions:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
 
   const deliveryDocument = useMemo<IssueDeliveryDocument | null>(() => {
     if (!issueKey || transactions.length === 0) {
@@ -235,7 +325,7 @@ function DeliveryNoteContent() {
     <DeliveryNoteSection
       deliveryDocument={deliveryDocument}
       setActiveSection={handleBack}
-      isLoading={loading}
+      isLoading={isLoading}
     />
   );
 }

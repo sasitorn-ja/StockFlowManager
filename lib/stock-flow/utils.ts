@@ -2,6 +2,7 @@ import { EXPIRY_WARNING_DAYS } from "@/lib/stock-flow/constants";
 import type {
   CostCurrency,
   InventoryItem,
+  InventoryLotItem,
   ProductImportType,
   Transaction,
   TransactionStatus,
@@ -63,7 +64,7 @@ function toCostCurrency(value: unknown): CostCurrency {
 }
 
 export function getProductImportTypeLabel(type?: ProductImportType) {
-  return type === "stable" ? "สินค้า stable" : "ซื้อมาขายไป";
+  return type === "stable" ? "สินค้าเข้าสต็อก" : "ซื้อมาขายไป";
 }
 
 export function getCostCurrencyLabel(currency?: CostCurrency) {
@@ -193,10 +194,99 @@ export function buildInventoryMap(transactions: Transaction[]) {
   }, new Map<string, InventoryItem>());
 }
 
+export function buildInventoryLotMap(transactions: Transaction[]) {
+  const lotMap = new Map<string, InventoryLotItem>();
+  const sortedTransactions = transactions
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
+
+  sortedTransactions.forEach((transaction) => {
+    const baseItemKey = buildItemKey(transaction);
+
+    if (transaction.type === "in") {
+      const expiryDate = transaction.expiryDate || "";
+      const lotKey = `${baseItemKey}::${expiryDate || "no-expiry"}`;
+      const entry = lotMap.get(lotKey) || {
+        key: lotKey,
+        baseItemKey,
+        name: transaction.name,
+        sku: transaction.sku,
+        category: transaction.category,
+        imageDataUrl: transaction.imageDataUrl,
+        productImportType: transaction.productImportType ?? "resale",
+        unit: transaction.unit,
+        totalIn: 0,
+        totalOut: 0,
+        balance: 0,
+        price: transaction.price,
+        costPrice: transaction.costPrice ?? 0,
+        costCurrency: transaction.costCurrency ?? "THB",
+        nearestExpiryDate: expiryDate,
+        expiryDate,
+        createdAt: transaction.createdAt,
+        receivedDate: transaction.date,
+      };
+
+      entry.totalIn += transaction.quantity;
+      entry.balance += transaction.quantity;
+
+      if (transaction.price > 0) {
+        entry.price = transaction.price;
+      }
+
+      if ((transaction.costPrice ?? 0) > 0) {
+        entry.costPrice = transaction.costPrice;
+        entry.costCurrency = transaction.costCurrency ?? "THB";
+      }
+
+      if (transaction.imageDataUrl) {
+        entry.imageDataUrl = transaction.imageDataUrl;
+      }
+
+      if (!entry.receivedDate || transaction.date < entry.receivedDate) {
+        entry.receivedDate = transaction.date;
+      }
+
+      if (transaction.createdAt < entry.createdAt) {
+        entry.createdAt = transaction.createdAt;
+      }
+
+      lotMap.set(lotKey, entry);
+      return;
+    }
+
+    if (transaction.status === "cancelled") {
+      return;
+    }
+
+    let remainingQuantity = transaction.quantity;
+    const candidateLots = Array.from(lotMap.values())
+      .filter((item) => item.baseItemKey === baseItemKey && item.balance > 0)
+      .sort((a, b) => a.receivedDate.localeCompare(b.receivedDate) || a.createdAt - b.createdAt);
+
+    candidateLots.forEach((lot) => {
+      if (remainingQuantity <= 0) {
+        return;
+      }
+
+      const deducted = Math.min(lot.balance, remainingQuantity);
+      lot.balance -= deducted;
+      lot.totalOut += deducted;
+      remainingQuantity -= deducted;
+    });
+  });
+
+  return lotMap;
+}
+
 export function buildItemKey(
   item: Pick<Transaction, "name" | "sku" | "unit"> & Partial<Pick<Transaction, "productImportType">>
 ) {
   return `${item.productImportType ?? "resale"}::${item.name.toLowerCase()}::${item.sku.toLowerCase()}::${item.unit.toLowerCase()}`;
+}
+
+export function sanitizeSku(value: string) {
+  return value.replace(/[^A-Za-z0-9\-_.\/]/g, "");
 }
 
 export function getLocalDateValue() {

@@ -4,6 +4,14 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Eye, CheckCircle2, XCircle, Clock, CheckSquare, Layers, FileCheck, PackageCheck, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StatsGrid } from "@/components/stock-flow/StatsGrid";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
@@ -12,9 +20,9 @@ import {
   formatDate,
   formatNumber,
   formatCurrency,
+  normalizeTransactions,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, TransactionStatus } from "@/types/stock-flow";
-import { useTransactions } from "../TransactionContext";
 
 type GroupedRequisition = {
   issueKey: string;
@@ -31,17 +39,45 @@ type GroupedRequisition = {
 
 type TabType = "all" | TransactionStatus;
 
+type ConfirmActionType = "approve" | "complete-step-1" | "complete-step-2" | "cancel";
+
+type ConfirmDialogState = {
+  action: ConfirmActionType;
+  confirmLabel: string;
+  description: string;
+  issueKey: string;
+  title: string;
+};
+
 export default function RequisitionTrackerPage() {
   const router = useRouter();
-  const { transactions, loading, refresh } = useTransactions();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [simulatedRole, setSimulatedRole] = useState("employee");
-  const [simulatedUsername, setSimulatedUsername] = useState("พนักงาน");
+  const [simulatedUsername, setSimulatedUsername] = useState("สมชาย");
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
   const [showOnlyMine, setShowOnlyMine] = useState(false);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [myCreatedIssueKeys, setMyCreatedIssueKeys] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+
+  // Fetch transactions from the Neon DB
+  async function fetchTransactions() {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/transactions");
+      if (res.ok) {
+        const data = await res.json();
+        setTransactions(normalizeTransactions(data));
+      }
+    } catch (error) {
+      console.error("Failed to fetch transactions:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   // Load and listen to the simulated role from layout
   useEffect(() => {
@@ -57,7 +93,7 @@ export default function RequisitionTrackerPage() {
 
     const loadSimulatedRole = () => {
       const role = localStorage.getItem("simulated_role") || "employee";
-      const name = localStorage.getItem("simulated_username") || "พนักงาน";
+      const name = localStorage.getItem("simulated_username") || "สมชาย";
       setSimulatedRole(role);
       setSimulatedUsername(name);
       
@@ -70,6 +106,7 @@ export default function RequisitionTrackerPage() {
     };
 
     loadSimulatedRole();
+    fetchTransactions();
 
     window.addEventListener("simulated-role-changed", loadSimulatedRole);
     return () => {
@@ -213,7 +250,7 @@ export default function RequisitionTrackerPage() {
       });
 
       if (res.ok) {
-        await refresh();
+        await fetchTransactions();
       } else {
         window.alert("เกิดข้อผิดพลาดในการอัปเดตสถานะใบเบิกสินค้า");
       }
@@ -227,10 +264,76 @@ export default function RequisitionTrackerPage() {
 
   // Role Action Controls
   const isAdmin = simulatedRole === "admin";
-  const isManagerOrAdmin = isAdmin;
+  const isManagerOrAdmin = simulatedRole === "admin" || simulatedRole === "manager";
+  const pendingApprovalCount = useMemo(() => {
+    if (!isManagerOrAdmin) {
+      return 0;
+    }
+
+    return ownedRequisitions.filter((requisition) => requisition.status === "pending").length;
+  }, [isManagerOrAdmin, ownedRequisitions]);
+
+  function handleConfirmAction() {
+    if (!confirmDialog) {
+      return;
+    }
+
+    if (confirmDialog.action === "approve") {
+      updateRequisitionStatus(confirmDialog.issueKey, "approved", {
+        approver: simulatedUsername,
+      });
+      setConfirmDialog(null);
+      return;
+    }
+
+    if (confirmDialog.action === "complete-step-1") {
+      setConfirmDialog({
+        action: "complete-step-2",
+        confirmLabel: "ยืนยันจ่ายของจริง",
+        description: `เมื่อยืนยันแล้ว ระบบจะตัดสต๊อกถาวรของคำขอ ${confirmDialog.issueKey} ทันที`,
+        issueKey: confirmDialog.issueKey,
+        title: "ยืนยันอีกครั้งก่อนตัดสต๊อก",
+      });
+      return;
+    }
+
+    if (confirmDialog.action === "complete-step-2") {
+      updateRequisitionStatus(confirmDialog.issueKey, "completed");
+      setConfirmDialog(null);
+      return;
+    }
+
+    updateRequisitionStatus(confirmDialog.issueKey, "cancelled");
+    setConfirmDialog(null);
+  }
 
   return (
-    <section id="requisition-tracker" className="grid gap-4">
+    <>
+      <Dialog
+        open={Boolean(confirmDialog)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmDialog(null);
+          }
+        }}
+      >
+        <DialogContent className="approve-confirm-dialog sm:max-w-[560px]">
+          <DialogHeader className="approve-confirm-dialog-header">
+            <DialogTitle>{confirmDialog?.title}</DialogTitle>
+            <DialogDescription>{confirmDialog?.description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="approve-confirm-dialog-footer">
+            <Button type="button" variant="secondary" onClick={() => setConfirmDialog(null)}>
+              ยกเลิก
+            </Button>
+            <Button type="button" onClick={handleConfirmAction}>
+              {confirmDialog?.confirmLabel || "ยืนยัน"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <section id="requisition-tracker" className="grid gap-4">
       {/* Page Header */}
       <section className="dashboard-card">
         <div className="dashboard-panel-header">
@@ -294,6 +397,16 @@ export default function RequisitionTrackerPage() {
               >
                 <Icon size={14} className={isActive ? "animate-pulse" : "text-slate-400"} />
                 <span>{tab.label}</span>
+                {tab.value === "pending" && pendingApprovalCount > 0 ? (
+                  <span
+                    className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                      isActive ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
+                    }`}
+                    aria-label={`รออนุมัติ ${pendingApprovalCount} รายการ`}
+                  >
+                    {pendingApprovalCount}
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -328,7 +441,7 @@ export default function RequisitionTrackerPage() {
         title="ตารางติดตามเอกสารใบเบิก"
         description="คลิกไอคอนลูกศรเพื่อขยายดูรายการสินค้าในแต่ละใบขอเบิก"
       >
-        {loading ? (
+        {isLoading ? (
           <div className="p-8 text-center text-sm text-[var(--text-muted)]">
             กำลังโหลดข้อมูลจาก Neon Database...
           </div>
@@ -403,7 +516,15 @@ export default function RequisitionTrackerPage() {
                             type="button"
                             size="sm"
                             disabled={isUpdating === req.issueKey}
-                            onClick={() => updateRequisitionStatus(req.issueKey, "approved", { approver: simulatedUsername })}
+                            onClick={() => {
+                              setConfirmDialog({
+                                action: "approve",
+                                confirmLabel: "อนุมัติคำขอ",
+                                description: `ยืนยันการอนุมัติคำขอ ${req.issueKey} ใช่หรือไม่?`,
+                                issueKey: req.issueKey,
+                                title: "ยืนยันการอนุมัติ",
+                              });
+                            }}
                             className="bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded"
                           >
                             อนุมัติคำขอ
@@ -416,7 +537,15 @@ export default function RequisitionTrackerPage() {
                             type="button"
                             size="sm"
                             disabled={isUpdating === req.issueKey}
-                            onClick={() => updateRequisitionStatus(req.issueKey, "completed")}
+                            onClick={() => {
+                              setConfirmDialog({
+                                action: "complete-step-1",
+                                confirmLabel: "ดำเนินการต่อ",
+                                description: `ยืนยันจ่ายของจริงสำหรับคำขอ ${req.issueKey} ใช่หรือไม่?`,
+                                issueKey: req.issueKey,
+                                title: "ยืนยันจ่ายของจริง",
+                              });
+                            }}
                             className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded"
                           >
                             ยืนยันจ่ายของจริง
@@ -445,10 +574,13 @@ export default function RequisitionTrackerPage() {
                             size="sm"
                             disabled={isUpdating === req.issueKey}
                             onClick={() => {
-                              const confirmCancel = window.confirm(`ยืนยันการยกเลิกคำขอ ${req.issueKey}? (สต๊อกที่จองไว้จะเด้งกลับคืนคลังทันที)`);
-                              if (confirmCancel) {
-                                updateRequisitionStatus(req.issueKey, "cancelled");
-                              }
+                              setConfirmDialog({
+                                action: "cancel",
+                                confirmLabel: "ยืนยันการยกเลิก",
+                                description: `ยืนยันการยกเลิกคำขอ ${req.issueKey}? สต๊อกที่จองไว้จะเด้งกลับคืนคลังทันที`,
+                                issueKey: req.issueKey,
+                                title: "ยืนยันยกเลิกคำขอ",
+                              });
                             }}
                             className="text-xs px-2.5 h-8 py-1 rounded"
                           >
@@ -503,7 +635,7 @@ export default function RequisitionTrackerPage() {
                                         {formatCurrency(costVal)}
                                       </td>
                                       <td className="px-3 py-2.5 text-slate-500">
-                                        {item.productImportType === "stable" ? "สินค้า stable" : "ซื้อมาขายไป"}
+                                        {item.productImportType === "stable" ? "สินค้าเข้าสต็อก" : "ซื้อมาขายไป"}
                                       </td>
                                     </tr>
                                   );
@@ -605,6 +737,7 @@ export default function RequisitionTrackerPage() {
           </Table>
         )}
       </DataPanel>
-    </section>
+      </section>
+    </>
   );
 }

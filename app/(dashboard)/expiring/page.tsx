@@ -23,7 +23,7 @@ export default function ExpiringPage() {
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
   const groupData = useMemo(() => {
-    const groupLabel = selectedImportType === "resale" ? "ซื้อมาขายไป" : "สินค้า stable";
+    const groupLabel = selectedImportType === "resale" ? "ซื้อมาขายไป" : "สินค้าเข้าสต็อก";
     const groupInventory = inventory.filter(
       (item) => (item.productImportType ?? "resale") === selectedImportType
     );
@@ -62,7 +62,7 @@ export default function ExpiringPage() {
             }`}
             onClick={() => setSelectedImportType("stable")}
           >
-            สินค้า stable
+            สินค้าเข้าสต็อก
           </button>
         </div>
       </div>
@@ -73,7 +73,7 @@ export default function ExpiringPage() {
           description="แสดงสินค้าคงเหลือที่ใกล้หมดอายุภายใน 90 วัน เฉพาะกลุ่มนี้"
         >
           <Table
-            headers={["สินค้า", "วันหมดอายุ", "เหลืออีก", "คงเหลือ", "คำแนะนำ"]}
+            headers={["สินค้า", "วันหมดอายุ", "วันหมดอายุ", "คงเหลือ", "คำแนะนำ"]}
             emptyMessage={`ยังไม่มีสินค้า ${groupData.label} ที่ใกล้หมดอายุภายใน 90 วัน`}
             columnCount={5}
           >

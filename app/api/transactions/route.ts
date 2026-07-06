@@ -17,16 +17,32 @@ async function ensureTableExists() {
       CREATE TABLE IF NOT EXISTS admin_users (
         username VARCHAR(255) PRIMARY KEY,
         is_admin BOOLEAN DEFAULT TRUE,
+        role VARCHAR(50) DEFAULT 'admin',
         created_at BIGINT
       );
+    `;
+
+    await sql`ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'admin';`;
+    await sql`
+      UPDATE admin_users
+      SET role = CASE WHEN is_admin THEN 'admin' ELSE 'employee' END
+      WHERE role IS NULL OR role = '';
     `;
 
     // Seed default admin if it doesn't exist
     const admins = await sql`SELECT 1 FROM admin_users WHERE username = 'แอดมิน' LIMIT 1;`;
     if (admins.length === 0) {
       await sql`
-        INSERT INTO admin_users (username, is_admin, created_at)
-        VALUES ('แอดมิน', TRUE, ${Date.now()});
+        INSERT INTO admin_users (username, is_admin, role, created_at)
+        VALUES ('แอดมิน', TRUE, 'admin', ${Date.now()});
+      `;
+    }
+
+    const managers = await sql`SELECT 1 FROM admin_users WHERE username = 'ผู้จัดการ' LIMIT 1;`;
+    if (managers.length === 0) {
+      await sql`
+        INSERT INTO admin_users (username, is_admin, role, created_at)
+        VALUES ('ผู้จัดการ', FALSE, 'manager', ${Date.now()});
       `;
     }
 

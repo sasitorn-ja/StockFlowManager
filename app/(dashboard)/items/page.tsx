@@ -1,65 +1,84 @@
 "use client";
 
-import { useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useMemo, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import {
-  buildInventoryMap,
+  buildInventoryLotMap,
+  formatCurrency,
   formatDate,
   formatNumber,
-  formatCurrency,
   getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
-import type { InventoryItem } from "@/types/stock-flow";
+import type { InventoryLotItem } from "@/types/stock-flow";
 import { useTransactions } from "../TransactionContext";
 
-type ItemsSectionProps = {
-  inventory: InventoryItem[];
+type InventoryLotWithLabel = InventoryLotItem & {
+  lotLabel: string;
+  lotSequence: number;
 };
 
+type GroupedInventoryItem = {
+  key: string;
+  baseItemKey: string;
+  name: string;
+  sku: string;
+  category: string;
+  productImportType: InventoryLotItem["productImportType"];
+  unit: string;
+  balance: number;
+  costPriceLabel: string;
+  totalBalanceValue: number;
+  totalCostValue: number;
+  firstReceivedDate: string;
+  nearestExpiryDate: string;
+  lots: InventoryLotWithLabel[];
+};
+
+type ItemsSectionProps = {
+  inventory: GroupedInventoryItem[];
+};
+
+function formatCostPriceLabel(lots: InventoryLotWithLabel[]) {
+  const uniquePrices = Array.from(new Set(lots.map((lot) => lot.costPrice ?? 0)));
+
+  if (uniquePrices.length === 1) {
+    return formatCurrency(uniquePrices[0] ?? 0);
+  }
+
+  return "หลายราคา";
+}
+
 function ItemsSection({ inventory }: ItemsSectionProps) {
-  const router = useRouter();
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+
+  function toggleRow(itemKey: string) {
+    setExpandedRows((current) => ({
+      ...current,
+      [itemKey]: !current[itemKey],
+    }));
+  }
 
   return (
-    <section id="items" className="grid gap-3">
-      <section className="dashboard-card">
-        <div className="dashboard-panel-header">
-          <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
-              Product Catalog
-            </p>
-            <h3 className="dashboard-section-title">รายการสินค้าทั้งหมด</h3>
-            <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              รวมสินค้าทั้งซื้อมาขายไปและสินค้า stable ในหน้าเดียว
-            </p>
-          </div>
-        </div>
-      </section>
-
+    <section id="items" className="grid gap-3 items-clean-table">
       <DataPanel
         title="รายการสินค้าทั้งหมด"
-        description="รวมสินค้าทั้งซื้อมาขายไปและสินค้า stable ในหน้าเดียว"
+        description="แสดงสรุปสินค้าแบบสั้นก่อน แล้วกดเปิดดูรายละเอียดล็อตของสินค้าแต่ละรายการได้"
       >
         <Table
           headers={[
             "สินค้า",
-            "ประเภทสินค้า",
-            "หมวดหมู่",
-            "หมดอายุใกล้สุด",
-            "คงเหลือ",
-            "รับเข้า",
-            "จ่ายออก",
-            "ราคาต้นทุน",
+            "หมวด",
+            "ล็อต",
+            "คงเหลือรวม",
+            "วันหมดอายุใกล้สุด",
+            "ต้นทุน/หน่วย",
             "มูลค่าคงเหลือ",
-            "มูลค่าต้นทุน",
-            "จัดการ",
           ]}
           emptyMessage="ยังไม่มีรายการสินค้า"
-          columnCount={11}
+          columnCount={7}
         >
           {inventory
             .slice()
@@ -69,62 +88,137 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
                 "th"
               );
 
-              return typeCompare || a.name.localeCompare(b.name, "th");
+              return (
+                typeCompare ||
+                a.name.localeCompare(b.name, "th") ||
+                a.firstReceivedDate.localeCompare(b.firstReceivedDate) ||
+                a.nearestExpiryDate.localeCompare(b.nearestExpiryDate)
+              );
             })
-            .map((item) => (
-              <tr key={`${item.key}-items`}>
-                <td>
-                  <strong className="font-semibold text-[var(--text-strong)]">{item.name}</strong>
-                  <div className="text-[12px] text-[var(--text-muted)]">{item.sku || "-"}</div>
-                </td>
-                <td>{getProductImportTypeLabel(item.productImportType)}</td>
-                <td>{item.category}</td>
-                <td>{item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}</td>
-                <td
-                  className={`text-right ${
-                    item.balance <= LOW_STOCK_THRESHOLD ? "font-semibold text-amber-700" : ""
-                  }`}
-                >
-                  {formatNumber(item.balance)}{" "}
-                  <span className="text-[12px] text-[var(--text-subtle)]">{item.unit}</span>
-                </td>
-                <td className="text-right">
-                  {formatNumber(item.totalIn)}{" "}
-                  <span className="text-[12px] text-[var(--text-subtle)]">{item.unit}</span>
-                </td>
-                <td className="text-right">
-                  {formatNumber(item.totalOut)}{" "}
-                  <span className="text-[12px] text-[var(--text-subtle)]">{item.unit}</span>
-                </td>
-                <td className="text-right">{formatCurrency(item.costPrice ?? 0)}</td>
-                <td className="text-right">{formatCurrency(item.balance * item.price)}</td>
-                <td className="text-right">
-                  {formatCurrency(item.balance * (item.costPrice ?? 0))}
-                </td>
-                <td>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => router.push("/settings")}
-                    >
-                      <Pencil size={14} />
-                      แก้ไข
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      size="sm"
-                      onClick={() => router.push("/settings")}
-                    >
-                      <Trash2 size={14} />
-                      ลบ
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            .flatMap((item) => {
+              const isExpanded = Boolean(expandedRows[item.key]);
+
+              const summaryRow = (
+                <tr key={`${item.key}-summary`}>
+                  <td className="align-top">
+                    <div className="grid gap-1.5 min-w-[120px]">
+                      <strong className="font-semibold text-[var(--text-strong)]">{item.name}</strong>
+                      <span className="text-[12px] text-[var(--text-muted)] break-words">{item.sku || "-"}</span>
+                    </div>
+                  </td>
+                  <td className="align-top">
+                    <div className="grid gap-1.5 min-w-[110px]">
+                      <span className="items-clean-primary-text">{getProductImportTypeLabel(item.productImportType)}</span>
+                      <span className="text-[12px] text-[var(--text-muted)] break-words">{item.category}</span>
+                    </div>
+                  </td>
+                  <td className="align-top">
+                    <div className="grid gap-2 min-w-[220px]">
+                      <button
+                        type="button"
+                        onClick={() => toggleRow(item.key)}
+                        className="inline-flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-white px-3 py-2.5 text-left text-sm font-semibold text-sky-800 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
+                      >
+                        <span className="whitespace-nowrap">{`มี ${formatNumber(item.lots.length)} ล็อต`}</span>
+                        {isExpanded ? <ChevronUp size={16} className="shrink-0" /> : <ChevronDown size={16} className="shrink-0" />}
+                      </button>
+                      <div className="text-[12px] text-[var(--text-muted)] whitespace-nowrap">
+                        รับเข้าครั้งแรก {item.firstReceivedDate ? formatDate(item.firstReceivedDate) : "-"}
+                      </div>
+                    </div>
+                  </td>
+                  <td
+                    className={`align-top text-right whitespace-nowrap ${
+                      item.balance <= LOW_STOCK_THRESHOLD ? "font-semibold text-amber-700" : ""
+                    }`}
+                  >
+                    <strong className="text-base">{formatNumber(item.balance)}</strong>
+                    <div className="text-[12px] text-[var(--text-subtle)] whitespace-nowrap">{item.unit}</div>
+                  </td>
+                  <td className="align-top whitespace-nowrap">
+                    <span className="items-clean-primary-text">
+                      {item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}
+                    </span>
+                  </td>
+                  <td className="align-top text-right whitespace-nowrap">
+                    <span className="items-clean-primary-text">{item.costPriceLabel}</span>
+                  </td>
+                  <td className="align-top text-right whitespace-nowrap">
+                    <div className="grid gap-1.5 min-w-[140px]">
+                      <strong>{formatCurrency(item.totalBalanceValue)}</strong>
+                      <span className="text-[12px] text-[var(--text-muted)] whitespace-nowrap">
+                        ต้นทุน {formatCurrency(item.totalCostValue)}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              );
+
+              const detailRow = isExpanded ? (
+                <tr key={`${item.key}-detail`}>
+                  <td colSpan={7} className="bg-slate-50/70">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <strong className="text-sm text-[var(--text-strong)]">
+                            รายละเอียดล็อตของ {item.name}
+                          </strong>
+                          <div className="text-[12px] text-[var(--text-muted)]">
+                            ดูวันรับเข้า วันหมดอายุ คงเหลือ และต้นทุนของแต่ละล็อต
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[760px] text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-left text-[12px] font-semibold text-[var(--text-muted)]">
+                              <th className="px-3 py-2">ล็อต</th>
+                              <th className="px-3 py-2">วันรับเข้า</th>
+                              <th className="px-3 py-2">วันหมดอายุ</th>
+                              <th className="px-3 py-2 text-right">คงเหลือ</th>
+                              <th className="px-3 py-2 text-right">ต้นทุน/หน่วย</th>
+                              <th className="px-3 py-2 text-right">มูลค่าคงเหลือ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {item.lots.map((lot) => (
+                              <tr key={lot.key} className="border-b border-slate-100 last:border-b-0">
+                                <td className="px-3 py-3 font-semibold text-[var(--text-strong)] whitespace-nowrap">
+                                  {lot.lotLabel}
+                                </td>
+                                <td className="px-3 py-3 whitespace-nowrap">
+                                  {lot.receivedDate ? formatDate(lot.receivedDate) : "-"}
+                                </td>
+                                <td className="px-3 py-3 whitespace-nowrap">
+                                  {lot.expiryDate ? formatDate(lot.expiryDate) : "-"}
+                                </td>
+                                <td
+                                  className={`px-3 py-3 text-right whitespace-nowrap ${
+                                    lot.balance <= LOW_STOCK_THRESHOLD ? "font-semibold text-amber-700" : ""
+                                  }`}
+                                >
+                                  {formatNumber(lot.balance)}{" "}
+                                  <span className="text-[12px] text-[var(--text-subtle)]">{lot.unit}</span>
+                                </td>
+                                <td className="px-3 py-3 text-right whitespace-nowrap">
+                                  {formatCurrency(lot.costPrice ?? 0)}
+                                </td>
+                                <td className="px-3 py-3 text-right whitespace-nowrap">
+                                  {formatCurrency(lot.balance * lot.price)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : null;
+
+              return detailRow ? [summaryRow, detailRow] : [summaryRow];
+            })}
         </Table>
       </DataPanel>
     </section>
@@ -133,7 +227,92 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
 
 export default function ItemsPage() {
   const { transactions } = useTransactions();
-  const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
+  const inventory = useMemo(() => {
+    const lots = [...buildInventoryLotMap(transactions).values()]
+      .filter((item) => item.totalIn > 0)
+      .sort((a, b) => {
+        const typeCompare = getProductImportTypeLabel(a.productImportType).localeCompare(
+          getProductImportTypeLabel(b.productImportType),
+          "th"
+        );
+
+        return (
+          typeCompare ||
+          a.name.localeCompare(b.name, "th") ||
+          a.receivedDate.localeCompare(b.receivedDate) ||
+          a.expiryDate.localeCompare(b.expiryDate) ||
+          a.createdAt - b.createdAt
+        );
+      });
+
+    const lotCounter = new Map<string, number>();
+    const labeledLots: InventoryLotWithLabel[] = lots.map((item) => {
+      const nextSequence = (lotCounter.get(item.baseItemKey) ?? 0) + 1;
+      lotCounter.set(item.baseItemKey, nextSequence);
+
+      return {
+        ...item,
+        lotSequence: nextSequence,
+        lotLabel: `ล็อต ${nextSequence}`,
+      };
+    });
+
+    const groupedInventory = new Map<string, GroupedInventoryItem>();
+
+    labeledLots.forEach((item) => {
+      const existing = groupedInventory.get(item.baseItemKey);
+
+      if (!existing) {
+        groupedInventory.set(item.baseItemKey, {
+          key: item.baseItemKey,
+          baseItemKey: item.baseItemKey,
+          name: item.name,
+          sku: item.sku,
+          category: item.category,
+          productImportType: item.productImportType,
+          unit: item.unit,
+          balance: item.balance,
+          costPriceLabel: formatCostPriceLabel([item]),
+          totalBalanceValue: item.balance * item.price,
+          totalCostValue: item.balance * (item.costPrice ?? 0),
+          firstReceivedDate: item.receivedDate,
+          nearestExpiryDate: item.expiryDate,
+          lots: [item],
+        });
+        return;
+      }
+
+      existing.balance += item.balance;
+      existing.totalBalanceValue += item.balance * item.price;
+      existing.totalCostValue += item.balance * (item.costPrice ?? 0);
+      existing.lots.push(item);
+
+      if (
+        item.receivedDate &&
+        (!existing.firstReceivedDate || item.receivedDate < existing.firstReceivedDate)
+      ) {
+        existing.firstReceivedDate = item.receivedDate;
+      }
+
+      if (
+        item.expiryDate &&
+        (!existing.nearestExpiryDate || item.expiryDate < existing.nearestExpiryDate)
+      ) {
+        existing.nearestExpiryDate = item.expiryDate;
+      }
+    });
+
+    return Array.from(groupedInventory.values()).map((item) => ({
+      ...item,
+      costPriceLabel: formatCostPriceLabel(item.lots),
+      lots: item.lots.sort(
+        (a, b) =>
+          a.receivedDate.localeCompare(b.receivedDate) ||
+          a.expiryDate.localeCompare(b.expiryDate) ||
+          a.createdAt - b.createdAt
+      ),
+    }));
+  }, [transactions]);
 
   return <ItemsSection inventory={inventory} />;
 }

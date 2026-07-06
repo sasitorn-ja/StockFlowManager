@@ -25,7 +25,12 @@ type HistorySectionProps = {
   };
   movementStats: StatCard[];
   activeFilter: HistoryFilter;
+  dateFrom: string;
+  dateTo: string;
+  earliestDate: string;
   onFilterChange: (filter: HistoryFilter) => void;
+  onDateFromChange: (value: string) => void;
+  onDateToChange: (value: string) => void;
   openIssueDialog: () => void;
   openDeliveryDocumentFromHistory: (issueKey: string) => void;
 };
@@ -59,7 +64,12 @@ function HistorySection({
   movementOverview,
   movementStats,
   activeFilter,
+  dateFrom,
+  dateTo,
+  earliestDate,
   onFilterChange,
+  onDateFromChange,
+  onDateToChange,
   openIssueDialog,
   openDeliveryDocumentFromHistory,
 }: HistorySectionProps) {
@@ -94,6 +104,30 @@ function HistorySection({
         </Button>
       </div>
 
+      <div className="overview-date-range">
+        <label className="overview-date-input">
+          <span>จากวันที่</span>
+          <input
+            type="date"
+            value={dateFrom}
+            min={earliestDate}
+            max={dateTo}
+            onChange={(event) => onDateFromChange(event.target.value)}
+          />
+        </label>
+        <span className="overview-date-separator">-</span>
+        <label className="overview-date-input">
+          <span>ถึงวันที่</span>
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom}
+            max={getLocalDateValue()}
+            onChange={(event) => onDateToChange(event.target.value)}
+          />
+        </label>
+      </div>
+
       <StatsGrid stats={movementStats} />
 
       <section className="history-table-section">
@@ -115,7 +149,7 @@ function HistorySection({
             "หมวดหมู่",
             "จำนวน",
             "มูลค่าต้นทุน",
-            "ผู้เกี่ยวข้อง",
+            "ผู้ดำเนินการ",
             "หมายเหตุ",
             "สถานะ / เอกสาร",
           ]}
@@ -225,15 +259,31 @@ export default function HistoryPage() {
   const router = useRouter();
   const { transactions } = useTransactions();
   const [activeFilter, setActiveFilter] = useState<HistoryFilter>("all");
+  const today = getLocalDateValue();
+  const earliestTransactionDate = useMemo(() => {
+    if (transactions.length === 0) {
+      return today;
+    }
+
+    return transactions
+      .map((item) => item.date)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))[0] || today;
+  }, [today, transactions]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const effectiveDateFrom = dateFrom || earliestTransactionDate;
+  const effectiveDateTo = dateTo || today;
 
   const movementOverview = useMemo(() => {
-    const today = getLocalDateValue();
     const movementTransactions = transactions
       .filter((item) => activeFilter === "all" || item.type === activeFilter)
+      .filter((item) => item.date >= effectiveDateFrom && item.date <= effectiveDateTo)
       .slice()
       .sort((a, b) => b.createdAt - a.createdAt);
-    const stockInTransactions = transactions.filter((item) => item.type === "in");
-    const stockOutTransactions = transactions.filter((item) => item.type === "out");
+    const stockInTransactions = movementTransactions.filter((item) => item.type === "in");
+    const stockOutTransactions = movementTransactions.filter((item) => item.type === "out");
 
     return {
       transactions: movementTransactions,
@@ -247,7 +297,7 @@ export default function HistoryPage() {
       ),
       todayMovements: movementTransactions.filter((item) => item.date === today).length,
     };
-  }, [activeFilter, transactions]);
+  }, [activeFilter, effectiveDateFrom, effectiveDateTo, today, transactions]);
 
   const movementStats: StatCard[] = useMemo(
     () => [
@@ -304,12 +354,31 @@ export default function HistoryPage() {
     router.push(`/delivery-note?issueKey=${encodeURIComponent(issueKey)}`);
   }
 
+  function handleDateFromChange(value: string) {
+    setDateFrom(value);
+    if (value > effectiveDateTo) {
+      setDateTo(value);
+    }
+  }
+
+  function handleDateToChange(value: string) {
+    setDateTo(value);
+    if (value < effectiveDateFrom) {
+      setDateFrom(value);
+    }
+  }
+
   return (
     <HistorySection
       movementOverview={movementOverview}
       movementStats={movementStats}
       activeFilter={activeFilter}
+      dateFrom={effectiveDateFrom}
+      dateTo={effectiveDateTo}
+      earliestDate={earliestTransactionDate}
       onFilterChange={setActiveFilter}
+      onDateFromChange={handleDateFromChange}
+      onDateToChange={handleDateToChange}
       openIssueDialog={openIssueDialog}
       openDeliveryDocumentFromHistory={openDeliveryDocumentFromHistory}
     />
