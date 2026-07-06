@@ -8,9 +8,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-sky-600 px-4 py-2.5 text-white hover:bg-sky-700",
+        default:
+          "bg-gradient-to-br from-sky-700 to-blue-500 px-4 py-2.5 text-white shadow-[0_12px_24px_rgba(11,99,189,0.18)] hover:from-sky-800 hover:to-blue-600",
         secondary:
-          "border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-2.5 text-[var(--text-body)] hover:bg-sky-50 hover:text-sky-700",
+          "border border-[var(--border)] bg-white/85 px-4 py-2.5 text-[var(--text-body)] shadow-sm hover:bg-sky-50 hover:text-sky-700",
         ghost: "px-3 py-2 text-[var(--text-muted)] hover:bg-sky-50 hover:text-sky-700",
         danger:
           "border border-rose-200 bg-rose-50 px-4 py-2.5 text-rose-700 hover:bg-rose-100",

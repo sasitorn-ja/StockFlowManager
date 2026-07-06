@@ -3,8 +3,9 @@ export type StatCard = {
   value: string;
   unit?: string;
   helper?: string;
-  tone?: "sky" | "emerald" | "amber" | "violet";
+  tone?: "sky" | "emerald" | "amber" | "violet" | "orange";
   icon?: any;
+  valueTone?: "default" | "danger";
 };
 
 type StatsGridProps = {
@@ -17,6 +18,11 @@ export function StatsGrid({ stats }: StatsGridProps) {
     emerald: "bg-emerald-50 text-emerald-600",
     amber: "bg-amber-50 text-amber-600",
     violet: "bg-violet-50 text-violet-600",
+    orange: "bg-orange-50 text-orange-600",
+  } as const;
+  const valueToneClasses = {
+    default: "text-[var(--text-strong)]",
+    danger: "text-red-600",
   } as const;
 
   return (
@@ -29,7 +35,11 @@ export function StatsGrid({ stats }: StatsGridProps) {
                 {stat.label}
               </p>
               <div className="mt-1.5 flex flex-wrap items-end gap-1.5">
-                <strong className="break-words text-[21px] font-bold leading-6 text-[var(--text-strong)]">
+                <strong
+                  className={`break-words text-[21px] font-bold leading-6 ${
+                    valueToneClasses[stat.valueTone ?? "default"]
+                  }`}
+                >
                   {stat.value}
                 </strong>
                 {stat.unit ? (

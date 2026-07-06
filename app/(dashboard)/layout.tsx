@@ -1,9 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { TransactionProvider } from "./TransactionContext";
 import {
   Menu,
   X,
@@ -14,6 +15,7 @@ import {
   Database,
   History,
   Clock3,
+  UserCheck,
   Settings,
 } from "lucide-react";
 
@@ -21,20 +23,95 @@ type DashboardLayoutProps = {
   children: ReactNode;
 };
 
+type UserRole = "employee" | "manager" | "admin";
+
 const navigationItems = [
   { label: "ภาพรวมสต๊อก", href: "/overview", icon: Home },
+  { label: "รายการสินค้า", href: "/items", icon: Database },
+  { label: "Master Data สินค้า", href: "/master-data", icon: Database },
   { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
   { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
-  { label: "รายการสินค้า", href: "/items", icon: Database },
+  { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
   { label: "ประวัติรายการ", href: "/history", icon: History },
   { label: "ใกล้หมดสต๊อก / โครงการ", href: "/expiring", icon: Clock3 },
   { label: "ตั้งค่า", href: "/settings", icon: Settings },
-  { label: "Approve", href: "/approve", icon: PackageCheck },
+  { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  return (
+    <TransactionProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </TransactionProvider>
+  );
+}
+
+function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole>("employee");
+  const [simulatedUsername, setSimulatedUsername] = useState("สมชาย");
+  const [allUsers, setAllUsers] = useState<{ username: string; isAdmin: boolean; role: UserRole }[]>([]);
   const pathname = usePathname();
+
+  async function fetchUsers() {
+    try {
+      const res = await fetch("/api/admin-users");
+      if (res.ok) {
+        const data = await res.json();
+        setAllUsers(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch simulated users", e);
+    }
+  }
+
+  useEffect(() => {
+    const cachedRole = (localStorage.getItem("simulated_role") as UserRole) || "employee";
+    const cachedUsername = localStorage.getItem("simulated_username") || "สมชาย";
+    setUserRole(cachedRole);
+    setSimulatedUsername(cachedUsername);
+    
+    fetchUsers();
+
+    const handleRoleChangedExternal = () => {
+      setUserRole((localStorage.getItem("simulated_role") as UserRole) || "employee");
+      setSimulatedUsername(localStorage.getItem("simulated_username") || "สมชาย");
+    };
+
+    window.addEventListener("simulated-role-changed", handleRoleChangedExternal);
+    window.addEventListener("admin-users-changed", fetchUsers);
+
+    return () => {
+      window.removeEventListener("simulated-role-changed", handleRoleChangedExternal);
+      window.removeEventListener("admin-users-changed", fetchUsers);
+    };
+  }, []);
+
+  async function handleUsernameChange(newUsername: string) {
+    setSimulatedUsername(newUsername);
+    localStorage.setItem("simulated_username", newUsername);
+
+    let foundUser = allUsers.find((u) => u.username === newUsername);
+    
+    if (!foundUser) {
+      try {
+        const res = await fetch("/api/admin-users");
+        if (res.ok) {
+          const data = (await res.json()) as { username: string; isAdmin: boolean; role: UserRole }[];
+          setAllUsers(data);
+          foundUser = data.find((u) => u.username === newUsername);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const nextRole = foundUser?.role ?? "employee";
+    setUserRole(nextRole);
+    localStorage.setItem("simulated_role", nextRole);
+
+    window.dispatchEvent(new Event("simulated-role-changed"));
+  }
 
   function closeMobileMenu() {
     setIsMobileMenuOpen(false);
@@ -62,6 +139,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       <nav className="dashboard-nav" aria-label="เมนูหลัก">
         {navigationItems.map((item) => {
+          if (item.href === "/master-data" && userRole === "employee") {
+            return null;
+          }
+
+          if (item.href === "/admin-rights" && userRole !== "admin") {
+            return null;
+          }
+
           const Icon = item.icon;
           const isActive = pathname === item.href;
 
@@ -79,7 +164,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 size={17}
                 strokeWidth={2.1}
               />
-              <span>{item.label}</span>
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
             </Link>
           );
         })}
@@ -109,7 +194,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <aside className="dashboard-sidebar">{sidebarContent}</aside>
 
       <div className="dashboard-main">
-        <header className="dashboard-header">
+        <header className="dashboard-header flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -125,7 +210,33 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </h1>
             </div>
           </div>
-        </header>
+
+        <div className="dashboard-user-switch">
+          <span>จำลองผู้ใช้:</span>
+          <select
+            value={simulatedUsername}
+            onChange={(e) => handleUsernameChange(e.target.value)}
+            className="bg-transparent font-medium text-sky-900 border-none outline-none cursor-pointer focus:ring-0 py-0.5"
+            style={{ minWidth: "140px" }}
+          >
+            {(() => {
+              const options = [...allUsers];
+              if (simulatedUsername && !options.some((o) => o.username === simulatedUsername)) {
+                options.push({
+                  username: simulatedUsername,
+                  isAdmin: userRole === "admin",
+                  role: userRole,
+                });
+              }
+              return options.map((u) => (
+                <option key={`sim-user-${u.username}`} value={u.username}>
+                  {u.username} ({u.role === "admin" ? "แอดมิน" : u.role === "manager" ? "ผู้จัดการ" : "พนักงาน"})
+                </option>
+              ));
+            })()}
+          </select>
+        </div>
+      </header>
 
         <div className="dashboard-content">{children}</div>
       </div>

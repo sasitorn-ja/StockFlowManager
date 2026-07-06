@@ -1,6 +1,7 @@
 export type TransactionType = "in" | "out";
 export type ProductImportType = "resale" | "stable";
 export type CostCurrency = "THB" | "JPY" | "CNY" | "USD";
+export type TransactionStatus = "pending" | "approved" | "employee_confirmed" | "completed" | "cancelled";
 
 export type Transaction = {
   id: string;
@@ -22,6 +23,7 @@ export type Transaction = {
   approver?: string;
   note: string;
   createdAt: number;
+  status?: TransactionStatus;
 };
 
 export type InventoryItem = {
@@ -41,4 +43,29 @@ export type InventoryItem = {
   nearestExpiryDate: string;
 };
 
+export type InventoryLotItem = InventoryItem & {
+  baseItemKey: string;
+  createdAt: number;
+  receivedDate: string;
+  expiryDate: string;
+};
 
+export type ProductMaster = {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  productImportType: ProductImportType;
+  imageDataUrl?: string;
+  unit: string;
+  price: number;
+  costPrice: number;
+  costCurrency: CostCurrency;
+  defaultStorageLocation?: string;
+  defaultExpiryDate?: string;
+  vendor?: string;
+  note?: string;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+};

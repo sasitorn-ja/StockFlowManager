@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { StatusBadge } from "@/components/stock-flow/StatusBadge";
 import { Table } from "@/components/stock-flow/Table";
@@ -8,38 +8,22 @@ import {
   buildInventoryMap,
   compareExpiryDate,
   isExpiringSoon,
-  normalizeTransactions,
   formatDate,
   formatDaysLeft,
   formatNumber,
   getDaysUntil,
 } from "@/lib/stock-flow/utils";
-import type { Transaction, ProductImportType } from "@/types/stock-flow";
+import type { ProductImportType } from "@/types/stock-flow";
+import { useTransactions } from "../TransactionContext";
 
 export default function ExpiringPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions } = useTransactions();
   const [selectedImportType, setSelectedImportType] = useState<ProductImportType>("resale");
-
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
   const groupData = useMemo(() => {
-    const groupLabel = selectedImportType === "resale" ? "ซื้อมาขายไป" : "สินค้า stable";
+    const groupLabel = selectedImportType === "resale" ? "ซื้อมาขายไป" : "สินค้าเข้าสต็อก";
     const groupInventory = inventory.filter(
       (item) => (item.productImportType ?? "resale") === selectedImportType
     );
@@ -78,7 +62,7 @@ export default function ExpiringPage() {
             }`}
             onClick={() => setSelectedImportType("stable")}
           >
-            สินค้า stable
+            สินค้าเข้าสต็อก
           </button>
         </div>
       </div>
@@ -89,7 +73,7 @@ export default function ExpiringPage() {
           description="แสดงสินค้าคงเหลือที่ใกล้หมดอายุภายใน 90 วัน เฉพาะกลุ่มนี้"
         >
           <Table
-            headers={["สินค้า", "วันหมดอายุ", "เหลืออีก", "คงเหลือ", "คำแนะนำ"]}
+            headers={["สินค้า", "วันหมดอายุ", "วันหมดอายุ", "คงเหลือ", "คำแนะนำ"]}
             emptyMessage={`ยังไม่มีสินค้า ${groupData.label} ที่ใกล้หมดอายุภายใน 90 วัน`}
             columnCount={5}
           >

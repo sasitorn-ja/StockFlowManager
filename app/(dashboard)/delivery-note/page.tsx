@@ -10,8 +10,6 @@ import {
   normalizeTransactions,
   formatDate,
   formatNumber,
-  formatCurrencyWithLabel,
-  getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
 import type { Transaction } from "@/types/stock-flow";
 
@@ -34,12 +32,24 @@ export type IssueDeliveryDocument = {
 type DeliveryNoteSectionProps = {
   deliveryDocument: IssueDeliveryDocument | null;
   setActiveSection: (val: string) => void;
+  isLoading: boolean;
 };
 
 function DeliveryNoteSection({
   deliveryDocument,
   setActiveSection,
+  isLoading,
 }: DeliveryNoteSectionProps) {
+  if (isLoading) {
+    return (
+      <section id="delivery-note" className="grid gap-3">
+        <div className="p-12 text-center text-sm text-[var(--text-muted)] font-medium bg-white rounded-xl border border-[var(--border-soft)] shadow-sm">
+          กำลังดึงข้อมูลใบกำกับเบิกสินค้า...
+        </div>
+      </section>
+    );
+  }
+
   if (!deliveryDocument) {
     return (
       <section id="delivery-note" className="grid gap-3">
@@ -59,18 +69,6 @@ function DeliveryNoteSection({
     deliveryDocument.transactions?.length > 0
       ? deliveryDocument.transactions
       : [deliveryDocument.transaction];
-  const documentRows =
-    deliveryDocument.rows?.length > 0
-      ? deliveryDocument.rows
-      : [
-          {
-            transaction: deliveryDocument.transaction,
-            beforeBalance: deliveryDocument.beforeBalance,
-            afterBalance: deliveryDocument.afterBalance,
-            costValue: deliveryDocument.costValue,
-          },
-        ];
-
   return (
     <section id="delivery-note" className="grid gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -78,7 +76,7 @@ function DeliveryNoteSection({
           <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
             Delivery Note
           </p>
-          <h3 className="dashboard-section-title">ใบกำกับเบิกสินค้า</h3>
+          <h3 className="dashboard-section-title">เอกสารเบิกสินค้า</h3>
         </div>
         <Button type="button" variant="secondary" onClick={() => setActiveSection("history")}>
           กลับไปประวัติภาพรวม
@@ -87,7 +85,77 @@ function DeliveryNoteSection({
 
       <article className="delivery-document">
         <header className="delivery-document-header">
-          <h2>ใบกำกับเบิกสินค้า</h2>
+          <h2>ใบจัดของ</h2>
+          <p>เอกสารสำหรับจัดเตรียมสินค้าออกจากคลัง</p>
+        </header>
+
+        <div className="delivery-document-meta">
+          <div>
+            <p>จาก คลังสินค้า</p>
+            <p>ถึง {deliveryDocument.transaction.requester || "-"}</p>
+          </div>
+          <div className="text-right">
+            <p>
+              หมายเลข <strong>{deliveryDocument.documentNo}</strong>
+            </p>
+            <p>วันที่ {formatDate(deliveryDocument.approvedDate)}</p>
+          </div>
+        </div>
+
+        <div className="delivery-table-wrap">
+          <table className="delivery-table">
+            <thead>
+              <tr>
+                <th>ลำดับ</th>
+                <th>รหัสสินค้า</th>
+                <th>ชื่อสินค้า</th>
+                <th>วันหมดอายุ</th>
+                <th>จำนวน</th>
+                <th>หน่วย</th>
+              </tr>
+            </thead>
+            <tbody>
+              {documentTransactions.map((transaction, index) => (
+                <tr key={`delivery-row-${transaction.id || index + 1}`}>
+                  <td>{index + 1}</td>
+                  <td>{transaction.sku || "-"}</td>
+                  <td>{transaction.name}</td>
+                  <td>{transaction.expiryDate ? formatDate(transaction.expiryDate) : "-"}</td>
+                  <td className="text-right">{formatNumber(transaction.quantity)}</td>
+                  <td>{transaction.unit}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-3 text-left text-sm text-[var(--text-strong)]">
+          <p>
+            หมายเหตุ {deliveryDocument.transaction.note?.trim() || "................................"}
+          </p>
+        </div>
+
+        <div className="delivery-print-spacer" aria-hidden="true" />
+
+        <section className="delivery-summary-grid">
+          <div>
+            <p>ผู้จัดของ ..............................................</p>
+            <p>ตรวจสอบสินค้า ........................................</p>
+          </div>
+          <div>
+            <p>พื้นที่จัดเตรียม ......................................</p>
+          </div>
+          <div>
+            <p>เวลาจัดของ ....../....../...... ............ น.</p>
+            <p>ผู้รับมอบจากคลัง ................................</p>
+          </div>
+        </section>
+      </article>
+
+      <article className="delivery-document delivery-document-break">
+        <header className="delivery-document-header">
+          <h2>ใบกำกับส่งของ</h2>
+          <p>เอกสารสำหรับส่งมอบสินค้าให้ผู้ขอเบิก</p>
         </header>
 
         <div className="delivery-document-meta">
@@ -117,27 +185,22 @@ function DeliveryNoteSection({
               </tr>
             </thead>
             <tbody>
-              {Array.from({ length: 30 }, (_, index) => {
-                const transaction = documentTransactions[index];
-                const isIssueRow = Boolean(transaction);
-
-                return (
-                  <tr key={`delivery-row-${index + 1}`}>
-                    <td>{index + 1}</td>
-                    <td>{isIssueRow ? "ISSUE" : ""}</td>
-                    <td>{isIssueRow ? deliveryDocument.documentNo : ""}</td>
-                    <td>{isIssueRow ? transaction.name : ""}</td>
-                    <td>{isIssueRow ? transaction.requester || "-" : ""}</td>
-                    <td className="text-right">
-                      {isIssueRow ? formatNumber(transaction.quantity) : "0.0"}
-                    </td>
-                    <td>{isIssueRow ? transaction.unit : ""}</td>
-                  </tr>
-                );
-              })}
+              {documentTransactions.map((transaction, index) => (
+                <tr key={`delivery-note-row-${transaction.id || index + 1}`}>
+                  <td>{index + 1}</td>
+                  <td>ISSUE</td>
+                  <td>{deliveryDocument.documentNo}</td>
+                  <td>{transaction.name}</td>
+                  <td>{transaction.requester || "-"}</td>
+                  <td className="text-right">{formatNumber(transaction.quantity)}</td>
+                  <td>{transaction.unit}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
+
+        <div className="delivery-print-spacer" aria-hidden="true" />
 
         <section className="delivery-summary-grid">
           <div>
@@ -178,70 +241,6 @@ function DeliveryNoteSection({
             <p>ผู้ปรับปรุง ชาตรี ว.</p>
           </div>
         </section>
-
-        <section className="delivery-issue-detail">
-          <h4>รายละเอียดสินค้าที่เบิกออก</h4>
-          <dl>
-            <div>
-              <dt>จำนวนรายการ</dt>
-              <dd>{formatNumber(documentTransactions.length)} รายการ</dd>
-            </div>
-            <div>
-              <dt>ประเภทสินค้า</dt>
-              <dd>
-                {Array.from(
-                  new Set(
-                    documentTransactions.map((item) =>
-                      getProductImportTypeLabel(item.productImportType)
-                    )
-                  )
-                ).join(", ")}
-              </dd>
-            </div>
-            <div>
-              <dt>ผู้ขอเบิกสินค้า</dt>
-              <dd>{deliveryDocument.transaction.requester || "-"}</dd>
-            </div>
-            <div>
-              <dt>ชื่อผู้อนุมัติ</dt>
-              <dd>{deliveryDocument.transaction.approver || "-"}</dd>
-            </div>
-            <div>
-              <dt>จำนวนที่เบิก</dt>
-              <dd>
-                {documentTransactions
-                  .map((item) => `${formatNumber(item.quantity)} ${item.unit}`)
-                  .join(", ")}
-              </dd>
-            </div>
-            <div>
-              <dt>คงเหลือหลังเบิก</dt>
-              <dd>
-                {documentRows
-                  .map(
-                    (row) =>
-                      `${row.transaction.name}: ${formatNumber(row.afterBalance)} ${
-                        row.transaction.unit
-                      }`
-                  )
-                  .join(", ")}
-              </dd>
-            </div>
-            <div>
-              <dt>มูลค่าต้นทุน</dt>
-              <dd>
-                {documentRows
-                  .map((row) =>
-                    `${row.transaction.name}: ${formatCurrencyWithLabel(
-                      row.costValue,
-                      row.transaction.costCurrency
-                    )}`
-                  )
-                  .join(", ")}
-              </dd>
-            </div>
-          </dl>
-        </section>
       </article>
     </section>
   );
@@ -252,8 +251,10 @@ function DeliveryNoteContent() {
   const searchParams = useSearchParams();
   const issueKey = searchParams.get("issueKey") || "";
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   async function fetchTransactions() {
+    setIsLoading(true);
     try {
       const res = await fetch("/api/transactions");
       if (res.ok) {
@@ -262,6 +263,8 @@ function DeliveryNoteContent() {
       }
     } catch (error) {
       console.error("Failed to fetch transactions:", error);
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -280,6 +283,14 @@ function DeliveryNoteContent() {
     }
 
     const firstTransaction = docTransactions[0];
+    // Security check: Only allow approved, completed (or legacy) requisitions to be viewed
+    if (
+      firstTransaction.status &&
+      firstTransaction.status !== "approved" &&
+      firstTransaction.status !== "completed"
+    ) {
+      return null;
+    }
     const currentInventory = buildInventoryMap(transactions);
     const rows = docTransactions.map((transaction) => {
       const currentItem = currentInventory.get(buildItemKey(transaction));
@@ -314,6 +325,7 @@ function DeliveryNoteContent() {
     <DeliveryNoteSection
       deliveryDocument={deliveryDocument}
       setActiveSection={handleBack}
+      isLoading={isLoading}
     />
   );
 }

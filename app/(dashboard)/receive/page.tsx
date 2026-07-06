@@ -18,14 +18,35 @@ import {
   createTransactionId,
   getLocalDateValue,
   formatDate,
-  normalizeTransactions,
   formatNumber,
   formatCurrency,
+  sanitizeSku,
 } from "@/lib/stock-flow/utils";
-import type { Transaction, CostCurrency, ProductImportType } from "@/types/stock-flow";
+import type { Transaction, CostCurrency, ProductImportType, ProductMaster } from "@/types/stock-flow";
 import type { FormState } from "./types";
+import { useTransactions } from "../TransactionContext";
 
 type OverviewFilter = "all" | ProductImportType;
+type UserRole = "employee" | "manager" | "admin";
+type ReceiveProductSuggestion = {
+  key: string;
+  name: string;
+  sku: string;
+  category: string;
+  imageDataUrl?: string;
+  productImportType: ProductImportType;
+  unit: string;
+  price: number;
+  costPrice: number;
+  costCurrency: CostCurrency;
+  defaultStorageLocation?: string;
+};
+
+type ReceiveCategorySuggestion = {
+  category: string;
+  normalizedCategory: string;
+  productCount: number;
+};
 
 const costCurrencyOptions: { value: CostCurrency; label: string }[] = [
   { value: "THB", label: "🇹🇭 THB" },
@@ -37,32 +58,29 @@ const costCurrencyOptions: { value: CostCurrency; label: string }[] = [
 const filterOptions: { value: OverviewFilter; label: string }[] = [
   { value: "all", label: "ทั้งหมด" },
   { value: "resale", label: "สินค้าซื้อมาขายไป" },
-  { value: "stable", label: "สินค้า stable" },
+  { value: "stable", label: "สินค้าเข้าสต็อก" },
 ];
 
+function normalizeCategoryValue(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase("th")
+    .normalize("NFKD")
+    .replace(/[\u0E31-\u0E3A\u0E47-\u0E4E]/g, "")
+    .replace(/\s+/g, "");
+}
+
 export default function ReceivePage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions, refresh } = useTransactions();
+  const [simulatedRole, setSimulatedRole] = useState<UserRole>("employee");
+  const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [receiveFilter, setReceiveFilter] = useState<OverviewFilter>("all");
   const [form, setForm] = useState<FormState>(createEmptyForm);
   const [isReceivePanelOpen, setIsReceivePanelOpen] = useState(false);
   const [receiveImagePreview, setReceiveImagePreview] = useState<{ src: string; title: string } | null>(null);
-
-  async function fetchTransactions() {
-    try {
-      const res = await fetch("/api/transactions");
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [autoRecordTime, setAutoRecordTime] = useState(Date.now());
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
@@ -86,9 +104,206 @@ export default function ReceivePage() {
       .sort((a, b) => b.createdAt - a.createdAt);
   }, [receiveFilter, searchTerm, transactions]);
 
-  const receiveProductSuggestions = useMemo(() => {
-    return inventory.slice().sort((a, b) => a.name.localeCompare(b.name, "th"));
-  }, [inventory]);
+  const receiveProductSuggestions = useMemo<ReceiveProductSuggestion[]>(() => {
+    const inventorySuggestions = inventory.map((item) => ({
+      key: `inventory-${item.key}`,
+      name: item.name,
+      sku: item.sku,
+      category: item.category,
+      imageDataUrl: item.imageDataUrl || "",
+      productImportType: item.productImportType,
+      unit: item.unit,
+      price: item.price,
+      costPrice: item.costPrice ?? 0,
+      costCurrency: item.costCurrency ?? "THB",
+      defaultStorageLocation: "",
+    }));
+
+    const existingKeys = new Set(
+      inventorySuggestions.map(
+        (item) =>
+          `${item.name.trim().toLowerCase()}::${item.sku.trim().toLowerCase()}::${item.category.trim().toLowerCase()}::${item.productImportType}::${item.unit.trim().toLowerCase()}`
+      )
+    );
+
+    const masterSuggestions = masterProducts
+      .filter((item) => item.isActive)
+      .map((item) => ({
+        key: `master-${item.id}`,
+        name: item.name,
+        sku: item.sku,
+        category: item.category,
+        imageDataUrl: item.imageDataUrl || "",
+        productImportType: item.productImportType,
+        unit: item.unit,
+        price: item.price ?? 0,
+        costPrice: item.costPrice ?? 0,
+        costCurrency: item.costCurrency ?? "THB",
+        defaultStorageLocation: item.defaultStorageLocation || "",
+      }))
+      .filter((item) => {
+        const key = `${item.name.trim().toLowerCase()}::${item.sku.trim().toLowerCase()}::${item.category.trim().toLowerCase()}::${item.productImportType}::${item.unit.trim().toLowerCase()}`;
+        return !existingKeys.has(key);
+      });
+
+    return [...inventorySuggestions, ...masterSuggestions].sort((a, b) =>
+      a.name.localeCompare(b.name, "th")
+    );
+  }, [inventory, masterProducts]);
+
+  const filteredReceiveProductSuggestions = useMemo(() => {
+    return receiveProductSuggestions.filter((item) => {
+      if (item.productImportType !== form.productImportType) {
+        return false;
+      }
+
+      if (!form.category.trim()) {
+        return true;
+      }
+
+      return normalizeCategoryValue(item.category) === normalizeCategoryValue(form.category);
+    });
+  }, [form.category, form.productImportType, receiveProductSuggestions]);
+
+  const receiveCategorySuggestions = useMemo<ReceiveCategorySuggestion[]>(() => {
+    const groupedCategories = new Map<
+      string,
+      { category: string; productKeys: Set<string> }
+    >();
+
+    receiveProductSuggestions
+      .filter((item) => item.productImportType === form.productImportType)
+      .forEach((item) => {
+        const category = item.category.trim();
+        const normalizedCategory = normalizeCategoryValue(category);
+
+        if (!category || !normalizedCategory) {
+          return;
+        }
+
+        const existing = groupedCategories.get(normalizedCategory);
+        if (existing) {
+          existing.productKeys.add(item.key);
+          return;
+        }
+
+        groupedCategories.set(normalizedCategory, {
+          category,
+          productKeys: new Set([item.key]),
+        });
+      });
+
+    return Array.from(groupedCategories.entries())
+      .map(([normalizedCategory, entry]) => ({
+        category: entry.category,
+        normalizedCategory,
+        productCount: entry.productKeys.size,
+      }))
+      .sort((a, b) => a.category.localeCompare(b.category, "th"));
+  }, [form.productImportType, receiveProductSuggestions]);
+
+  const receiveStorageLocationSuggestions = useMemo(() => {
+    return Array.from(
+      new Set(
+        transactions
+          .filter((item) => item.type === "in")
+          .map((item) => item.requester?.trim())
+          .filter((value): value is string => Boolean(value))
+      )
+    ).sort((a, b) => a.localeCompare(b, "th"));
+  }, [transactions]);
+
+  const autoRecordTimeLabel = useMemo(
+    () =>
+      new Date(autoRecordTime).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [autoRecordTime]
+  );
+  const isCategoryReady = Boolean(form.productImportType && form.category.trim());
+  const canCreateNewProduct = simulatedRole === "admin" || simulatedRole === "manager";
+  const hasMatchedCategory = useMemo(() => {
+    const normalizedCategory = form.category.trim().toLowerCase();
+
+    if (!normalizedCategory) {
+      return false;
+    }
+
+    return receiveCategorySuggestions.some(
+      (item) => item.normalizedCategory === normalizeCategoryValue(form.category)
+    );
+  }, [form.category, receiveCategorySuggestions]);
+  const matchedReceiveProduct = useMemo(() => {
+    const normalizedName = form.name.trim().toLowerCase();
+    const normalizedCategory = normalizeCategoryValue(form.category);
+
+    if (!normalizedName) {
+      return null;
+    }
+
+    return (
+      receiveProductSuggestions.find(
+        (item) =>
+          item.name.trim().toLowerCase() === normalizedName &&
+          item.productImportType === form.productImportType &&
+          (!normalizedCategory || normalizeCategoryValue(item.category) === normalizedCategory)
+      ) ?? null
+    );
+  }, [form.category, form.name, form.productImportType, receiveProductSuggestions]);
+  const showMissingCategoryError =
+    !canCreateNewProduct && form.category.trim().length > 0 && !hasMatchedCategory;
+  const showMissingProductError =
+    !canCreateNewProduct && form.name.trim().length > 0 && !matchedReceiveProduct;
+
+  useEffect(() => {
+    if (!isReceivePanelOpen) {
+      return;
+    }
+
+    setAutoRecordTime(Date.now());
+    const timerId = window.setInterval(() => setAutoRecordTime(Date.now()), 30000);
+
+    return () => window.clearInterval(timerId);
+  }, [isReceivePanelOpen]);
+
+  useEffect(() => {
+    const loadSimulatedRole = () => {
+      const storedRole = localStorage.getItem("simulated_role");
+
+      if (storedRole === "admin" || storedRole === "manager" || storedRole === "employee") {
+        setSimulatedRole(storedRole);
+        return;
+      }
+
+      setSimulatedRole("employee");
+    };
+
+    loadSimulatedRole();
+    window.addEventListener("simulated-role-changed", loadSimulatedRole);
+
+    return () => window.removeEventListener("simulated-role-changed", loadSimulatedRole);
+  }, []);
+
+  useEffect(() => {
+    async function fetchMasterProducts() {
+      try {
+        const res = await fetch("/api/master-products");
+        if (!res.ok) {
+          return;
+        }
+
+        const data = (await res.json()) as ProductMaster[];
+        if (Array.isArray(data)) {
+          setMasterProducts(data);
+        }
+      } catch (error) {
+        console.error("Failed to load master products", error);
+      }
+    }
+
+    fetchMasterProducts();
+  }, []);
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -134,11 +349,15 @@ export default function ReceivePage() {
       return;
     }
 
-    const matchedItem = receiveProductSuggestions.find((item) =>
-      item.name.trim().toLowerCase().startsWith(normalizedValue)
+    const matchedItem = receiveProductSuggestions.find(
+      (item) =>
+        item.name.trim().toLowerCase() === normalizedValue &&
+        item.productImportType === form.productImportType &&
+        (!form.category.trim() ||
+          normalizeCategoryValue(item.category) === normalizeCategoryValue(form.category))
     );
 
-    if (!matchedItem) {
+    if (!matchedItem && !canCreateNewProduct) {
       setForm((current) => ({
         ...current,
         name: value,
@@ -146,17 +365,170 @@ export default function ReceivePage() {
       return;
     }
 
+    setForm((current) => {
+      const prevNormalized = current.name.trim().toLowerCase();
+      const prevMatchedItem = receiveProductSuggestions.find(
+        (item) => item.name.trim().toLowerCase() === prevNormalized
+      );
+
+      let updatedFields = {};
+
+      if (!matchedItem && prevMatchedItem) {
+        const isSkuUnchanged = current.sku === prevMatchedItem.sku;
+        const isCategoryUnchanged = current.category === prevMatchedItem.category;
+        const isUnitUnchanged = current.unit === prevMatchedItem.unit;
+        const isCostPriceUnchanged = current.costPrice === String(prevMatchedItem.costPrice ?? 0);
+        const isPriceUnchanged = current.price === String(prevMatchedItem.price);
+        const isCurrencyUnchanged = current.costCurrency === (prevMatchedItem.costCurrency ?? "THB");
+        const isImageUnchanged = (current.imageDataUrl || "") === (prevMatchedItem.imageDataUrl || "");
+
+        updatedFields = {
+          sku: isSkuUnchanged ? "" : current.sku,
+          category: isCategoryUnchanged ? "" : current.category,
+          unit: isUnitUnchanged ? "" : current.unit,
+          costPrice: isCostPriceUnchanged ? "0" : current.costPrice,
+          price: isPriceUnchanged ? "0" : current.price,
+          costCurrency: isCurrencyUnchanged ? "THB" : current.costCurrency,
+          imageDataUrl: isImageUnchanged ? "" : current.imageDataUrl,
+        };
+      }
+
+      if (matchedItem) {
+        return {
+          ...current,
+          ...updatedFields,
+          name: value,
+          sku: sanitizeSku(matchedItem.sku),
+          category: matchedItem.category,
+          imageDataUrl: matchedItem.imageDataUrl || "",
+          productImportType: matchedItem.productImportType,
+          unit: matchedItem.unit,
+          price: String(matchedItem.price),
+          costPrice: String(matchedItem.costPrice ?? 0),
+          costCurrency: matchedItem.costCurrency ?? "THB",
+          requester: current.requester || matchedItem.defaultStorageLocation || "",
+        };
+      }
+
+      return {
+        ...current,
+        ...updatedFields,
+        name: value,
+      };
+    });
+  }
+
+  function handleReceiveCategorySelect(category: string) {
+    if (!category) {
+      setForm((current) => ({
+        ...current,
+        category: "",
+      }));
+      return;
+    }
+
+    const matchedCategory = receiveCategorySuggestions.find(
+      (item) => item.normalizedCategory === normalizeCategoryValue(category)
+    );
+
+    if (!matchedCategory) {
+      updateForm("category", category);
+      return;
+    }
+
     setForm((current) => ({
       ...current,
-      name: value,
-      sku: matchedItem.sku,
-      category: matchedItem.category,
-      imageDataUrl: matchedItem.imageDataUrl || "",
-      productImportType: matchedItem.productImportType,
-      unit: matchedItem.unit,
-      price: String(matchedItem.price),
-      costPrice: String(matchedItem.costPrice ?? 0),
-      costCurrency: matchedItem.costCurrency ?? "THB",
+      category: matchedCategory.category,
+      name:
+        current.name &&
+        filteredReceiveProductSuggestions.some(
+          (item) => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+        )
+          ? current.name
+          : "",
+      sku:
+        current.name &&
+        filteredReceiveProductSuggestions.some(
+          (item) => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+        )
+          ? current.sku
+          : "",
+      imageDataUrl:
+        current.name &&
+        filteredReceiveProductSuggestions.some(
+          (item) => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+        )
+          ? current.imageDataUrl
+          : "",
+      unit:
+        current.name &&
+        filteredReceiveProductSuggestions.some(
+          (item) => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+        )
+          ? current.unit
+          : "",
+      price:
+        current.name &&
+        filteredReceiveProductSuggestions.some(
+          (item) => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+        )
+          ? current.price
+          : "0",
+      costPrice:
+        current.name &&
+        filteredReceiveProductSuggestions.some(
+          (item) => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+        )
+          ? current.costPrice
+          : "0",
+      costCurrency:
+        current.name &&
+        filteredReceiveProductSuggestions.some(
+          (item) => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+        )
+          ? current.costCurrency
+          : "THB",
+      requester:
+        current.name &&
+        filteredReceiveProductSuggestions.some(
+          (item) => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+        )
+          ? current.requester
+          : "",
+    }));
+  }
+
+  function handleReceiveCategoryChange(value: string) {
+    const normalizedValue = value.trim().toLowerCase();
+
+    if (!normalizedValue) {
+      setForm((current) => ({
+        ...current,
+        category: value,
+      }));
+      return;
+    }
+
+    const matchedCategory = receiveCategorySuggestions.find(
+      (item) => item.normalizedCategory === normalizeCategoryValue(value)
+    );
+
+    if (matchedCategory) {
+      handleReceiveCategorySelect(matchedCategory.category);
+      return;
+    }
+
+    if (!canCreateNewProduct) {
+      setForm((current) => ({
+        ...current,
+        category: value,
+      }));
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      category: value,
     }));
   }
 
@@ -167,6 +539,7 @@ export default function ReceivePage() {
       type: "in",
       date: getLocalDateValue(),
     });
+    setAutoRecordTime(Date.now());
     setIsReceivePanelOpen(true);
   }
 
@@ -179,7 +552,7 @@ export default function ReceivePage() {
     const rows = receiveTransactions.map((item, index) => ({
       "เลขที่รับเข้า": `IN-${item.date.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`,
       "วันที่รับเข้า": formatDate(item.date),
-      "เวลา": new Date(item.createdAt).toLocaleTimeString("th-TH", {
+      "เวลาบันทึก": new Date(item.createdAt).toLocaleTimeString("th-TH", {
         hour: "2-digit",
         minute: "2-digit",
       }),
@@ -207,6 +580,10 @@ export default function ReceivePage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (isSubmitting) {
+      return;
+    }
+
     const quantity = Number(form.quantity);
     const price = Number(form.price || 0);
     const costPrice = Number(form.costPrice || 0);
@@ -216,14 +593,21 @@ export default function ReceivePage() {
       return;
     }
 
+    if (!canCreateNewProduct && !matchedReceiveProduct) {
+      window.alert("พนักงานรับเข้าได้เฉพาะสินค้าที่มีอยู่ในระบบแล้ว กรุณาเลือกจากรายการเดิม");
+      return;
+    }
+
+    const baseProduct = matchedReceiveProduct;
+
     const transaction: Transaction = {
       id: createTransactionId(),
-      name: form.name.trim(),
-      sku: form.sku.trim(),
-      category: form.category.trim() || "-",
-      imageDataUrl: form.imageDataUrl,
-      productImportType: form.productImportType,
-      unit: form.unit.trim(),
+      name: (baseProduct?.name ?? form.name).trim(),
+      sku: sanitizeSku((baseProduct?.sku ?? form.sku).trim()),
+      category: (baseProduct?.category ?? form.category).trim() || "-",
+      imageDataUrl: baseProduct?.imageDataUrl || form.imageDataUrl,
+      productImportType: baseProduct?.productImportType ?? form.productImportType,
+      unit: (baseProduct?.unit ?? form.unit).trim(),
       type: "in",
       quantity,
       price: Math.max(0, price),
@@ -242,19 +626,29 @@ export default function ReceivePage() {
       return;
     }
 
+    setIsSubmitting(true);
+
     // Pessimistically update UI & database
     fetch("/api/transactions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(transaction),
-    }).then((res) => {
-      if (res.ok) {
-        fetchTransactions();
-        closeReceiveDialog();
-      } else {
-        window.alert("ไม่สามารถบันทึกรายการสินค้าเข้าฐานข้อมูล Neon ได้");
-      }
-    });
+    })
+      .then((res) => {
+        if (res.ok) {
+          refresh();
+          closeReceiveDialog();
+        } else {
+          window.alert("ไม่สามารถบันทึกรายการสินค้าเข้าฐานข้อมูล Neon ได้");
+        }
+      })
+      .catch((err) => {
+        console.error("Submit error:", err);
+        window.alert("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล");
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   }
 
   const currentReceiveFilterLabel =
@@ -314,7 +708,6 @@ export default function ReceivePage() {
                 <Button type="button" variant="secondary" size="sm" onClick={handleReceiveExport}>
                   <FileText size={15} />
                   ส่งออก
-                  <ChevronDown size={14} />
                 </Button>
               </div>
             </div>
@@ -325,7 +718,7 @@ export default function ReceivePage() {
                   <tr>
                     <th>เลขที่รับเข้า</th>
                     <th>รูปภาพสินค้า</th>
-                    <th>วันที่รับเข้า</th>
+                    <th>วันที่รับเข้า / เวลาบันทึก</th>
                     <th>จุดเก็บ / คลังย่อย</th>
                     <th>รายการสินค้า</th>
                     <th>จำนวนรายการ</th>
@@ -367,6 +760,7 @@ export default function ReceivePage() {
                           <td>
                             <strong>{formatDate(item.date)}</strong>
                             <span>
+                              บันทึก{" "}
                               {new Date(item.createdAt).toLocaleTimeString("th-TH", {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -436,67 +830,100 @@ export default function ReceivePage() {
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[720px]">
           <DialogHeader>
             <DialogTitle>บันทึกรับเข้า</DialogTitle>
-            <DialogDescription>เพิ่มรายการรับเข้าโดยไม่บังพื้นที่ตารางหลัก</DialogDescription>
+            <DialogDescription>เลือกวันที่รับเข้าเอง ระบบจะบันทึกเวลาทำรายการให้อัตโนมัติ</DialogDescription>
           </DialogHeader>
 
           <form className="receive-form" onSubmit={handleSubmit}>
-            <label>
-              <span>หมวดหลัก *</span>
-              <select
-                value={form.productImportType}
-                onChange={(event) =>
-                  updateForm("productImportType", event.target.value as ProductImportType)
-                }
-              >
-                <option value="resale">ซื้อมาขายไป</option>
-                <option value="stable">สินค้า stable</option>
-              </select>
-            </label>
+            <div className="receive-form-grid">
+              <label>
+                <span>หมวดหลัก *</span>
+                <select
+                  value={form.productImportType}
+                  onChange={(event) =>
+                    updateForm("productImportType", event.target.value as ProductImportType)
+                  }
+                >
+                  <option value="resale">ซื้อมาขายไป</option>
+                  <option value="stable">สินค้าเข้าสต็อก</option>
+                </select>
+              </label>
 
-            <label>
-              <span>รายการสินค้า *</span>
-              <input
-                value={form.name}
-                onChange={(event) => handleReceiveProductNameChange(event.target.value)}
-                placeholder="ชื่อรายการสินค้า"
-                list="receive-product-suggestions"
-                required
-              />
-              <datalist id="receive-product-suggestions">
-                {receiveProductSuggestions.map((item) => (
-                  <option key={`receive-product-${item.key}`} value={item.name} />
-                ))}
-              </datalist>
-            </label>
+              <label>
+                <span>หมวดหมู่ *</span>
+                <input
+                  className={showMissingCategoryError ? "receive-input-error" : ""}
+                  value={form.category}
+                  onChange={(event) => handleReceiveCategoryChange(event.target.value)}
+                  placeholder={
+                    canCreateNewProduct
+                      ? "พิมพ์หมวดหมู่ หรือเลือกจากรายการเดิม"
+                      : "เลือกหมวดหมู่จากรายการเดิมก่อน"
+                  }
+                  list="receive-category-suggestions"
+                  required
+                />
+                <datalist id="receive-category-suggestions">
+                  {receiveCategorySuggestions.map(({ category }) => (
+                    <option
+                      key={`receive-category-list-${category}`}
+                      value={category}
+                    />
+                  ))}
+                </datalist>
+                {!isCategoryReady ? (
+                  <small>กรุณาเลือกหมวดหลักและพิมพ์หรือเลือกหมวดหมู่ก่อน จึงจะกรอกข้อมูลส่วนอื่นได้</small>
+                ) : showMissingCategoryError ? (
+                  <small className="receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
+                ) : !canCreateNewProduct ? (
+                  <small>พนักงานเลือกได้เฉพาะหมวดหมู่และสินค้าที่มีอยู่ในระบบแล้ว</small>
+                ) : null}
+              </label>
+            </div>
 
-            <label>
-              <span>หมวดหมู่ *</span>
-              <input
-                value={form.category}
-                onChange={(event) => updateForm("category", event.target.value)}
-                placeholder="เช่น แผ่นพื้นกลวง"
-              />
-            </label>
+            <div className="receive-form-grid">
+              <label>
+                <span>รายการสินค้า *</span>
+                <input
+                  className={showMissingProductError ? "receive-input-error" : ""}
+                  value={form.name}
+                  onChange={(event) => handleReceiveProductNameChange(event.target.value)}
+                  placeholder={
+                    canCreateNewProduct
+                      ? "พิมพ์ชื่อสินค้า หรือเลือกจากรายการเดิม"
+                      : "เลือกสินค้าเดิมจากรายการเท่านั้น"
+                  }
+                  list="receive-product-suggestions"
+                  disabled={!isCategoryReady}
+                  required
+                />
+                <datalist id="receive-product-suggestions">
+                  {filteredReceiveProductSuggestions.map((item) => (
+                    <option
+                      key={`receive-product-${item.key}`}
+                      value={item.name}
+                    >{`${item.name}${item.sku ? ` (${item.sku})` : ""}`}</option>
+                  ))}
+                </datalist>
+                {!canCreateNewProduct ? (
+                  showMissingProductError ? (
+                    <small className="receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
+                  ) : (
+                    <small>ถ้าไม่พบสินค้าในรายการ ต้องให้แอดมินหรือผู้จัดการเพิ่มสินค้าใหม่ก่อน</small>
+                  )
+                ) : null}
+              </label>
 
-            <label>
-              <span>รหัสสินค้า</span>
-              <input
-                value={form.sku}
-                onChange={(event) => updateForm("sku", event.target.value)}
-                placeholder="PC-HLD350-300"
-              />
-            </label>
-
-            <label>
-              <span>รูปสินค้า</span>
-              <input type="file" accept="image/*" onChange={handleProductImageChange} />
-            </label>
-
-            {form.imageDataUrl ? (
-              <div className="receive-image-preview">
-                <img src={form.imageDataUrl} alt={form.name || "รูปสินค้า"} />
-              </div>
-            ) : null}
+              <label>
+                <span>รหัสสินค้า</span>
+                <input
+                  value={form.sku}
+                  onChange={(event) => updateForm("sku", sanitizeSku(event.target.value))}
+                  placeholder="เช่น PC-HLD350-300"
+                  inputMode="text"
+                  disabled={!isCategoryReady || !canCreateNewProduct}
+                />
+              </label>
+            </div>
 
             <div className="receive-form-grid">
               <label>
@@ -507,17 +934,65 @@ export default function ReceivePage() {
                   step="1"
                   value={form.quantity}
                   onChange={(event) => updateForm("quantity", event.target.value)}
+                  disabled={!isCategoryReady}
                   required
                 />
               </label>
+
               <label>
                 <span>หน่วย *</span>
                 <input
                   value={form.unit}
                   onChange={(event) => updateForm("unit", event.target.value)}
-                  placeholder="แผ่น"
+                  placeholder="เช่น แผ่น / ถุง / ชิ้น"
+                  disabled={!isCategoryReady || !canCreateNewProduct}
                   required
                 />
+              </label>
+            </div>
+
+            <div className="receive-form-grid">
+              <label>
+                <span>ต้นทุนต่อหน่วย *</span>
+                <div className="cost-currency-control">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.costPrice}
+                    onChange={(event) => updateForm("costPrice", event.target.value)}
+                    disabled={!isCategoryReady}
+                  />
+                  <select
+                    value={form.costCurrency}
+                    onChange={(event) =>
+                      updateForm("costCurrency", event.target.value as CostCurrency)
+                    }
+                    disabled={!isCategoryReady}
+                  >
+                    {costCurrencyOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+
+              <label>
+                <span>จุดเก็บ / คลังย่อย</span>
+                <input
+                  value={form.requester}
+                  onChange={(event) => updateForm("requester", event.target.value)}
+                  placeholder="เช่น A01 - ลานวางแผ่นพื้น"
+                  list="receive-storage-location-suggestions"
+                  disabled={!isCategoryReady}
+                />
+                <datalist id="receive-storage-location-suggestions">
+                  {receiveStorageLocationSuggestions.map((item) => (
+                    <option key={`receive-storage-location-${item}`} value={item} />
+                  ))}
+                </datalist>
               </label>
             </div>
 
@@ -528,76 +1003,69 @@ export default function ReceivePage() {
                   type="date"
                   value={form.issueKey}
                   onChange={(event) => updateForm("issueKey", event.target.value)}
+                  disabled={!isCategoryReady}
                 />
               </label>
+
               <label>
                 <span>วันหมดอายุ</span>
                 <input
                   type="date"
                   value={form.expiryDate}
                   onChange={(event) => updateForm("expiryDate", event.target.value)}
+                  disabled={!isCategoryReady}
                 />
               </label>
             </div>
 
-            <label>
-              <span>วันที่รับเข้า *</span>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(event) => updateForm("date", event.target.value)}
-                required
-              />
-            </label>
+            <div className="receive-form-grid">
+              <label>
+                <span>วันที่รับเข้า *</span>
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(event) => updateForm("date", event.target.value)}
+                  disabled={!isCategoryReady}
+                  required
+                />
+                <small>ใช้วันที่นี้ในรายงาน สต็อก และกราฟภาพรวม</small>
+              </label>
 
-            <label>
-              <span>จุดเก็บ / คลังย่อย</span>
-              <input
-                value={form.requester}
-                onChange={(event) => updateForm("requester", event.target.value)}
-                placeholder="A01 - ลานวางแผ่นพื้น"
-              />
-            </label>
+              <div className="receive-auto-time" aria-label="เวลาบันทึกอัตโนมัติ">
+                <span>เวลาบันทึกอัตโนมัติ</span>
+                <strong>{autoRecordTimeLabel}</strong>
+                <small>ระบบเก็บจริงเมื่อกดบันทึกรายการ</small>
+              </div>
+            </div>
 
             <label>
               <span>หมายเหตุ</span>
               <input
                 value={form.note}
                 onChange={(event) => updateForm("note", event.target.value)}
-                placeholder="ระบุหมายเหตุ ถ้ามี"
+                placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)"
+                disabled={!isCategoryReady}
               />
             </label>
 
             <label>
-              <span>ต้นทุนต่อหน่วย *</span>
-              <div className="cost-currency-control">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.costPrice}
-                  onChange={(event) => updateForm("costPrice", event.target.value)}
-                />
-                <select
-                  value={form.costCurrency}
-                  onChange={(event) =>
-                    updateForm("costCurrency", event.target.value as CostCurrency)
-                  }
-                >
-                  {costCurrencyOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <span>รูปสินค้า</span>
+              <input type="file" accept="image/*" onChange={handleProductImageChange} disabled={!isCategoryReady || !canCreateNewProduct} className="cursor-pointer file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200" />
             </label>
 
+            {form.imageDataUrl ? (
+              <div className="receive-image-preview mt-1">
+                <img src={form.imageDataUrl} alt={form.name || "รูปสินค้า"} className="rounded-lg object-cover max-h-48 w-full border" />
+              </div>
+            ) : null}
+
             <div className="receive-panel-actions">
-              <Button type="button" variant="secondary" onClick={closeReceiveDialog}>
+              <Button type="button" variant="secondary" onClick={closeReceiveDialog} disabled={isSubmitting}>
                 ยกเลิก
               </Button>
-              <Button type="submit">บันทึกรายการ</Button>
+              <Button type="submit" disabled={isSubmitting || !isCategoryReady}>
+                {isSubmitting ? "กำลังบันทึก..." : "บันทึกรายการ"}
+              </Button>
             </div>
           </form>
         </DialogContent>
@@ -605,4 +1073,3 @@ export default function ReceivePage() {
     </>
   );
 }
-

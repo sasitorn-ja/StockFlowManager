@@ -17,7 +17,7 @@ export default function LoginPage() {
     setIsLoading(true);
     // Simulate short loader for premium feel
     setTimeout(() => {
-      router.push("/overview");
+      router.push("/items");
     }, 800);
   }
 
