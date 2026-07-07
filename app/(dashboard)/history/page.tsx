@@ -12,6 +12,8 @@ import {
   formatDate,
   formatCurrencyWithLabel,
   getProductImportTypeLabel,
+  buildInventoryLotMap,
+  buildItemKey,
 } from "@/lib/stock-flow/utils";
 import { useTransactions } from "../TransactionContext";
 import type { Transaction, TransactionType } from "@/types/stock-flow";
@@ -25,6 +27,7 @@ type HistorySectionProps = {
     transactions: Transaction[];
   };
   movementStats: StatCard[];
+  lotLabels: Map<string, string>;
   activeFilter: HistoryFilter;
   dateFrom: string;
   dateTo: string;
@@ -32,7 +35,6 @@ type HistorySectionProps = {
   onFilterChange: (filter: HistoryFilter) => void;
   onDateFromChange: (value: string) => void;
   onDateToChange: (value: string) => void;
-  openIssueDialog: () => void;
   openDeliveryDocumentFromHistory: (issueKey: string) => void;
 };
 
@@ -50,6 +52,7 @@ function getReceiveDocumentNo(item: Transaction) {
 function HistorySection({
   movementOverview,
   movementStats,
+  lotLabels,
   activeFilter,
   dateFrom,
   dateTo,
@@ -57,7 +60,6 @@ function HistorySection({
   onFilterChange,
   onDateFromChange,
   onDateToChange,
-  openIssueDialog,
   openDeliveryDocumentFromHistory,
 }: HistorySectionProps) {
   return (
@@ -111,10 +113,6 @@ function HistorySection({
             </div>
           </div>
         </div>
-        <Button type="button" variant="secondary" onClick={openIssueDialog}>
-          <PackageMinus size={16} />
-          สร้างใบเบิกใหม่
-        </Button>
       </div>
 
       <StatsGrid stats={movementStats} />
@@ -134,6 +132,7 @@ function HistorySection({
             "ประเภท",
             "เลขเอกสาร",
             "สินค้า",
+            "ล็อต",
             "ประเภทสินค้า",
             "หมวดหมู่",
             "จำนวน",
@@ -143,12 +142,14 @@ function HistorySection({
             "สถานะ / เอกสาร",
           ]}
           emptyMessage="ยังไม่มีประวัติรายการสินค้า"
-          columnCount={11}
+          columnCount={12}
         >
           {movementOverview.transactions.map((item) => {
             const issueKey = item.issueKey || "-";
             const isStockIn = item.type === "in";
             const documentNo = isStockIn ? getReceiveDocumentNo(item) : issueKey;
+            const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
+            const lotLabel = lotLabels.get(lotKey) || "-";
             const relatedPerson = isStockIn
               ? item.requester || "จุดเก็บไม่ระบุ"
               : item.requester || "ผู้ขอไม่ระบุ";
@@ -197,6 +198,9 @@ function HistorySection({
                 <td>
                   <strong className="font-semibold text-[var(--text-strong)]">{item.name}</strong>
                   <div className="text-[12px] text-[var(--text-muted)]">{item.sku || "-"}</div>
+                </td>
+                <td className="whitespace-nowrap font-semibold text-[var(--text-strong)]">
+                  {lotLabel}
                 </td>
                 <td>{getProductImportTypeLabel(item.productImportType)}</td>
                 <td>{item.category}</td>
@@ -288,6 +292,28 @@ export default function HistoryPage() {
     };
   }, [activeFilter, effectiveDateFrom, effectiveDateTo, today, transactions]);
 
+  const lotLabels = useMemo(() => {
+    const lots = Array.from(buildInventoryLotMap(transactions).values()).sort(
+      (a, b) =>
+        getProductImportTypeLabel(a.productImportType).localeCompare(
+          getProductImportTypeLabel(b.productImportType),
+          "th"
+        ) ||
+        a.name.localeCompare(b.name, "th") ||
+        a.receivedDate.localeCompare(b.receivedDate) ||
+        a.expiryDate.localeCompare(b.expiryDate) ||
+        a.createdAt - b.createdAt
+    );
+    const counters = new Map<string, number>();
+    const labels = new Map<string, string>();
+    lots.forEach((lot) => {
+      const sequence = (counters.get(lot.baseItemKey) ?? 0) + 1;
+      counters.set(lot.baseItemKey, sequence);
+      labels.set(lot.key, `ล็อต ${sequence}`);
+    });
+    return labels;
+  }, [transactions]);
+
   const movementStats: StatCard[] = useMemo(
     () => [
       {
@@ -335,10 +361,6 @@ export default function HistoryPage() {
     [activeFilter, movementOverview]
   );
 
-  function openIssueDialog() {
-    router.push("/issue");
-  }
-
   function openDeliveryDocumentFromHistory(issueKey: string) {
     router.push(`/delivery-note?issueKey=${encodeURIComponent(issueKey)}`);
   }
@@ -361,6 +383,7 @@ export default function HistoryPage() {
     <HistorySection
       movementOverview={movementOverview}
       movementStats={movementStats}
+      lotLabels={lotLabels}
       activeFilter={activeFilter}
       dateFrom={effectiveDateFrom}
       dateTo={effectiveDateTo}
@@ -368,7 +391,6 @@ export default function HistoryPage() {
       onFilterChange={setActiveFilter}
       onDateFromChange={handleDateFromChange}
       onDateToChange={handleDateToChange}
-      openIssueDialog={openIssueDialog}
       openDeliveryDocumentFromHistory={openDeliveryDocumentFromHistory}
     />
   );

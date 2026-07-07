@@ -8,6 +8,7 @@ import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import {
   buildInventoryLotMap,
   formatCurrency,
+  formatCurrencyWithLabel,
   formatDate,
   formatNumber,
   getProductImportTypeLabel,
@@ -31,7 +32,7 @@ type GroupedInventoryItem = {
   balance: number;
   costPriceLabel: string;
   totalBalanceValue: number;
-  totalCostValue: number;
+  totalCostLabel: string;
   firstReceivedDate: string;
   nearestExpiryDate: string;
   lots: InventoryLotWithLabel[];
@@ -42,13 +43,29 @@ type ItemsSectionProps = {
 };
 
 function formatCostPriceLabel(lots: InventoryLotWithLabel[]) {
-  const uniquePrices = Array.from(new Set(lots.map((lot) => lot.costPrice ?? 0)));
+  const uniquePrices = Array.from(
+    new Set(lots.map((lot) => `${lot.costCurrency}:${lot.costPrice ?? 0}`))
+  );
 
   if (uniquePrices.length === 1) {
-    return formatCurrency(uniquePrices[0] ?? 0);
+    const lot = lots[0];
+    return formatCurrencyWithLabel(lot?.costPrice ?? 0, lot?.costCurrency);
   }
 
-  return "หลายราคา";
+  return "หลายราคา / สกุลเงิน";
+}
+
+function formatTotalCostLabel(lots: InventoryLotWithLabel[]) {
+  const totals = new Map<InventoryLotWithLabel["costCurrency"], number>();
+  lots.forEach((lot) => {
+    totals.set(
+      lot.costCurrency,
+      (totals.get(lot.costCurrency) ?? 0) + lot.balance * (lot.costPrice ?? 0)
+    );
+  });
+  return Array.from(totals.entries())
+    .map(([currency, value]) => formatCurrencyWithLabel(value, currency))
+    .join(" · ");
 }
 
 function ItemsSection({ inventory }: ItemsSectionProps) {
@@ -147,7 +164,7 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
                     <div className="grid gap-1.5 min-w-[140px]">
                       <strong>{formatCurrency(item.totalBalanceValue)}</strong>
                       <span className="text-[12px] text-[var(--text-muted)] whitespace-nowrap">
-                        ต้นทุน {formatCurrency(item.totalCostValue)}
+                        ต้นทุน {item.totalCostLabel}
                       </span>
                     </div>
                   </td>
@@ -202,7 +219,7 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
                                   <span className="text-[12px] text-[var(--text-subtle)]">{lot.unit}</span>
                                 </td>
                                 <td className="px-3 py-3 text-right whitespace-nowrap">
-                                  {formatCurrency(lot.costPrice ?? 0)}
+                                  {formatCurrencyWithLabel(lot.costPrice ?? 0, lot.costCurrency)}
                                 </td>
                                 <td className="px-3 py-3 text-right whitespace-nowrap">
                                   {formatCurrency(lot.balance * lot.price)}
@@ -260,6 +277,12 @@ export default function ItemsPage() {
     const groupedInventory = new Map<string, GroupedInventoryItem>();
 
     labeledLots.forEach((item) => {
+      // ล็อตที่ถูกเบิกหมดแล้วคงอยู่ในประวัติ แต่ไม่ใช่สินค้าคงเหลือ
+      // จึงไม่แสดงในหน้ารายการสินค้าและไม่นับจำนวนล็อตที่ยังใช้งาน
+      if (item.balance <= 0) {
+        return;
+      }
+
       const existing = groupedInventory.get(item.baseItemKey);
 
       if (!existing) {
@@ -274,7 +297,7 @@ export default function ItemsPage() {
           balance: item.balance,
           costPriceLabel: formatCostPriceLabel([item]),
           totalBalanceValue: item.balance * item.price,
-          totalCostValue: item.balance * (item.costPrice ?? 0),
+          totalCostLabel: formatTotalCostLabel([item]),
           firstReceivedDate: item.receivedDate,
           nearestExpiryDate: item.expiryDate,
           lots: [item],
@@ -284,7 +307,6 @@ export default function ItemsPage() {
 
       existing.balance += item.balance;
       existing.totalBalanceValue += item.balance * item.price;
-      existing.totalCostValue += item.balance * (item.costPrice ?? 0);
       existing.lots.push(item);
 
       if (
@@ -305,6 +327,7 @@ export default function ItemsPage() {
     return Array.from(groupedInventory.values()).map((item) => ({
       ...item,
       costPriceLabel: formatCostPriceLabel(item.lots),
+      totalCostLabel: formatTotalCostLabel(item.lots),
       lots: item.lots.sort(
         (a, b) =>
           a.receivedDate.localeCompare(b.receivedDate) ||

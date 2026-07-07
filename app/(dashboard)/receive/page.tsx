@@ -873,14 +873,14 @@ export default function ReceivePage() {
                   searchPlaceholder="ค้นหาหรือพิมพ์หมวดหมู่..."
                   allowCustomValue={canCreateNewProduct}
                 />
-                {!isCategoryReady ? (
-                  <small>กรุณาเลือกหมวดหลักและพิมพ์หรือเลือกหมวดหมู่ก่อน จึงจะกรอกข้อมูลส่วนอื่นได้</small>
-                ) : showMissingCategoryError ? (
-                  <small className="receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
-                ) : !canCreateNewProduct ? (
-                  <small>พนักงานเลือกได้เฉพาะหมวดหมู่และสินค้าที่มีอยู่ในระบบแล้ว</small>
-                ) : null}
               </label>
+              {!isCategoryReady ? (
+                <small className="receive-grid-helper">กรุณาเลือกหมวดหลักและพิมพ์หรือเลือกหมวดหมู่ก่อน จึงจะกรอกข้อมูลส่วนอื่นได้</small>
+              ) : showMissingCategoryError ? (
+                <small className="receive-grid-helper receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
+              ) : !canCreateNewProduct ? (
+                <small className="receive-grid-helper">พนักงานเลือกได้เฉพาะหมวดหมู่และสินค้าที่มีอยู่ในระบบแล้ว</small>
+              ) : null}
             </div>
 
             <div className="receive-form-grid">

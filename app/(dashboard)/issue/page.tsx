@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import {
   buildInventoryLotMap,
   createTransactionId,
@@ -742,14 +741,11 @@ export default function IssuePage() {
                 <th>หมวดหลัก</th>
                 <th>คงเหลือ</th>
                 <th>หน่วย</th>
-                <th>สถานะสต๊อก</th>
               </tr>
             </thead>
             <tbody>
               {issueListItems.length > 0 ? (
                 issueListItems.map((item) => {
-                  const isWaiting = item.totalBalance <= LOW_STOCK_THRESHOLD * 3;
-
                   return (
                     <tr key={`issue-list-${item.key}`}>
                       <td>
@@ -783,19 +779,12 @@ export default function IssuePage() {
                       <td>{getProductImportTypeLabel(item.productImportType)}</td>
                       <td className="text-right font-semibold">{formatNumber(item.totalBalance)}</td>
                       <td>{item.unit}</td>
-                      <td>
-                        <span
-                          className={`stock-pill ${isWaiting ? "stock-pill-warn" : "stock-pill-ok"}`}
-                        >
-                          {isWaiting ? "สต๊อกต่ำ" : "พร้อมเบิก"}
-                        </span>
-                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={7}>
                     <div className="empty-state">ยังไม่มีสินค้าพร้อมเบิกจ่าย</div>
                   </td>
                 </tr>

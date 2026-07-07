@@ -1017,7 +1017,7 @@ textarea {
   }
 
   .receive-form label {
-    @apply grid gap-1.5;
+    @apply grid content-start gap-1.5;
   }
 
   .receive-form label span {
@@ -1094,7 +1094,12 @@ textarea {
   }
 
   .receive-form-grid {
-    @apply grid gap-3 sm:grid-cols-2;
+    @apply grid items-start gap-3 sm:grid-cols-2;
+  }
+
+  .receive-grid-helper {
+    color: var(--text-muted);
+    @apply -mt-1 text-[11px] font-semibold leading-4 sm:col-span-2;
   }
 
   .receive-auto-time {

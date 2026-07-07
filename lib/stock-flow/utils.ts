@@ -262,7 +262,13 @@ export function buildInventoryLotMap(transactions: Transaction[]) {
     let remainingQuantity = transaction.quantity;
     const candidateLots = Array.from(lotMap.values())
       .filter((item) => item.baseItemKey === baseItemKey && item.balance > 0)
-      .sort((a, b) => a.receivedDate.localeCompare(b.receivedDate) || a.createdAt - b.createdAt);
+      .sort((a, b) => {
+        // ใบเบิกใหม่บันทึกวันหมดอายุของล็อตที่ระบบจัดสรรไว้ จึงต้องตัดล็อตนั้นก่อน
+        // แล้วค่อย fallback ตาม FIFO สำหรับข้อมูลเก่าที่ไม่ได้ระบุล็อต
+        const aMatches = a.expiryDate === transaction.expiryDate ? 0 : 1;
+        const bMatches = b.expiryDate === transaction.expiryDate ? 0 : 1;
+        return aMatches - bMatches || a.receivedDate.localeCompare(b.receivedDate) || a.createdAt - b.createdAt;
+      });
 
     candidateLots.forEach((lot) => {
       if (remainingQuantity <= 0) {
