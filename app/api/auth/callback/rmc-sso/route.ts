@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { SSO, redirectUri, requireAuthSecrets } from "@/lib/auth/config";
 import { verifyRmcIdToken } from "@/lib/auth/id-token";
 import { createSessionCookie, FLOW_STATE_COOKIE, FLOW_VERIFIER_COOKIE, SESSION_COOKIE } from "@/lib/auth/session";
+import { syncSsoUser } from "@/lib/auth/users";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
     if (user.sub !== claims.sub) throw new Error("UserInfo subject does not match id_token");
     const firstName = String(user.FIRSTNAME_TH ?? user.FIRSTNAME_EN ?? "").trim();
     const lastName = String(user.LASTNAME_TH ?? user.LASTNAME_EN ?? "").trim();
-    const session = createSessionCookie({
+    const sessionUser = {
       sub: claims.sub!, email: typeof user.EMAIL === "string" ? user.EMAIL : undefined,
       name: `${firstName} ${lastName}`.trim() || String(user.USER ?? user.EMAIL ?? claims.sub),
       userId: typeof user.USER === "string" ? user.USER : undefined,
@@ -42,7 +43,9 @@ export async function GET(request: Request) {
       division: typeof user.DIVISION === "string" ? user.DIVISION : undefined,
       image: typeof user.LINE_PROFILE_IMAGE_URL === "string" ? user.LINE_PROFILE_IMAGE_URL : undefined,
       exp: Math.floor(Date.now() / 1000) + 8 * 60 * 60,
-    });
+    };
+    await syncSsoUser(sessionUser);
+    const session = createSessionCookie(sessionUser);
     const response = NextResponse.redirect(new URL("/overview", request.url));
     response.cookies.set(SESSION_COOKIE, session, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 8 * 60 * 60 });
     response.cookies.delete(FLOW_STATE_COOKIE); response.cookies.delete(FLOW_VERIFIER_COOKIE);

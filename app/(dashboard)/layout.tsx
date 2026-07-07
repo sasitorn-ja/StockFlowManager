@@ -61,77 +61,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>("employee");
-  const [simulatedUsername, setSimulatedUsername] = useState("สมชาย");
-  const [allUsers, setAllUsers] = useState<{ username: string; isAdmin: boolean; role: UserRole }[]>([]);
   const pathname = usePathname();
-  const [ssoUser, setSsoUser] = useState<{ name: string; email?: string } | null>(null);
+  const [ssoUser, setSsoUser] = useState<{ name: string; email?: string; userId?: string; role: UserRole } | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/session", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
-      .then((data) => setSsoUser(data?.user ?? null))
+      .then((data) => {
+        const user = data?.user ?? null;
+        setSsoUser(user);
+        const role: UserRole = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
+        setUserRole(role);
+        // Keep existing feature pages in sync while their UI reads this shared value.
+        localStorage.setItem("simulated_role", role);
+        localStorage.setItem("simulated_username", user?.name ?? "ผู้ใช้งาน");
+        window.dispatchEvent(new Event("simulated-role-changed"));
+      })
       .catch(() => setSsoUser(null));
   }, []);
-
-  async function fetchUsers() {
-    try {
-      const res = await fetch("/api/admin-users");
-      if (res.ok) {
-        const data = await res.json();
-        setAllUsers(data);
-      }
-    } catch (e) {
-      console.error("Failed to fetch simulated users", e);
-    }
-  }
-
-  useEffect(() => {
-    const cachedRole = (localStorage.getItem("simulated_role") as UserRole) || "employee";
-    const cachedUsername = localStorage.getItem("simulated_username") || "สมชาย";
-    setUserRole(cachedRole);
-    setSimulatedUsername(cachedUsername);
-    
-    fetchUsers();
-
-    const handleRoleChangedExternal = () => {
-      setUserRole((localStorage.getItem("simulated_role") as UserRole) || "employee");
-      setSimulatedUsername(localStorage.getItem("simulated_username") || "สมชาย");
-    };
-
-    window.addEventListener("simulated-role-changed", handleRoleChangedExternal);
-    window.addEventListener("admin-users-changed", fetchUsers);
-
-    return () => {
-      window.removeEventListener("simulated-role-changed", handleRoleChangedExternal);
-      window.removeEventListener("admin-users-changed", fetchUsers);
-    };
-  }, []);
-
-  async function handleUsernameChange(newUsername: string) {
-    setSimulatedUsername(newUsername);
-    localStorage.setItem("simulated_username", newUsername);
-
-    let foundUser = allUsers.find((u) => u.username === newUsername);
-    
-    if (!foundUser) {
-      try {
-        const res = await fetch("/api/admin-users");
-        if (res.ok) {
-          const data = (await res.json()) as { username: string; isAdmin: boolean; role: UserRole }[];
-          setAllUsers(data);
-          foundUser = data.find((u) => u.username === newUsername);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    const nextRole = foundUser?.role ?? "employee";
-    setUserRole(nextRole);
-    localStorage.setItem("simulated_role", nextRole);
-
-    window.dispatchEvent(new Event("simulated-role-changed"));
-  }
 
   function closeMobileMenu() {
     setIsMobileMenuOpen(false);

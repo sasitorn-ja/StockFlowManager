@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth/users";
 
 export const dynamic = "force-dynamic";
 
@@ -284,6 +285,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const actor = await getCurrentUser();
+    if (actor?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     await ensureMasterProductTableExists();
     const body = (await request.json()) as Record<string, unknown>;
     const product = normalizeProductPayload(body);
@@ -348,6 +351,8 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const actor = await getCurrentUser();
+    if (actor?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     await ensureMasterProductTableExists();
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action || "update");
@@ -453,6 +458,8 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const actor = await getCurrentUser();
+    if (actor?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     await ensureMasterProductTableExists();
     const url = new URL(request.url);
     const id = url.searchParams.get("id")?.trim();

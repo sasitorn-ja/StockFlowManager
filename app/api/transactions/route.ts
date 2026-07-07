@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { createSampleTransactions } from "@/lib/stock-flow/sample-data";
 import { buildItemKey } from "@/lib/stock-flow/utils";
+import { getCurrentUser } from "@/lib/auth/users";
 
 export const dynamic = "force-dynamic";
 
@@ -201,6 +202,11 @@ export async function PUT(request: Request) {
     await ensureTableExists();
     const body = await request.json();
     const { action, itemKey, updatedData, id, issueKey, status } = body;
+    const actor = await getCurrentUser();
+    const canApprove = actor?.role === "admin" || actor?.role === "manager";
+    if (action === "update_status" ? !canApprove : actor?.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     // Action 3: Update status for an entire issueKey batch
     if (action === "update_status" && issueKey && status) {
@@ -300,6 +306,10 @@ export async function PUT(request: Request) {
 // DELETE stock_flow_transactions
 export async function DELETE(request: Request) {
   try {
+    const actor = await getCurrentUser();
+    if (actor?.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     await ensureTableExists();
     const url = new URL(request.url);
     const reset = url.searchParams.get("reset");

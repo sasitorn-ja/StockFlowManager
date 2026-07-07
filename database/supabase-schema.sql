@@ -2,8 +2,18 @@ CREATE TABLE IF NOT EXISTS stock_flow_admin_users (
   username VARCHAR(255) PRIMARY KEY,
   is_admin BOOLEAN DEFAULT TRUE,
   role VARCHAR(50) DEFAULT 'admin',
-  created_at BIGINT
+  created_at BIGINT,
+  sso_subject VARCHAR(255),
+  email VARCHAR(320),
+  display_name VARCHAR(255),
+  sso_user_id VARCHAR(255),
+  department VARCHAR(255),
+  division VARCHAR(255),
+  last_login_at BIGINT
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS stock_flow_admin_users_sso_subject_idx
+ON stock_flow_admin_users (sso_subject) WHERE sso_subject IS NOT NULL;
 
 INSERT INTO stock_flow_admin_users (username, is_admin, role, created_at)
 VALUES

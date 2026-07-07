@@ -10,6 +10,10 @@ import { Table } from "@/components/stock-flow/Table";
 
 type AdminUser = {
   username: string;
+  name: string;
+  email?: string;
+  userId?: string;
+  department?: string;
   isAdmin: boolean;
   role: "employee" | "manager" | "admin";
   createdAt: number;
@@ -19,22 +23,13 @@ export default function AdminRightsPage() {
   const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [simulatedRole, setSimulatedRole] = useState("employee");
+  const [currentRole, setCurrentRole] = useState("employee");
 
-  // Load current simulated role
   useEffect(() => {
-    const role = localStorage.getItem("simulated_role") || "employee";
-    setSimulatedRole(role);
-
-    // Listen to changes from layout
-    const handleRoleChangedExternal = () => {
-      setSimulatedRole(localStorage.getItem("simulated_role") || "employee");
-    };
-
-    window.addEventListener("simulated-role-changed", handleRoleChangedExternal);
-    return () => {
-      window.removeEventListener("simulated-role-changed", handleRoleChangedExternal);
-    };
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => setCurrentRole(data?.user?.role ?? "employee"))
+      .catch(() => setCurrentRole("employee"));
   }, []);
 
   // Fetch all users
@@ -45,6 +40,8 @@ export default function AdminRightsPage() {
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
+      } else {
+        setUsers([]);
       }
     } catch (error) {
       console.error("Failed to fetch admin users", error);
@@ -59,11 +56,6 @@ export default function AdminRightsPage() {
 
   // Toggle Admin status
   async function handleUpdateRole(username: string, nextRole: AdminUser["role"]) {
-    if (username === "แอดมิน") {
-      window.alert("ไม่สามารถปรับบทบาทของแอดมินหลักได้");
-      return;
-    }
-    
     // Optimistic UI update
     setUsers((prev) =>
       prev.map((u) =>
@@ -79,19 +71,11 @@ export default function AdminRightsPage() {
       });
 
       if (res.ok) {
-        // Notify other parts of the application
         window.dispatchEvent(new Event("admin-users-changed"));
-
-        // If toggling active simulated user, sync their role
-        const currentSimUser = localStorage.getItem("simulated_username");
-        if (currentSimUser === username) {
-          localStorage.setItem("simulated_role", nextRole);
-          window.dispatchEvent(new Event("simulated-role-changed"));
-        }
       } else {
-        // Revert on error
+        const data = await res.json().catch(() => null);
         await fetchUsers();
-        window.alert("ไม่สามารถปรับปรุงสิทธิ์ได้");
+        window.alert(data?.error ?? "ไม่สามารถปรับปรุงสิทธิ์ได้");
       }
     } catch (error) {
       console.error("Failed to toggle admin status", error);
@@ -111,7 +95,7 @@ export default function AdminRightsPage() {
   }
 
   // Access control check
-  if (simulatedRole !== "admin") {
+  if (currentRole !== "admin") {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-4">
         <div className="dashboard-card max-w-[480px] p-8 text-center shadow-xl backdrop-blur-xl">
@@ -143,7 +127,7 @@ export default function AdminRightsPage() {
             </p>
             <h3 className="dashboard-section-title">จัดการสิทธิ์แอดมิน</h3>
             <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              กำหนดบทบาทพนักงาน โดยมีสิทธิ์ระดับผู้จัดการและแอดมินรวมกันได้สูงสุด 2 คน
+              กำหนดบทบาทให้บัญชีที่เคยเข้าสู่ระบบผ่าน SSO
             </p>
           </div>
         </div>
@@ -151,7 +135,7 @@ export default function AdminRightsPage() {
 
       <DataPanel
         title="รายชื่อและสิทธิ์พนักงานทั้งหมด"
-        description="รายชื่อพนักงานทั้งหมดที่อยู่ในฐานข้อมูลรวมกับผู้ที่มีประวัติทำธุรกรรมในระบบ"
+            description="รายชื่อจะถูกเพิ่มอัตโนมัติเมื่อพนักงานเข้าสู่ระบบผ่าน SSO ครั้งแรก"
       >
         {isLoading ? (
           <div className="py-12 text-center text-sm text-[var(--text-muted)]">
@@ -168,8 +152,11 @@ export default function AdminRightsPage() {
                 <td>
                   <div className="flex items-center space-x-2">
                     <span className="font-semibold text-[var(--text-strong)]">
-                      {user.username}
+                      {user.name}
                     </span>
+                    <div className="text-xs text-[var(--text-muted)]">
+                      {user.email || user.userId || user.department || "-"}
+                    </div>
                   </div>
                 </td>
                 <td>
@@ -198,14 +185,13 @@ export default function AdminRightsPage() {
                     onValueChange={(value) =>
                       handleUpdateRole(user.username, value as AdminUser["role"])
                     }
-                    disabled={user.username === "แอดมิน"}
                     options={[
                       { value: "employee", label: "พนักงาน" },
                       { value: "manager", label: "ผู้จัดการ" },
                       { value: "admin", label: "แอดมิน" },
                     ]}
                     className="control-input w-full min-w-[140px]"
-                    title={user.username === "แอดมิน" ? "แอดมินหลักไม่สามารถปรับบทบาทได้" : "ปรับบทบาทผู้ใช้"}
+                    title="ปรับบทบาทผู้ใช้"
                     searchPlaceholder="ค้นหาบทบาท..."
                   />
                 </td>
