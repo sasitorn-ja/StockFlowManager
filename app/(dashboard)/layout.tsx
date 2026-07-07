@@ -55,6 +55,7 @@ const navigationGroups = [
     items: [
       { label: "ข้อมูลหลักสินค้า", href: "/master-data", icon: Database, adminOnly: true },
       { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck, adminOnly: true },
+      { label: "ตั้งค่า", href: "/settings", icon: Settings, adminOnly: true },
     ],
   },
 ];
