@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Boxes, Database, FileDown, Pencil, RotateCcw, ShieldCheck, SlidersHorizontal, Trash2, Workflow } from "lucide-react";
+import { Boxes, Pencil, RotateCcw, SlidersHorizontal, Trash2, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
@@ -18,7 +18,6 @@ import {
 import {
   buildInventoryMap,
   buildInventoryLotMap,
-  getLocalDateValue,
   formatDate,
   formatNumber,
   formatCurrency,
@@ -82,7 +81,6 @@ type SettingsSectionProps = {
   appSettings: AppSettings;
   updateAppSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
   resetAppSettings: () => void;
-  exportBackup: (format: "json" | "csv") => void;
   openEditProductDialog: (item: InventoryItem) => void;
   handleDeleteProduct: (item: InventoryItem) => void;
 };
@@ -93,7 +91,6 @@ function SettingsSection({
   appSettings,
   updateAppSetting,
   resetAppSettings,
-  exportBackup,
   openEditProductDialog,
   handleDeleteProduct,
 }: SettingsSectionProps) {
@@ -228,55 +225,6 @@ function SettingsSection({
           </div>
         </DataPanel>
 
-        <DataPanel
-          title="เลขเอกสารและข้อมูลสำรอง"
-          description="ตั้ง prefix เอกสารและ export ข้อมูลใช้งาน"
-        >
-          <div className="settings-form-grid">
-            <label className="settings-field">
-              <span>Prefix ใบเบิก</span>
-              <input
-                className={inputClassName}
-                value={appSettings.issuePrefix}
-                onChange={(event) => updateAppSetting("issuePrefix", event.target.value.toUpperCase())}
-              />
-            </label>
-            <label className="settings-field">
-              <span>Prefix ใบรับเข้า</span>
-              <input
-                className={inputClassName}
-                value={appSettings.receivePrefix}
-                onChange={(event) => updateAppSetting("receivePrefix", event.target.value.toUpperCase())}
-              />
-            </label>
-            <div className="settings-action-row">
-              <Button type="button" variant="secondary" onClick={() => exportBackup("json")}>
-                <FileDown size={16} />
-                Export JSON
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => exportBackup("csv")}>
-                <FileDown size={16} />
-                Export CSV
-              </Button>
-            </div>
-          </div>
-        </DataPanel>
-
-        <DataPanel
-          title="ความปลอดภัย"
-          description="สรุปแนวทางป้องกันข้อมูลสำคัญในระบบ"
-        >
-          <div className="settings-security-list">
-            <div>
-              <ShieldCheck size={17} />
-              <span>ไฟล์ `.env` ถูก ignore และไม่ควรนำขึ้น GitHub</span>
-            </div>
-            <div>
-              <Database size={17} />
-              <span>ระบบใช้งาน Supabase table ชุด `stock_flow_*` แยกจากระบบอื่น</span>
-            </div>
-          </div>
-        </DataPanel>
       </section>
 
       <DataPanel
@@ -414,66 +362,6 @@ export default function SettingsPage() {
 
   function resetAppSettings() {
     persistAppSettings(defaultAppSettings);
-  }
-
-  function downloadTextFile(filename: string, content: string, type: string) {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function exportBackup(format: "json" | "csv") {
-    const exportDate = getLocalDateValue();
-
-    if (format === "json") {
-      downloadTextFile(
-        `stock-flow-backup-${exportDate}.json`,
-        JSON.stringify(
-          {
-            exportedAt: new Date().toISOString(),
-            settings: appSettings,
-            transactions,
-            inventory,
-          },
-          null,
-          2
-        ),
-        "application/json;charset=utf-8"
-      );
-      return;
-    }
-
-    const csvHeaders = [
-      "name",
-      "sku",
-      "category",
-      "productImportType",
-      "unit",
-      "balance",
-      "totalIn",
-      "totalOut",
-      "price",
-      "costPrice",
-      "nearestExpiryDate",
-    ];
-    const csvRows = inventory.map((item) =>
-      csvHeaders
-        .map((key) => {
-          const value = String(item[key as keyof InventoryItem] ?? "");
-          return `"${value.replaceAll('"', '""')}"`;
-        })
-        .join(",")
-    );
-
-    downloadTextFile(
-      `stock-flow-inventory-${exportDate}.csv`,
-      [csvHeaders.join(","), ...csvRows].join("\n"),
-      "text/csv;charset=utf-8"
-    );
   }
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
@@ -648,7 +536,6 @@ export default function SettingsPage() {
         appSettings={appSettings}
         updateAppSetting={updateAppSetting}
         resetAppSettings={resetAppSettings}
-        exportBackup={exportBackup}
         openEditProductDialog={openEditProductDialog}
         handleDeleteProduct={handleDeleteProduct}
       />
