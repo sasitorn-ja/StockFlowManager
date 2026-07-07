@@ -255,8 +255,9 @@ function SettingsSection({
                 getProductImportTypeLabel(b.productImportType),
                 "th"
               );
+              const categoryCompare = a.category.localeCompare(b.category, "th");
 
-              return typeCompare || a.name.localeCompare(b.name, "th");
+              return typeCompare || categoryCompare || a.name.localeCompare(b.name, "th");
             })
             .map((item) => (
               <tr key={`${item.key}-settings`}>
@@ -583,15 +584,6 @@ export default function SettingsPage() {
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                หมวดหมู่
-                <input
-                  value={productEditForm.category}
-                  onChange={(event) => updateProductEditForm("category", event.target.value)}
-                  className={inputClassName}
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 ประเภทสินค้า
                 <ComboboxSelect
                   value={productEditForm.productImportType}
@@ -607,6 +599,15 @@ export default function SettingsPage() {
                   ]}
                   className={inputClassName}
                   searchPlaceholder="ค้นหาประเภทสินค้า..."
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                หมวดหมู่
+                <input
+                  value={productEditForm.category}
+                  onChange={(event) => updateProductEditForm("category", event.target.value)}
+                  className={inputClassName}
                 />
               </label>
 

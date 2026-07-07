@@ -625,7 +625,7 @@ export default function MasterDataPage() {
           <Table
             headers={[
               "สินค้า",
-              "หมวดหลัก",
+              "ประเภทสินค้า",
               "หมวดหมู่ / หน่วย",
               "จุดเก็บ / ผู้ขาย",
               "วันหมดอายุ",
@@ -721,7 +721,7 @@ export default function MasterDataPage() {
           <form className="grid gap-4 p-4" onSubmit={handleSubmit}>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                หมวดหลัก *
+                ประเภทสินค้า *
                 <ComboboxSelect
                   value={form.productImportType}
                   onValueChange={(value) =>
@@ -729,7 +729,7 @@ export default function MasterDataPage() {
                   }
                   options={productImportTypeOptions}
                   className={inputClassName}
-                  searchPlaceholder="ค้นหาหมวดหลัก..."
+                  searchPlaceholder="ค้นหาประเภทสินค้า..."
                 />
               </label>
 

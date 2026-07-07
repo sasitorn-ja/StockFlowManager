@@ -760,7 +760,7 @@ export default function IssuePage() {
                 <th>รหัสสินค้า</th>
                 <th>รายการสินค้า</th>
                 <th>การจัดสรร</th>
-                <th>หมวดหลัก</th>
+                <th>ประเภทสินค้า</th>
                 <th>คงเหลือ</th>
                 <th>หน่วย</th>
               </tr>

@@ -860,14 +860,14 @@ export default function ReceivePage() {
           <form className="receive-form" onSubmit={handleSubmit}>
             <div className="receive-form-grid">
               <label>
-                <span>หมวดหลัก *</span>
+                <span>ประเภทสินค้า *</span>
                 <ComboboxSelect
                   value={form.productImportType}
                   onValueChange={(value) =>
                     updateForm("productImportType", value as ProductImportType)
                   }
                   options={productImportTypeOptions}
-                  searchPlaceholder="ค้นหาหมวดหลัก..."
+                  searchPlaceholder="ค้นหาประเภทสินค้า..."
                 />
               </label>
 
@@ -891,7 +891,7 @@ export default function ReceivePage() {
                 />
               </label>
               {!isCategoryReady ? (
-                <small className="receive-grid-helper">กรุณาเลือกหมวดหลักและพิมพ์หรือเลือกหมวดหมู่ก่อน จึงจะกรอกข้อมูลส่วนอื่นได้</small>
+                <small className="receive-grid-helper">กรุณาเลือกประเภทสินค้าและพิมพ์หรือเลือกหมวดหมู่ก่อน จึงจะกรอกข้อมูลส่วนอื่นได้</small>
               ) : showMissingCategoryError ? (
                 <small className="receive-grid-helper receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
               ) : !canCreateNewProduct ? (
