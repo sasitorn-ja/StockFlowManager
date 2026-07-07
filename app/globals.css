@@ -382,19 +382,14 @@ textarea {
   }
 
   .dashboard-nav-subitem.dashboard-nav-item-active {
-    box-shadow: 0 8px 18px rgba(11, 99, 189, 0.18);
+    background: #dbeafe;
+    color: #0757a6;
+    border: 1px solid #bfdbfe;
+    box-shadow: none;
   }
 
   .dashboard-nav-subitem.dashboard-nav-item-active::before {
-    left: -9px;
-    top: 50%;
-    bottom: auto;
-    width: 7px;
-    height: 7px;
-    border-radius: 9999px;
-    transform: translateY(-50%);
-    background: #0b63bd;
-    box-shadow: 0 0 0 3px #eff6ff;
+    display: none;
   }
 
   .overview-page {
