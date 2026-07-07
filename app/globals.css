@@ -353,7 +353,7 @@ textarea {
   }
 
   .dashboard-nav-group {
-    @apply grid gap-1;
+    @apply grid gap-1 rounded-xl;
   }
 
   .dashboard-nav-group-active {
@@ -368,11 +368,33 @@ textarea {
 
   .dashboard-nav-submenu {
     border-left: 1px solid #dbeafe;
-    @apply ml-5 grid gap-1 pl-2;
+    @apply ml-5 mr-1 grid gap-1 py-1 pl-2;
   }
 
   .dashboard-nav-subitem {
-    @apply h-10 px-2.5 text-[12px];
+    width: auto;
+    @apply h-9 rounded-lg px-2.5 text-[12px];
+  }
+
+  .dashboard-nav-subitem:hover,
+  .dashboard-nav-subitem:focus-visible {
+    padding-left: 10px;
+  }
+
+  .dashboard-nav-subitem.dashboard-nav-item-active {
+    box-shadow: 0 8px 18px rgba(11, 99, 189, 0.18);
+  }
+
+  .dashboard-nav-subitem.dashboard-nav-item-active::before {
+    left: -9px;
+    top: 50%;
+    bottom: auto;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    transform: translateY(-50%);
+    background: #0b63bd;
+    box-shadow: 0 0 0 3px #eff6ff;
   }
 
   .overview-page {
