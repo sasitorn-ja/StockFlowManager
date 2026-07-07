@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   buildInventoryMap,
+  buildInventoryLotMap,
   getLocalDateValue,
   formatDate,
   formatNumber,
@@ -348,7 +349,7 @@ function SettingsSection({
                       onClick={() => openEditProductDialog(item)}
                     >
                       <Pencil size={14} />
-                      แก้ไข
+                      เลือกล็อต/แก้ไข
                     </Button>
                     <Button
                       type="button"
@@ -374,6 +375,7 @@ export default function SettingsPage() {
   const { transactions, refresh } = useTransactions();
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
   const [editingItemKey, setEditingItemKey] = useState("");
+  const [selectedLotKey, setSelectedLotKey] = useState("");
   const [productEditForm, setProductEditForm] = useState<ProductEditForm>({
     name: "",
     sku: "",
@@ -475,6 +477,30 @@ export default function SettingsPage() {
   }
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
+  const inventoryLots = useMemo(
+    () =>
+      [...buildInventoryLotMap(transactions).values()].sort(
+        (a, b) =>
+          a.receivedDate.localeCompare(b.receivedDate) ||
+          a.expiryDate.localeCompare(b.expiryDate) ||
+          a.createdAt - b.createdAt
+      ),
+    [transactions]
+  );
+  const editingLots = useMemo(
+    () => inventoryLots.filter((lot) => lot.baseItemKey === editingItemKey),
+    [editingItemKey, inventoryLots]
+  );
+  const editingLotOptions = useMemo(
+    () =>
+      editingLots.map((lot, index) => ({
+        value: lot.key,
+        label: `ล็อต ${index + 1} · รับเข้า ${formatDate(lot.receivedDate)} · ${
+          lot.expiryDate ? `หมดอายุ ${formatDate(lot.expiryDate)}` : "ไม่ระบุวันหมดอายุ"
+        } · คงเหลือ ${formatNumber(lot.balance)} ${lot.unit}`,
+      })),
+    [editingLots]
+  );
 
   function updateProductEditForm<K extends keyof ProductEditForm>(
     key: K,
@@ -484,7 +510,9 @@ export default function SettingsPage() {
   }
 
   function openEditProductDialog(item: InventoryItem) {
+    const firstLot = inventoryLots.find((lot) => lot.baseItemKey === item.key);
     setEditingItemKey(item.key);
+    setSelectedLotKey(firstLot?.key || "");
     setProductEditForm({
       name: item.name,
       sku: sanitizeSku(item.sku),
@@ -492,11 +520,24 @@ export default function SettingsPage() {
       productImportType: item.productImportType,
       imageDataUrl: item.imageDataUrl || "",
       unit: item.unit,
-      price: String(item.price),
-      costPrice: String(item.costPrice ?? 0),
-      expiryDate: item.nearestExpiryDate,
+      price: String(firstLot?.price ?? item.price),
+      costPrice: String(firstLot?.costPrice ?? item.costPrice ?? 0),
+      expiryDate: firstLot?.expiryDate ?? item.nearestExpiryDate,
     });
     setIsEditProductDialogOpen(true);
+  }
+
+  function selectEditingLot(lotKey: string) {
+    const lot = inventoryLots.find((item) => item.key === lotKey);
+    if (!lot) return;
+
+    setSelectedLotKey(lotKey);
+    setProductEditForm((current) => ({
+      ...current,
+      price: String(lot.price),
+      costPrice: String(lot.costPrice ?? 0),
+      expiryDate: lot.expiryDate,
+    }));
   }
 
   function handleDeleteProduct(item: InventoryItem) {
@@ -549,6 +590,12 @@ export default function SettingsPage() {
       costPrice: Math.max(0, nextCostPrice),
       expiryDate: productEditForm.expiryDate,
     };
+    const selectedLot = inventoryLots.find((lot) => lot.key === selectedLotKey);
+
+    if (!selectedLot) {
+      window.alert("กรุณาเลือกล็อตที่ต้องการแก้ไข");
+      return;
+    }
 
     fetch("/api/transactions", {
       method: "PUT",
@@ -556,6 +603,7 @@ export default function SettingsPage() {
       body: JSON.stringify({
         action: "update_product",
         itemKey: editingItemKey,
+        lotExpiryDate: selectedLot.expiryDate,
         updatedData,
       }),
     }).then((res) => {
@@ -563,6 +611,7 @@ export default function SettingsPage() {
         refresh();
         setIsEditProductDialogOpen(false);
         setEditingItemKey("");
+        setSelectedLotKey("");
       } else {
         window.alert("ไม่สามารถอัปเดตข้อมูลสินค้าในฐานข้อมูล Supabase PostgreSQL ได้");
       }
@@ -604,17 +653,28 @@ export default function SettingsPage() {
         handleDeleteProduct={handleDeleteProduct}
       />
 
-      <Dialog open={isEditProductDialogOpen} onOpenChange={(open) => { if (!open) { setIsEditProductDialogOpen(false); setEditingItemKey(""); } }}>
+      <Dialog open={isEditProductDialogOpen} onOpenChange={(open) => { if (!open) { setIsEditProductDialogOpen(false); setEditingItemKey(""); setSelectedLotKey(""); } }}>
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[880px]">
           <DialogHeader>
-            <DialogTitle>แก้ไขรายการสินค้า</DialogTitle>
+            <DialogTitle>แก้ไขสินค้าและล็อต</DialogTitle>
             <DialogDescription>
-              ปรับรายละเอียดสินค้า ราคาต่อหน่วย และราคาต้นทุนของรายการนี้
+              เลือกล็อตก่อนแก้ไขวันหมดอายุ ราคา และราคาต้นทุน
             </DialogDescription>
           </DialogHeader>
 
           <form className="grid gap-4 p-4" onSubmit={handleProductEditSubmit}>
             <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">
+                ล็อตที่ต้องการแก้ไข
+                <ComboboxSelect
+                  value={selectedLotKey}
+                  onValueChange={selectEditingLot}
+                  options={editingLotOptions}
+                  className={inputClassName}
+                  searchPlaceholder="ค้นหาล็อต..."
+                  placeholder="เลือกล็อต"
+                />
+              </label>
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 ชื่อสินค้า
                 <input
@@ -745,4 +805,3 @@ export default function SettingsPage() {
     </>
   );
 }
-

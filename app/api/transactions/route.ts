@@ -248,7 +248,8 @@ export async function PUT(request: Request) {
 
     // Action 1: Update all stock_flow_transactions matching a product itemKey
     if (action === "update_product" && itemKey && updatedData) {
-      const rows = await sql`SELECT id, name, sku, category, "productImportType", unit FROM stock_flow_transactions;`;
+      const rows = await sql`SELECT id, name, sku, category, "productImportType", unit, "expiryDate" FROM stock_flow_transactions;`;
+      const hasLotSelection = Object.prototype.hasOwnProperty.call(body, "lotExpiryDate");
       
       const idsToUpdate: string[] = [];
       for (const row of rows) {
@@ -267,20 +268,27 @@ export async function PUT(request: Request) {
 
       if (idsToUpdate.length > 0) {
         for (const transactionId of idsToUpdate) {
-          await sql`
-            UPDATE stock_flow_transactions
-            SET 
-              name = ${updatedData.name},
-              sku = ${updatedData.sku},
-              category = ${updatedData.category || "-"},
-              "productImportType" = ${updatedData.productImportType},
-              "imageDataUrl" = ${updatedData.imageDataUrl || ""},
-              unit = ${updatedData.unit},
-              price = ${updatedData.price},
-              "costPrice" = ${updatedData.costPrice},
-              "expiryDate" = ${updatedData.expiryDate || ""}
-            WHERE id = ${transactionId}
-          `;
+          const row = rows.find((item) => item.id === transactionId);
+          const isSelectedLot = !hasLotSelection || (row?.expiryDate || "") === (body.lotExpiryDate || "");
+
+          if (isSelectedLot) {
+            await sql`
+              UPDATE stock_flow_transactions
+              SET name = ${updatedData.name}, sku = ${updatedData.sku}, category = ${updatedData.category || "-"},
+                  "productImportType" = ${updatedData.productImportType}, "imageDataUrl" = ${updatedData.imageDataUrl || ""},
+                  unit = ${updatedData.unit}, price = ${updatedData.price}, "costPrice" = ${updatedData.costPrice},
+                  "expiryDate" = ${updatedData.expiryDate || ""}
+              WHERE id = ${transactionId}
+            `;
+          } else {
+            await sql`
+              UPDATE stock_flow_transactions
+              SET name = ${updatedData.name}, sku = ${updatedData.sku}, category = ${updatedData.category || "-"},
+                  "productImportType" = ${updatedData.productImportType}, "imageDataUrl" = ${updatedData.imageDataUrl || ""},
+                  unit = ${updatedData.unit}
+              WHERE id = ${transactionId}
+            `;
+          }
         }
       }
 
