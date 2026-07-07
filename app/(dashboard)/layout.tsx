@@ -55,7 +55,6 @@ const navigationGroups = [
     items: [
       { label: "ข้อมูลหลักสินค้า", href: "/master-data", icon: Database, adminOnly: true },
       { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck, adminOnly: true },
-      { label: "กฎคลังและเวิร์กโฟลว์", href: "/settings", icon: Settings },
     ],
   },
 ];
@@ -143,7 +142,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         </Link>
 
         {navigationGroups.map((group) => {
-          const visibleItems = group.items.filter((item) => !item.adminOnly || userRole === "admin");
+          const visibleItems = group.items.filter(
+            (item) => !("adminOnly" in item) || !item.adminOnly || userRole === "admin"
+          );
           if (visibleItems.length === 0) return null;
           const isOpen = Boolean(openGroups[group.id]);
           const hasActiveItem = visibleItems.some((item) => item.href === pathname);

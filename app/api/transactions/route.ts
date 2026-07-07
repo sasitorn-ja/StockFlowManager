@@ -204,12 +204,32 @@ export async function PUT(request: Request) {
     const { action, itemKey, updatedData, id, issueKey, status } = body;
     const actor = await getCurrentUser();
     const canApprove = actor?.role === "admin" || actor?.role === "manager";
-    if (action === "update_status" ? !canApprove : actor?.role !== "admin") {
+    const isSelfCancellation = action === "update_status" && status === "cancelled";
+    if (action === "update_status" ? !canApprove && !isSelfCancellation : actor?.role !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Action 3: Update status for an entire issueKey batch
     if (action === "update_status" && issueKey && status) {
+      if (!actor) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      // Employees may cancel only requisitions created under their own SSO name.
+      // Managers and admins retain permission to update any requisition status.
+      if (!canApprove) {
+        const ownedRows = await sql`
+          SELECT 1
+          FROM stock_flow_transactions
+          WHERE "issueKey" = ${issueKey}
+            AND TRIM(requester) = ${actor.name.trim()}
+          LIMIT 1
+        `;
+        if (ownedRows.length === 0) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+      }
+
       if (body.approver) {
         await sql`
           UPDATE stock_flow_transactions

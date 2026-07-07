@@ -285,7 +285,8 @@ export default function RequisitionTrackerPage() {
       if (res.ok) {
         await fetchTransactions();
       } else {
-        window.alert("เกิดข้อผิดพลาดในการอัปเดตสถานะใบเบิกสินค้า");
+        const data = await res.json().catch(() => null);
+        window.alert(data?.error || "เกิดข้อผิดพลาดในการอัปเดตสถานะใบเบิกสินค้า");
       }
     } catch (error) {
       console.error("Failed to update status:", error);
