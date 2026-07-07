@@ -402,8 +402,8 @@ export default function OverviewPage() {
         <article className="overview-list-card">
           <div className="overview-section-heading">
             <div>
-              <h3>รายการรออนุมัติ</h3>
-              <p>ใบเบิกที่ควรตรวจสอบและดำเนินการต่อ</p>
+              <h3>รอผู้จัดการอนุมัติ</h3>
+              <p>ใบเบิกใหม่ที่ยังไม่ได้รับการอนุมัติ</p>
             </div>
             <a href="/approve">ดูทั้งหมด</a>
           </div>
@@ -423,7 +423,7 @@ export default function OverviewPage() {
                 </div>
               ))
             ) : (
-              <div className="overview-soft-empty">ไม่มีใบเบิกรออนุมัติ</div>
+              <div className="overview-soft-empty">ไม่มีใบเบิกรอผู้จัดการอนุมัติ</div>
             )}
           </div>
         </article>

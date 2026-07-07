@@ -23,9 +23,13 @@ export default function AdminRightsPage() {
   const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentRole, setCurrentRole] = useState("employee");
+  const [currentRole, setCurrentRole] = useState<AdminUser["role"] | null>(null);
 
   useEffect(() => {
+    const cachedRole = localStorage.getItem("simulated_role");
+    if (cachedRole === "admin" || cachedRole === "manager" || cachedRole === "employee") {
+      setCurrentRole(cachedRole);
+    }
     fetch("/api/auth/session", { cache: "no-store" })
       .then((res) => res.ok ? res.json() : null)
       .then((data) => setCurrentRole(data?.user?.role ?? "employee"))
@@ -95,6 +99,14 @@ export default function AdminRightsPage() {
   }
 
   // Access control check
+  if (currentRole === null) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-[var(--text-muted)]">
+        กำลังตรวจสอบสิทธิ์...
+      </div>
+    );
+  }
+
   if (currentRole !== "admin") {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-4">

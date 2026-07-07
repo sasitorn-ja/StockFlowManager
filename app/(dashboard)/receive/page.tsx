@@ -27,6 +27,7 @@ import {
 import type { Transaction, CostCurrency, ProductImportType, ProductMaster } from "@/types/stock-flow";
 import type { FormState } from "./types";
 import { useTransactions } from "../TransactionContext";
+import { RECEIVE_STATUS_LABEL } from "@/lib/stock-flow/status";
 
 type OverviewFilter = "all" | ProductImportType;
 type UserRole = "employee" | "manager" | "admin";
@@ -570,7 +571,7 @@ export default function ReceivePage() {
       "หน่วย": item.unit,
       "มูลค่ารวม": item.quantity * (item.costPrice || item.price || 0),
       "หมายเหตุ": item.note || "-",
-      "สถานะ": "เสร็จสิ้น",
+      "สถานะ": RECEIVE_STATUS_LABEL,
     }));
 
     if (rows.length === 0) {
@@ -731,7 +732,7 @@ export default function ReceivePage() {
                     <th>จำนวนรายการ</th>
                     <th>มูลค่ารวม</th>
                     <th>หมายเหตุ</th>
-                    <th>สถานะ</th>
+                    <th>สถานะการรับเข้า</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -783,7 +784,7 @@ export default function ReceivePage() {
                           <td>{formatCurrency(totalValue)}</td>
                           <td>{item.note || "-"}</td>
                           <td>
-                            <span className="stock-pill stock-pill-ok">เสร็จสิ้น</span>
+                            <span className="stock-pill stock-pill-ok">{RECEIVE_STATUS_LABEL}</span>
                           </td>
                         </tr>
                       );

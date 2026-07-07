@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { ensureSsoUsersSchema, getCurrentUser, UserRole } from "@/lib/auth/users";
+import { getCurrentUser, UserRole } from "@/lib/auth/users";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,6 @@ export async function GET() {
   try {
     const actor = await requireAdmin();
     if (!actor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    await ensureSsoUsersSchema();
     const users = await sql`
       SELECT username, sso_subject, email, display_name, sso_user_id, department,
              division, role, created_at, last_login_at

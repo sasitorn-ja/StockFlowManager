@@ -144,12 +144,12 @@ type ApproverContactOption = {
   name: string;
 };
 
-const ISSUE_APPROVER_CONTACT_STORAGE_KEY = "issue-approver-contact-suggestions";
-const ALLOWED_APPROVER_NAMES = ["แอดมิน", "ผู้จัดการ"] as const;
-
-function isAllowedApproverName(name: string) {
-  return ALLOWED_APPROVER_NAMES.includes(name.trim() as (typeof ALLOWED_APPROVER_NAMES)[number]);
-}
+type DirectoryUser = {
+  email: string;
+  name: string;
+  role: "employee" | "manager" | "admin";
+  userId: string;
+};
 
 function formatApproverContactLabel(name: string, email: string) {
   return [name.trim(), email.trim()].filter(Boolean).join(" · ");
@@ -221,6 +221,7 @@ export default function IssuePage() {
   const [issueApproverContactSuggestions, setIssueApproverContactSuggestions] = useState<
     ApproverContactOption[]
   >([]);
+  const [directoryUsers, setDirectoryUsers] = useState<DirectoryUser[]>([]);
   const [issueNote, setIssueNote] = useState("");
   const [isSendingIssueEmail, setIsSendingIssueEmail] = useState(false);
   const [isIssueTypeFilterOpen, setIsIssueTypeFilterOpen] = useState(false);
@@ -237,8 +238,30 @@ export default function IssuePage() {
     }
   }
 
+  async function fetchUserDirectory() {
+    try {
+      const res = await fetch("/api/user-directory", { cache: "no-store" });
+      if (res.ok) {
+        const users = (await res.json()) as DirectoryUser[];
+        setDirectoryUsers(users);
+        setIssueApproverContactSuggestions(
+          users
+            .filter((user) => user.role === "manager" && Boolean(user.email))
+            .map((user) => ({
+              name: user.name,
+              email: user.email,
+              label: formatApproverContactLabel(user.name, user.email),
+            }))
+        );
+      }
+    } catch (error) {
+      console.error("Failed to fetch SSO user directory", error);
+    }
+  }
+
   useEffect(() => {
     fetchTransactions();
+    fetchUserDirectory();
 
     const cachedDraft = localStorage.getItem("pending_draft");
     if (cachedDraft) {
@@ -257,28 +280,6 @@ export default function IssuePage() {
         console.error("Failed to parse cached draft", e);
       }
       localStorage.removeItem("pending_draft");
-    }
-
-    try {
-      const storedContacts = localStorage.getItem(ISSUE_APPROVER_CONTACT_STORAGE_KEY);
-      if (storedContacts) {
-        const parsedContacts = JSON.parse(storedContacts);
-        if (Array.isArray(parsedContacts)) {
-          setIssueApproverContactSuggestions(
-            parsedContacts.filter(
-              (value): value is ApproverContactOption =>
-                Boolean(value) &&
-                typeof value === "object" &&
-                typeof value.name === "string" &&
-                typeof value.email === "string" &&
-                typeof value.label === "string" &&
-                isAllowedApproverName(value.name)
-            )
-          );
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load approver contact suggestions", error);
     }
 
     // Handle role changes reactively
@@ -380,35 +381,15 @@ export default function IssuePage() {
   }, [inventory, issueImportTypeFilter, searchTerm]);
 
   const issueRequesterSuggestions = useMemo(() => {
-    return Array.from(
-      new Set(
-        transactions
-          .filter((item) => item.type === "out")
-          .map((item) => item.requester?.trim())
-          .filter((value): value is string => Boolean(value))
-      )
-    ).sort((a, b) => a.localeCompare(b, "th"));
-  }, [transactions]);
-
-  const issueApproverSuggestions = useMemo(() => {
-    return Array.from(
-      new Set(
-        transactions
-          .filter((item) => item.type === "out")
-          .map((item) => item.approver?.trim())
-          .filter(
-            (value): value is string =>
-              typeof value === "string" && Boolean(value) && isAllowedApproverName(value)
-          )
-      )
-    ).sort((a, b) => a.localeCompare(b, "th"));
-  }, [transactions]);
+    return Array.from(new Set(directoryUsers.map((user) => user.name.trim()).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, "th"));
+  }, [directoryUsers]);
 
   const issueApproverInputSuggestions = useMemo(() => {
     const prioritizedContacts = new Map<string, string>();
 
     issueApproverContactSuggestions.forEach((item) => {
-      if (!item.email.trim() || !isAllowedApproverName(item.name)) {
+      if (!item.email.trim()) {
         return;
       }
 
@@ -486,31 +467,6 @@ export default function IssuePage() {
     setIssueApproverEmail(parsedValue.email);
   }
 
-  function rememberApproverContact(name: string, email: string) {
-    const normalizedName = name.trim();
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedName || !normalizedEmail || !isAllowedApproverName(normalizedName)) {
-      return;
-    }
-
-    const nextContact = {
-      name: normalizedName,
-      email: normalizedEmail,
-      label: formatApproverContactLabel(normalizedName, normalizedEmail),
-    };
-
-    setIssueApproverContactSuggestions((current) => {
-      const next = [
-        nextContact,
-        ...current.filter(
-          (item) => item.email !== normalizedEmail || item.name !== normalizedName
-        ),
-      ];
-      localStorage.setItem(ISSUE_APPROVER_CONTACT_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-  }
-
   async function handleSelectedIssueBatch() {
     if (isSendingIssueEmail) {
       return;
@@ -535,13 +491,21 @@ export default function IssuePage() {
       return;
     }
 
+    if (!directoryUsers.some((user) => user.name.trim() === issueRequester.trim())) {
+      window.alert("กรุณาเลือกผู้ขอเบิกจากรายชื่อผู้ใช้งานในระบบ");
+      return;
+    }
+
     if (!issueApprover.trim()) {
       window.alert("กรอกชื่อผู้อนุมัติก่อนบันทึก");
       return;
     }
 
-    if (!isAllowedApproverName(issueApprover)) {
-      window.alert("ผู้อนุมัติเลือกได้เฉพาะ แอดมิน หรือ ผู้จัดการ เท่านั้น");
+    const selectedManager = issueApproverContactSuggestions.find(
+      (item) => item.name === issueApprover.trim() && item.email === issueApproverEmail.trim()
+    );
+    if (!selectedManager) {
+      window.alert("กรุณาเลือกผู้อนุมัติที่มีสิทธิ์ผู้จัดการจากรายชื่อ");
       return;
     }
 
@@ -554,8 +518,6 @@ export default function IssuePage() {
       window.alert("กรอกผู้อนุมัติในรูปแบบ ชื่อ · อีเมล ให้ถูกต้อง");
       return;
     }
-
-    rememberApproverContact(issueApprover, issueApproverEmail);
 
     const invalidEntry = selectedEntries.find(
       ({ quantity }) => !Number.isFinite(quantity) || quantity <= 0
@@ -780,7 +742,7 @@ export default function IssuePage() {
                 <th>หมวดหลัก</th>
                 <th>คงเหลือ</th>
                 <th>หน่วย</th>
-                <th>สถานะ</th>
+                <th>สถานะสต๊อก</th>
               </tr>
             </thead>
             <tbody>
@@ -825,7 +787,7 @@ export default function IssuePage() {
                         <span
                           className={`stock-pill ${isWaiting ? "stock-pill-warn" : "stock-pill-ok"}`}
                         >
-                          {isWaiting ? "รอจัดสรร" : "พร้อมเบิก"}
+                          {isWaiting ? "สต๊อกต่ำ" : "พร้อมเบิก"}
                         </span>
                       </td>
                     </tr>
@@ -883,12 +845,13 @@ export default function IssuePage() {
               <ComboboxInput
                 value={issueRequester}
                 onValueChange={setIssueRequester}
+                allowCustomValue={false}
                 options={issueRequesterSuggestions.map((item) => ({
                   value: item,
                   label: item,
                 }))}
                 placeholder="ระบุผู้ขอเบิกสินค้า"
-                searchPlaceholder="ค้นหาหรือพิมพ์ผู้ขอเบิก..."
+                searchPlaceholder="ค้นหาผู้ใช้งาน..."
               />
             </label>
             <label>
@@ -896,12 +859,14 @@ export default function IssuePage() {
               <ComboboxInput
                 value={issueApproverContact}
                 onValueChange={handleApproverContactChange}
+                allowCustomValue={false}
                 options={issueApproverInputSuggestions.map((item) => ({
                   value: item,
                   label: item,
                 }))}
-                placeholder="พิมพ์หรือเลือกแบบ ชื่อ · อีเมล"
-                searchPlaceholder="ค้นหาหรือพิมพ์ผู้อนุมัติ..."
+                placeholder="เลือกผู้จัดการ"
+                searchPlaceholder="ค้นหาผู้จัดการ..."
+                emptyText="ยังไม่มีผู้ใช้งานที่ได้รับสิทธิ์ผู้จัดการ"
               />
             </label>
             <div className="issue-selection-list">

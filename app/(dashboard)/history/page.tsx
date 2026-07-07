@@ -14,8 +14,9 @@ import {
   getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
 import { useTransactions } from "../TransactionContext";
-import type { Transaction, TransactionStatus, TransactionType } from "@/types/stock-flow";
+import type { Transaction, TransactionType } from "@/types/stock-flow";
 import type { StatCard } from "@/components/stock-flow/StatsGrid";
+import { getRequisitionStatusClass, getRequisitionStatusLabel, RECEIVE_STATUS_LABEL } from "@/lib/stock-flow/status";
 
 type HistoryFilter = "all" | TransactionType;
 
@@ -44,20 +45,6 @@ const historyFilters: { value: HistoryFilter; label: string }[] = [
 function getReceiveDocumentNo(item: Transaction) {
   const documentSuffix = item.id.replace(/[^a-zA-Z0-9]/g, "").slice(-5).toUpperCase() || "00000";
   return `IN-${item.date.replaceAll("-", "")}-${documentSuffix}`;
-}
-
-function getTransactionStatusLabel(status?: TransactionStatus) {
-  if (status === "pending") return "รออนุมัติ";
-  if (status === "approved") return "อนุมัติแล้ว";
-  if (status === "employee_confirmed") return "พนักงานยืนยันแล้ว";
-  if (status === "cancelled") return "ยกเลิกแล้ว";
-  return "เสร็จสิ้น";
-}
-
-function getTransactionStatusClass(status?: TransactionStatus) {
-  if (status === "pending") return "stock-pill-warn";
-  if (status === "cancelled") return "stock-pill-danger";
-  return "stock-pill-ok";
 }
 
 function HistorySection({
@@ -232,8 +219,8 @@ function HistorySection({
                 <td className="text-[12px] text-[var(--text-muted)]">{item.note || "-"}</td>
                 <td>
                   <div className="history-action-stack">
-                    <span className={`stock-pill ${getTransactionStatusClass(item.status)}`}>
-                      {getTransactionStatusLabel(item.status)}
+                    <span className={`stock-pill ${isStockIn ? "stock-pill-ok" : getRequisitionStatusClass(item.status)}`}>
+                      {isStockIn ? RECEIVE_STATUS_LABEL : getRequisitionStatusLabel(item.status)}
                     </span>
                     {!isStockIn && issueKey !== "-" ? (
                       <Button

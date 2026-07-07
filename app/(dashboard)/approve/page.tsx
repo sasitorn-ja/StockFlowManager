@@ -23,6 +23,7 @@ import {
   normalizeTransactions,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, TransactionStatus } from "@/types/stock-flow";
+import { getRequisitionStatusLabel } from "@/lib/stock-flow/status";
 
 type GroupedRequisition = {
   issueKey: string;
@@ -165,7 +166,8 @@ export default function RequisitionTrackerPage() {
   const filteredRequisitions = useMemo(() => {
     return ownedRequisitions.filter((req) => {
       // 1. Tab status filter
-      if (activeTab !== "all" && req.status !== activeTab) {
+      const matchesApprovedStage = activeTab === "approved" && req.status === "employee_confirmed";
+      if (activeTab !== "all" && req.status !== activeTab && !matchesApprovedStage) {
         return false;
       }
 
@@ -207,24 +209,24 @@ export default function RequisitionTrackerPage() {
         tone: "sky" as const,
       },
       {
-        label: "รออนุมัติ (Pending)",
+        label: "รอผู้จัดการอนุมัติ",
         value: formatNumber(pending),
         unit: "ใบงาน",
-        helper: "รอหัวหน้างานตรวจสอบ",
+        helper: "รอผู้จัดการตรวจสอบคำขอ",
         tone: "amber" as const,
       },
       {
-        label: "คำขออยู่ระหว่างจอง",
+        label: "สต๊อกที่จองไว้",
         value: formatNumber(reserved),
         unit: "ใบงาน",
-        helper: "ยังคงจองยอดไว้ในคลัง",
+        helper: "ใบเบิกที่ยังไม่จบหรือยกเลิก",
         tone: "violet" as const,
       },
       {
-        label: "จ่ายของสำเร็จแล้ว",
+        label: "จ่ายสินค้าแล้ว",
         value: formatNumber(completed),
         unit: "ใบงาน",
-        helper: "พนักงานรับของเรียบร้อย",
+        helper: "คลังจ่ายสินค้าและปิดใบเบิกแล้ว",
         tone: "emerald" as const,
       },
     ];
@@ -384,7 +386,7 @@ export default function RequisitionTrackerPage() {
             </p>
             <h3 className="dashboard-section-title">ติดตามสถานะการเบิกสินค้า</h3>
             <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              ตรวจสอบรายการขอเบิก สลับบทบาทเพื่อจำลองการจองและอนุมัติจ่ายสินค้าตามจริง
+              ขั้นตอน: รอผู้จัดการอนุมัติ → อนุมัติแล้วและรอคลังจ่าย → จ่ายสินค้าแล้ว
             </p>
           </div>
           <div className="dashboard-header-actions flex flex-wrap items-center gap-3">
@@ -418,9 +420,9 @@ export default function RequisitionTrackerPage() {
           {(
             [
               { value: "all", label: "ทั้งหมด", icon: Layers, activeClass: "bg-slate-800 text-white shadow-md shadow-slate-200" },
-              { value: "pending", label: "รออนุมัติ", icon: Clock, activeClass: "bg-amber-500 text-white shadow-md shadow-amber-100" },
-              { value: "approved", label: "อนุมัติแล้ว (รอจ่ายสินค้า)", icon: FileCheck, activeClass: "bg-sky-500 text-white shadow-md shadow-sky-100" },
-              { value: "completed", label: "จ่ายของสำเร็จ", icon: PackageCheck, activeClass: "bg-emerald-500 text-white shadow-md shadow-emerald-100" },
+              { value: "pending", label: "รอผู้จัดการอนุมัติ", icon: Clock, activeClass: "bg-amber-500 text-white shadow-md shadow-amber-100" },
+              { value: "approved", label: "อนุมัติแล้ว · รอจ่ายสินค้า", icon: FileCheck, activeClass: "bg-sky-500 text-white shadow-md shadow-sky-100" },
+              { value: "completed", label: "จ่ายสินค้าแล้ว", icon: PackageCheck, activeClass: "bg-emerald-500 text-white shadow-md shadow-emerald-100" },
               { value: "cancelled", label: "ยกเลิกแล้ว", icon: XCircle, activeClass: "bg-rose-500 text-white shadow-md shadow-rose-100" },
             ] as { value: TabType; label: string; icon: any; activeClass: string }[]
           ).map((tab) => {
@@ -443,7 +445,7 @@ export default function RequisitionTrackerPage() {
                     className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
                       isActive ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
                     }`}
-                    aria-label={`รออนุมัติ ${pendingApprovalCount} รายการ`}
+                    aria-label={`รอผู้จัดการอนุมัติ ${pendingApprovalCount} รายการ`}
                   >
                     {pendingApprovalCount}
                   </span>
@@ -507,16 +509,15 @@ export default function RequisitionTrackerPage() {
 
               // Render human-friendly status badging
               let badgeTone: "warn" | "out" | "in" | "urgent" = "warn";
-              let badgeText = "รออนุมัติ";
+              let badgeText = getRequisitionStatusLabel(req.status);
               if (req.status === "approved") {
                 badgeTone = "out";
-                badgeText = "อนุมัติแล้ว (รอจ่ายสินค้า)";
+              } else if (req.status === "employee_confirmed") {
+                badgeTone = "out";
               } else if (req.status === "completed") {
                 badgeTone = "in";
-                badgeText = "รับสินค้าสำเร็จ";
               } else if (req.status === "cancelled") {
                 badgeTone = "urgent";
-                badgeText = "ยกเลิกรายการ";
               }
 
               return (
