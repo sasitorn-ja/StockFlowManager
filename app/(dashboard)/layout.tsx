@@ -50,12 +50,12 @@ const navigationGroups = [
   },
   {
     id: "system",
-    label: "จัดการระบบ",
+    label: "งานผู้ดูแลระบบ",
     icon: Settings,
     items: [
-      { label: "Master Data สินค้า", href: "/master-data", icon: Database, adminOnly: true },
+      { label: "ข้อมูลหลักสินค้า", href: "/master-data", icon: Database, adminOnly: true },
       { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck, adminOnly: true },
-      { label: "ตั้งค่า", href: "/settings", icon: Settings },
+      { label: "กฎคลังและเวิร์กโฟลว์", href: "/settings", icon: Settings },
     ],
   },
 ];

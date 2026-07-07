@@ -107,9 +107,9 @@ function SettingsSection({
         <div className="dashboard-panel-header">
           <div>
             <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
-              Product Settings
+              System Rules
             </p>
-            <h3 className="dashboard-section-title">ตั้งค่ารายการสินค้า</h3>
+            <h3 className="dashboard-section-title">กฎคลังและเวิร์กโฟลว์</h3>
             <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
               ควบคุมเกณฑ์แจ้งเตือน ขั้นตอนอนุมัติ การสำรองข้อมูล และข้อมูลระบบหลัก
             </p>
