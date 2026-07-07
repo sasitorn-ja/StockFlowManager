@@ -352,6 +352,29 @@ textarea {
     color: #1e40af;
   }
 
+  .dashboard-nav-group {
+    @apply grid gap-1;
+  }
+
+  .dashboard-nav-group-active {
+    background: rgba(232, 244, 255, 0.72);
+    color: var(--sky);
+  }
+
+  .dashboard-nav-chevron {
+    transition: transform 0.2s ease;
+    @apply shrink-0;
+  }
+
+  .dashboard-nav-submenu {
+    border-left: 1px solid #dbeafe;
+    @apply ml-5 grid gap-1 pl-2;
+  }
+
+  .dashboard-nav-subitem {
+    @apply h-10 px-2.5 text-[12px];
+  }
+
   .overview-page {
     @apply grid gap-3;
   }

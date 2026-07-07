@@ -18,6 +18,7 @@ import {
   UserCheck,
   Settings,
   LogOut,
+  ChevronDown,
 } from "lucide-react";
 
 type DashboardLayoutProps = {
@@ -26,28 +27,37 @@ type DashboardLayoutProps = {
 
 type UserRole = "employee" | "manager" | "admin";
 
-const navigationItems = [
-  { label: "ภาพรวมสต๊อก", href: "/overview", icon: Home },
-  { label: "รายการสินค้า", href: "/items", icon: Database },
-  { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
-  { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
-  { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
-  { label: "ประวัติรายการ", href: "/history", icon: History },
-  { label: "ใกล้หมดสต็อก / โครงการ", href: "/expiring", icon: Clock3 },
-  { label: "Master Data สินค้า", href: "/master-data", icon: Database },
-  { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck },
-  { label: "ตั้งค่า", href: "/settings", icon: Settings },
-];
-
-const employeeNavigationItems = [
-  { label: "ภาพรวมสต๊อก", href: "/overview", icon: Home },
-  { label: "รายการสินค้า", href: "/items", icon: Database },
-  { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
-  { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
-  { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
-  { label: "ประวัติรายการ", href: "/history", icon: History },
-  { label: "แจ้งเตือนสต็อก", href: "/expiring", icon: Clock3 },
-  { label: "ตั้งค่า", href: "/settings", icon: Settings },
+const navigationGroups = [
+  {
+    id: "stock",
+    label: "คลังสินค้า",
+    icon: Database,
+    items: [
+      { label: "รายการสินค้า", href: "/items", icon: Database },
+      { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
+      { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
+      { label: "ใกล้หมดสต็อก / โครงการ", href: "/expiring", icon: Clock3 },
+    ],
+  },
+  {
+    id: "requisition",
+    label: "ใบเบิกและประวัติ",
+    icon: PackageCheck,
+    items: [
+      { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
+      { label: "ประวัติรายการ", href: "/history", icon: History },
+    ],
+  },
+  {
+    id: "system",
+    label: "จัดการระบบ",
+    icon: Settings,
+    items: [
+      { label: "Master Data สินค้า", href: "/master-data", icon: Database, adminOnly: true },
+      { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck, adminOnly: true },
+      { label: "ตั้งค่า", href: "/settings", icon: Settings },
+    ],
+  },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -62,6 +72,14 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>("employee");
   const pathname = usePathname();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      navigationGroups.map((group) => [
+        group.id,
+        group.items.some((item) => item.href === pathname),
+      ])
+    )
+  );
   const [ssoUser, setSsoUser] = useState<{ name: string; email?: string; userId?: string; role: UserRole } | null>(null);
 
   useEffect(() => {
@@ -84,8 +102,14 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     setIsMobileMenuOpen(false);
   }
 
-  const roleNavigationItems =
-    userRole === "admin" ? navigationItems : employeeNavigationItems;
+  useEffect(() => {
+    const activeGroup = navigationGroups.find((group) =>
+      group.items.some((item) => item.href === pathname)
+    );
+    if (activeGroup) {
+      setOpenGroups((current) => ({ ...current, [activeGroup.id]: true }));
+    }
+  }, [pathname]);
 
   const sidebarContent = (
     <>
@@ -108,30 +132,55 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       </div>
 
       <nav className="dashboard-nav" aria-label="เมนูหลัก">
-        {roleNavigationItems.map((item) => {
-          if (item.href === "/admin-rights" && userRole !== "admin") {
-            return null;
-          }
+        <Link
+          className={`dashboard-nav-item ${pathname === "/overview" ? "dashboard-nav-item-active" : ""}`}
+          href="/overview"
+          onClick={closeMobileMenu}
+          aria-current={pathname === "/overview" ? "page" : undefined}
+        >
+          <Home aria-hidden="true" className="dashboard-nav-icon" size={17} strokeWidth={2.1} />
+          <span className="min-w-0 flex-1 truncate">ภาพรวมสต๊อก</span>
+        </Link>
 
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
-
+        {navigationGroups.map((group) => {
+          const visibleItems = group.items.filter((item) => !item.adminOnly || userRole === "admin");
+          if (visibleItems.length === 0) return null;
+          const isOpen = Boolean(openGroups[group.id]);
+          const hasActiveItem = visibleItems.some((item) => item.href === pathname);
+          const GroupIcon = group.icon;
           return (
-            <Link
-              key={`${item.label}-${item.href}`}
-              className={`dashboard-nav-item ${isActive ? "dashboard-nav-item-active" : ""}`}
-              href={item.href}
-              onClick={closeMobileMenu}
-              aria-current={isActive ? "page" : undefined}
-            >
-              <Icon
-                aria-hidden="true"
-                className="dashboard-nav-icon"
-                size={17}
-                strokeWidth={2.1}
-              />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-            </Link>
+            <div key={group.id} className="dashboard-nav-group">
+              <button
+                type="button"
+                className={`dashboard-nav-item dashboard-nav-group-trigger ${hasActiveItem ? "dashboard-nav-group-active" : ""}`}
+                onClick={() => setOpenGroups((current) => ({ ...current, [group.id]: !isOpen }))}
+                aria-expanded={isOpen}
+              >
+                <GroupIcon aria-hidden="true" className="dashboard-nav-icon" size={17} strokeWidth={2.1} />
+                <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
+                <ChevronDown aria-hidden="true" size={15} className={`dashboard-nav-chevron ${isOpen ? "rotate-180" : ""}`} />
+              </button>
+              {isOpen ? (
+                <div className="dashboard-nav-submenu">
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        className={`dashboard-nav-item dashboard-nav-subitem ${isActive ? "dashboard-nav-item-active" : ""}`}
+                        href={item.href}
+                        onClick={closeMobileMenu}
+                        aria-current={isActive ? "page" : undefined}
+                      >
+                        <Icon aria-hidden="true" className="dashboard-nav-icon" size={16} strokeWidth={2.1} />
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           );
         })}
       </nav>

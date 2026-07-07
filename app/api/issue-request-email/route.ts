@@ -28,6 +28,16 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
+function formatThaiDate(value: string) {
+  const date = new Date(`${value}T00:00:00+07:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("th-TH", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
 function buildEmailHtml(input: {
   appUrl: string;
   approverName: string;
@@ -55,16 +65,17 @@ function buildEmailHtml(input: {
     <div style="background:#f8fafc;padding:32px 16px;font-family:Arial,sans-serif;color:#0f172a;">
       <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
         <div style="padding:24px 28px;border-bottom:1px solid #e2e8f0;">
-          <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#0284c7;">Issue Request</p>
-          <h1 style="margin:0;font-size:24px;line-height:1.3;">มีคำขอเบิกสินค้าใหม่รออนุมัติ</h1>
+          <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.08em;color:#0284c7;">ระบบบริหารสินค้าคงคลัง CPAC SB&amp;M</p>
+          <h1 style="margin:0;font-size:24px;line-height:1.3;">มีใบเบิกสินค้ารอการอนุมัติ</h1>
         </div>
         <div style="padding:24px 28px;">
-          <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">สวัสดี ${escapeHtml(
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">เรียน คุณ${escapeHtml(
             input.approverName
-          )}, มีคำขอเบิกสินค้าใหม่จาก ${escapeHtml(input.requester)} กรุณาตรวจสอบรายละเอียดด้านล่าง</p>
+          )}</p>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.7;">คุณ${escapeHtml(input.requester)} ได้ส่งใบเบิกสินค้าเพื่อขออนุมัติ กรุณาตรวจสอบรายการและจำนวนสินค้าด้านล่างก่อนดำเนินการ</p>
           <div style="margin-bottom:20px;padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
-            <p style="margin:0 0 8px;"><strong>เลขใบเบิก:</strong> ${escapeHtml(input.issueKey)}</p>
-            <p style="margin:0 0 8px;"><strong>วันที่ขอเบิก:</strong> ${escapeHtml(input.issueDate)}</p>
+            <p style="margin:0 0 8px;"><strong>เลขที่ใบเบิก:</strong> ${escapeHtml(input.issueKey)}</p>
+            <p style="margin:0 0 8px;"><strong>วันที่ยื่นคำขอ:</strong> ${escapeHtml(formatThaiDate(input.issueDate))}</p>
             <p style="margin:0;"><strong>ผู้ขอเบิก:</strong> ${escapeHtml(input.requester)}</p>
           </div>
           <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
@@ -85,7 +96,8 @@ function buildEmailHtml(input: {
           </div>
           <a href="${escapeHtml(
             `${input.appUrl}/approve`
-          )}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;">เปิดหน้าตรวจสอบใบเบิก</a>
+          )}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;">ตรวจสอบและอนุมัติใบเบิก</a>
+          <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#64748b;">อีเมลฉบับนี้ส่งโดยอัตโนมัติจากระบบ กรุณาไม่ตอบกลับอีเมลนี้</p>
         </div>
       </div>
     </div>
@@ -149,7 +161,7 @@ export async function POST(request: Request) {
         name: approverName,
         address: approverEmail,
       },
-      subject: `คำขอเบิกสินค้าใหม่ ${issueKey}`,
+      subject: `[รออนุมัติ] ใบเบิกสินค้า ${issueKey}`,
       html: buildEmailHtml({
         appUrl,
         approverName,
@@ -159,7 +171,7 @@ export async function POST(request: Request) {
         note,
         requester,
       }),
-      text: `มีคำขอเบิกสินค้าใหม่ ${issueKey} จาก ${requester} กรุณาตรวจสอบที่ ${appUrl}/approve`,
+      text: `เรียน คุณ${approverName}\n\nคุณ${requester} ได้ส่งใบเบิกสินค้า ${issueKey} เมื่อวันที่ ${formatThaiDate(issueDate)} เพื่อขออนุมัติ กรุณาตรวจสอบรายการและจำนวนสินค้าที่ ${appUrl}/approve\n\nอีเมลฉบับนี้ส่งโดยอัตโนมัติจากระบบ กรุณาไม่ตอบกลับอีเมลนี้`,
     });
 
     return NextResponse.json({ ok: true, id: result.messageId });
