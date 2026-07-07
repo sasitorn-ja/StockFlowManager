@@ -449,7 +449,12 @@ export default function MasterDataPage() {
 
   async function handleToggleActive(product: ProductMaster) {
     const nextActionLabel = product.isActive ? "ปิดใช้งาน" : "เปิดใช้งาน";
-    const confirmed = window.confirm(`ต้องการ${nextActionLabel}สินค้า "${product.name}" ใช่หรือไม่`);
+    const impactMessage = product.isActive
+      ? "สินค้านี้จะไม่สามารถรับเข้าใหม่หรือสร้างใบเบิกใหม่ได้ แต่สต๊อกและประวัติเดิมจะยังถูกเก็บไว้"
+      : "สินค้านี้จะกลับมาเลือกใช้ในหน้ารับเข้าและหน้าเบิกสินค้าได้";
+    const confirmed = window.confirm(
+      `ต้องการ${nextActionLabel}สินค้า "${product.name}" ใช่หรือไม่\n\n${impactMessage}`
+    );
 
     if (!confirmed) {
       return;
@@ -541,27 +546,27 @@ export default function MasterDataPage() {
 
         <section className="master-data-stats">
           <div className="master-data-stat-card">
-            <div className="master-data-stat-head">
-              <div className="master-data-stat-icon">
-                <PackageCheck size={18} />
-              </div>
-              <p className="master-data-stat-label">สินค้าที่เปิดใช้งาน</p>
+            <div className="master-data-stat-icon">
+              <PackageCheck size={20} />
             </div>
-            <div className="master-data-stat-body">
-              <strong className="master-data-stat-value">{formatNumber(activeProductCount)}</strong>
-              <span className="master-data-stat-helper">พร้อมใช้ในระบบตอนนี้</span>
+            <div className="master-data-stat-content">
+              <p className="master-data-stat-label">สินค้าที่เปิดใช้งาน</p>
+              <div className="master-data-stat-body">
+                <strong className="master-data-stat-value">{formatNumber(activeProductCount)}</strong>
+                <span className="master-data-stat-helper">พร้อมใช้ในระบบตอนนี้</span>
+              </div>
             </div>
           </div>
           <div className="master-data-stat-card">
-            <div className="master-data-stat-head">
-              <div className="master-data-stat-icon">
-                <Boxes size={18} />
-              </div>
-              <p className="master-data-stat-label">หมวดหมู่ทั้งหมด</p>
+            <div className="master-data-stat-icon">
+              <Boxes size={20} />
             </div>
-            <div className="master-data-stat-body">
-              <strong className="master-data-stat-value">{formatNumber(activeCategoryCount)}</strong>
-              <span className="master-data-stat-helper">รวมทุกหมวดที่มีการใช้งาน</span>
+            <div className="master-data-stat-content">
+              <p className="master-data-stat-label">หมวดหมู่ทั้งหมด</p>
+              <div className="master-data-stat-body">
+                <strong className="master-data-stat-value">{formatNumber(activeCategoryCount)}</strong>
+                <span className="master-data-stat-helper">รวมทุกหมวดที่มีการใช้งาน</span>
+              </div>
             </div>
             <Button
               type="button"
@@ -574,15 +579,15 @@ export default function MasterDataPage() {
             </Button>
           </div>
           <div className="master-data-stat-card">
-            <div className="master-data-stat-head">
-              <div className="master-data-stat-icon">
-                <Store size={18} />
-              </div>
-              <p className="master-data-stat-label">สินค้าที่มีสต๊อกคงเหลือ</p>
+            <div className="master-data-stat-icon">
+              <Store size={20} />
             </div>
-            <div className="master-data-stat-body">
-              <strong className="master-data-stat-value">{formatNumber(stockedProductCount)}</strong>
-              <span className="master-data-stat-helper">อ้างอิงจากของที่ยังคงเหลือในคลัง</span>
+            <div className="master-data-stat-content">
+              <p className="master-data-stat-label">สินค้าที่มีสต๊อกคงเหลือ</p>
+              <div className="master-data-stat-body">
+                <strong className="master-data-stat-value">{formatNumber(stockedProductCount)}</strong>
+                <span className="master-data-stat-helper">อ้างอิงจากของที่ยังคงเหลือในคลัง</span>
+              </div>
             </div>
           </div>
         </section>

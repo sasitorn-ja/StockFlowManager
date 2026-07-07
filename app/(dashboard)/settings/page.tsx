@@ -75,22 +75,6 @@ type ProductEditForm = {
   expiryDate: string;
 };
 
-type DbColumn = {
-  columnName: string;
-  dataType: string;
-  isNullable: string;
-};
-
-type DbInfo = {
-  connected: boolean;
-  host: string;
-  pingMs: number;
-  tableName: string;
-  rowCount: number;
-  columns: DbColumn[];
-  error?: string;
-};
-
 type SettingsSectionProps = {
   inventory: InventoryItem[];
   transactionsCount: number;
@@ -100,9 +84,6 @@ type SettingsSectionProps = {
   exportBackup: (format: "json" | "csv") => void;
   openEditProductDialog: (item: InventoryItem) => void;
   handleDeleteProduct: (item: InventoryItem) => void;
-  isLoadingDb: boolean;
-  dbInfo: DbInfo | null;
-  fetchDbInfo: () => void;
 };
 
 function SettingsSection({
@@ -114,9 +95,6 @@ function SettingsSection({
   exportBackup,
   openEditProductDialog,
   handleDeleteProduct,
-  isLoadingDb,
-  dbInfo,
-  fetchDbInfo,
 }: SettingsSectionProps) {
   const activeProducts = inventory.filter((item) => item.balance > 0).length;
   const lowStockProducts = inventory.filter(
@@ -388,120 +366,12 @@ function SettingsSection({
         </Table>
       </DataPanel>
 
-      <DataPanel
-        title="ฐานข้อมูล Supabase PostgreSQL (Schema View)"
-        description="รายละเอียดคอลัมน์ของตารางข้อมูลและสถานะการเชื่อมต่อแบบเรียลไทม์กับฐานข้อมูล Supabase PostgreSQL"
-      >
-        {isLoadingDb ? (
-          <div className="p-4 text-center text-sm text-[var(--text-muted)]">
-            กำลังดึงข้อมูลฐานข้อมูล...
-          </div>
-        ) : dbInfo ? (
-          <div className="grid gap-4 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-[var(--bg-muted)] p-4 border border-[var(--border-muted)]">
-              <div className="grid gap-1">
-                <span className="text-[12px] text-[var(--text-muted)]">สถานะการเชื่อมต่อ</span>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      dbInfo.connected ? "bg-emerald-500" : "bg-rose-500"
-                    }`}
-                  ></span>
-                  <strong className="text-sm">
-                    {dbInfo.connected ? "เชื่อมต่อแล้ว (Connected)" : "ไม่สามารถเชื่อมต่อได้"}
-                  </strong>
-                </div>
-              </div>
-              {dbInfo.connected && (
-                <>
-                  <div className="grid gap-1">
-                    <span className="text-[12px] text-[var(--text-muted)]">โฮสต์ฐานข้อมูล</span>
-                    <strong className="text-sm font-mono truncate max-w-[200px] sm:max-w-none">
-                      {dbInfo.host}
-                    </strong>
-                  </div>
-                  <div className="grid gap-1">
-                    <span className="text-[12px] text-[var(--text-muted)]">ชื่อตาราง</span>
-                    <strong className="text-sm font-mono">{dbInfo.tableName}</strong>
-                  </div>
-                  <div className="grid gap-1">
-                    <span className="text-[12px] text-[var(--text-muted)]">จำนวนแถวทั้งหมด</span>
-                    <strong className="text-sm font-mono">{formatNumber(dbInfo.rowCount)}</strong>
-                  </div>
-                  <div className="grid gap-1">
-                    <span className="text-[12px] text-[var(--text-muted)]">ความล่าช้า (Ping)</span>
-                    <strong className="text-sm font-mono">{dbInfo.pingMs}ms</strong>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {dbInfo.error && (
-              <div className="rounded-lg bg-rose-50 border border-rose-200 p-4 text-rose-800 text-sm">
-                <strong>ข้อผิดพลาด:</strong> {dbInfo.error}
-              </div>
-            )}
-
-            {dbInfo.connected && dbInfo.columns && dbInfo.columns.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="data-table min-w-[500px]">
-                  <thead>
-                    <tr>
-                      <th>ชื่อคอลัมน์ (Column Name)</th>
-                      <th>ประเภทข้อมูล (Data Type)</th>
-                      <th>อนุญาตค่าว่าง (Nullable)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dbInfo.columns.map((col) => (
-                      <tr key={col.columnName}>
-                        <td className="font-mono font-semibold text-[var(--text-strong)]">
-                          {col.columnName}
-                        </td>
-                        <td className="font-mono text-sky-700">{col.dataType}</td>
-                        <td>
-                          <span
-                            className={`stock-pill ${
-                              col.isNullable === "YES" ? "stock-pill-ok" : "stock-pill-warn"
-                            }`}
-                          >
-                            {col.isNullable === "YES" ? "YES (มีค่าว่างได้)" : "NO (ห้ามว่าง)"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <div className="flex justify-end">
-              <Button type="button" onClick={fetchDbInfo} disabled={isLoadingDb}>
-                รีเฟรชข้อมูลฐานข้อมูล
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="p-4 text-center text-sm text-[var(--text-muted)]">
-            ไม่พบข้อมูลฐานข้อมูล
-          </div>
-        )}
-      </DataPanel>
     </section>
   );
 }
 
 export default function SettingsPage() {
   const { transactions, refresh } = useTransactions();
-  const [dbInfo, setDbInfo] = useState<{
-    connected: boolean;
-    host: string;
-    pingMs: number;
-    tableName: string;
-    rowCount: number;
-    columns: { columnName: string; dataType: string; isNullable: string }[];
-    error?: string;
-  } | null>(null);
-  const [isLoadingDb, setIsLoadingDb] = useState(false);
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
   const [editingItemKey, setEditingItemKey] = useState("");
   const [productEditForm, setProductEditForm] = useState<ProductEditForm>({
@@ -604,28 +474,6 @@ export default function SettingsPage() {
     );
   }
 
-  async function fetchDbInfo() {
-    setIsLoadingDb(true);
-    try {
-      const res = await fetch("/api/db-info");
-      if (res.ok) {
-        const data = await res.json();
-        setDbInfo(data);
-      } else {
-        const data = await res.json().catch(() => null);
-        setDbInfo({ connected: false, error: data?.error || "Failed to fetch db info" } as any);
-      }
-    } catch (error: any) {
-      setDbInfo({ connected: false, error: error.message } as any);
-    } finally {
-      setIsLoadingDb(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchDbInfo();
-  }, []);
-
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
   function updateProductEditForm<K extends keyof ProductEditForm>(
@@ -666,7 +514,6 @@ export default function SettingsPage() {
     }).then((res) => {
       if (res.ok) {
         refresh();
-        fetchDbInfo();
       } else {
         window.alert("ไม่สามารถลบข้อมูลสินค้าออกจากฐานข้อมูล Supabase PostgreSQL ได้");
       }
@@ -714,7 +561,6 @@ export default function SettingsPage() {
     }).then((res) => {
       if (res.ok) {
         refresh();
-        fetchDbInfo();
         setIsEditProductDialogOpen(false);
         setEditingItemKey("");
       } else {
@@ -756,9 +602,6 @@ export default function SettingsPage() {
         exportBackup={exportBackup}
         openEditProductDialog={openEditProductDialog}
         handleDeleteProduct={handleDeleteProduct}
-        isLoadingDb={isLoadingDb}
-        dbInfo={dbInfo}
-        fetchDbInfo={fetchDbInfo}
       />
 
       <Dialog open={isEditProductDialogOpen} onOpenChange={(open) => { if (!open) { setIsEditProductDialogOpen(false); setEditingItemKey(""); } }}>

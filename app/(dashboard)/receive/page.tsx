@@ -23,6 +23,7 @@ import {
   formatNumber,
   formatCurrency,
   sanitizeSku,
+  matchesMasterProduct,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, CostCurrency, ProductImportType, ProductMaster } from "@/types/stock-flow";
 import type { FormState } from "./types";
@@ -113,19 +114,25 @@ export default function ReceivePage() {
   }, [receiveFilter, searchTerm, transactions]);
 
   const receiveProductSuggestions = useMemo<ReceiveProductSuggestion[]>(() => {
-    const inventorySuggestions = inventory.map((item) => ({
-      key: `inventory-${item.key}`,
-      name: item.name,
-      sku: item.sku,
-      category: item.category,
-      imageDataUrl: item.imageDataUrl || "",
-      productImportType: item.productImportType,
-      unit: item.unit,
-      price: item.price,
-      costPrice: item.costPrice ?? 0,
-      costCurrency: item.costCurrency ?? "THB",
-      defaultStorageLocation: "",
-    }));
+    const inactiveMasterProducts = masterProducts.filter((item) => !item.isActive);
+    const inventorySuggestions = inventory
+      .filter(
+        (item) =>
+          !inactiveMasterProducts.some((product) => matchesMasterProduct(item, product))
+      )
+      .map((item) => ({
+        key: `inventory-${item.key}`,
+        name: item.name,
+        sku: item.sku,
+        category: item.category,
+        imageDataUrl: item.imageDataUrl || "",
+        productImportType: item.productImportType,
+        unit: item.unit,
+        price: item.price,
+        costPrice: item.costPrice ?? 0,
+        costCurrency: item.costCurrency ?? "THB",
+        defaultStorageLocation: "",
+      }));
 
     const existingKeys = new Set(
       inventorySuggestions.map(
@@ -628,6 +635,15 @@ export default function ReceivePage() {
       note: form.note.trim(),
       createdAt: Date.now(),
     };
+
+    const inactiveProduct = masterProducts.find(
+      (product) => !product.isActive && matchesMasterProduct(transaction, product)
+    );
+
+    if (inactiveProduct) {
+      window.alert(`สินค้า "${inactiveProduct.name}" ถูกปิดใช้งาน กรุณาเปิดใช้งานใน Master Data ก่อนรับเข้า`);
+      return;
+    }
 
     if (!transaction.name || !transaction.unit || quantity <= 0) {
       window.alert("กรอกข้อมูลสินค้า หน่วยนับ และจำนวนให้ครบก่อนบันทึก");

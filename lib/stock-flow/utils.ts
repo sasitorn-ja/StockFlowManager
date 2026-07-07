@@ -7,6 +7,7 @@ import type {
   Transaction,
   TransactionStatus,
   TransactionType,
+  ProductMaster,
 } from "@/types/stock-flow";
 import type { FormState } from "@/app/(dashboard)/receive/types";
 
@@ -289,6 +290,25 @@ export function buildItemKey(
   item: Pick<Transaction, "name" | "sku" | "unit"> & Partial<Pick<Transaction, "productImportType">>
 ) {
   return `${item.productImportType ?? "resale"}::${item.name.toLowerCase()}::${item.sku.toLowerCase()}::${item.unit.toLowerCase()}`;
+}
+
+export function matchesMasterProduct(
+  item: Pick<Transaction, "name" | "sku" | "category" | "productImportType" | "unit">,
+  product: Pick<ProductMaster, "name" | "sku" | "category" | "productImportType" | "unit">
+) {
+  const itemSku = item.sku.trim().toLowerCase();
+  const productSku = product.sku.trim().toLowerCase();
+
+  if (itemSku && productSku) {
+    return itemSku === productSku;
+  }
+
+  return (
+    item.name.trim().toLowerCase() === product.name.trim().toLowerCase() &&
+    item.category.trim().toLowerCase() === product.category.trim().toLowerCase() &&
+    item.productImportType === product.productImportType &&
+    item.unit.trim().toLowerCase() === product.unit.trim().toLowerCase()
+  );
 }
 
 export function sanitizeSku(value: string) {

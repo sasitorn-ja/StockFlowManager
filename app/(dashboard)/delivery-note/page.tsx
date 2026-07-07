@@ -202,24 +202,16 @@ function DeliveryNoteSection({
 
         <div className="delivery-print-spacer" aria-hidden="true" />
 
-        <section className="delivery-summary-grid">
+        <section className="delivery-summary-grid delivery-summary-grid-single">
           <div>
             <p>ผู้ออกเอกสาร ................................</p>
             <p>
               ผู้อนุมัตินำส่ง {deliveryDocument.transaction.approver || ".............................."}
             </p>
           </div>
-          <div>
-            <p>ผู้รับจ้างขนส่ง ..............................</p>
-            <p>เลขทะเบียนรถ .................................</p>
-          </div>
-          <div>
-            <p>รถออกวันที่ ....../....../...... เวลา ............</p>
-            <p>ยามผู้ตรวจนำของออก ...........................</p>
-          </div>
         </section>
 
-        <section className="delivery-detail-footer">
+        <section className="delivery-detail-footer delivery-detail-footer-compact">
           <div className="delivery-footer-box">
             <p>
               ชื่อผู้รับของ {deliveryDocument.transaction.requester || "................................"}
@@ -232,13 +224,6 @@ function DeliveryNoteSection({
             <p>รายการที่ ........................ จำนวน ............</p>
             <p>ผู้รับของ ........................................</p>
             <p>ผู้รับจ้างขนส่ง ..................................</p>
-          </div>
-          <div>
-            <p>ต้นฉบับสีขาว - ผู้รับของ</p>
-            <p>สำเนาสีเขียว - ผู้รับจ้างขนส่ง</p>
-            <p>สำเนาสีฟ้า - พัสดุ</p>
-            <p className="mt-3">CPAC : F-15-004 XLS REV. 01/DEC/01</p>
-            <p>ผู้ปรับปรุง ชาตรี ว.</p>
           </div>
         </section>
       </article>

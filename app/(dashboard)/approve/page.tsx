@@ -21,6 +21,9 @@ import {
   formatNumber,
   formatCurrency,
   normalizeTransactions,
+  buildInventoryLotMap,
+  buildItemKey,
+  getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, TransactionStatus } from "@/types/stock-flow";
 import { getRequisitionStatusLabel } from "@/lib/stock-flow/status";
@@ -146,6 +149,30 @@ export default function RequisitionTrackerPage() {
     });
 
     return Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
+  }, [transactions]);
+
+  const lotLabels = useMemo(() => {
+    const lots = Array.from(buildInventoryLotMap(transactions).values()).sort(
+      (a, b) =>
+        getProductImportTypeLabel(a.productImportType).localeCompare(
+          getProductImportTypeLabel(b.productImportType),
+          "th"
+        ) ||
+        a.name.localeCompare(b.name, "th") ||
+        a.receivedDate.localeCompare(b.receivedDate) ||
+        a.expiryDate.localeCompare(b.expiryDate) ||
+        a.createdAt - b.createdAt
+    );
+    const counters = new Map<string, number>();
+    const labels = new Map<string, string>();
+
+    lots.forEach((lot) => {
+      const sequence = (counters.get(lot.baseItemKey) ?? 0) + 1;
+      counters.set(lot.baseItemKey, sequence);
+      labels.set(lot.key, `ล็อต ${sequence}`);
+    });
+
+    return labels;
   }, [transactions]);
 
   // Filter based on active role and "Show Only Mine" toggle
@@ -659,6 +686,7 @@ export default function RequisitionTrackerPage() {
                               <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
                                 <tr>
                                   <th className="px-3 py-2">ชื่อสินค้า</th>
+                                  <th className="px-3 py-2">ล็อต</th>
                                   <th className="px-3 py-2 text-right">จำนวนเบิก</th>
                                   <th className="px-3 py-2 text-right">ต้นทุนต่อหน่วย</th>
                                   <th className="px-3 py-2 text-right">ต้นทุนรวม</th>
@@ -668,11 +696,19 @@ export default function RequisitionTrackerPage() {
                               <tbody className="divide-y divide-slate-100">
                                 {req.items.map((item) => {
                                   const costVal = item.quantity * (item.costPrice || item.price || 0);
+                                  const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
+                                  const lotLabel = lotLabels.get(lotKey) || "-";
                                   return (
                                     <tr key={item.id} className="hover:bg-slate-50/20">
                                       <td className="px-3 py-2.5 font-medium text-slate-800">
                                         {item.name}
                                         {item.sku && <span className="block text-[10px] text-slate-400 font-mono">SKU: {item.sku}</span>}
+                                      </td>
+                                      <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">
+                                        <span className="font-semibold text-slate-700">{lotLabel}</span>
+                                        <span className="block text-[10px] text-slate-400">
+                                          {item.expiryDate ? `หมดอายุ ${formatDate(item.expiryDate)}` : "ไม่มีวันหมดอายุ"}
+                                        </span>
                                       </td>
                                       <td className="px-3 py-2.5 text-right font-semibold">
                                         {formatNumber(item.quantity)} {item.unit}
@@ -691,6 +727,7 @@ export default function RequisitionTrackerPage() {
                                 })}
                                 <tr className="bg-slate-50/35 font-bold">
                                   <td className="px-3 py-2 text-slate-700">รวมทั้งหมด</td>
+                                  <td className="px-3 py-2" />
                                   <td className="px-3 py-2 text-right text-slate-800">
                                     {formatNumber(req.totalQuantity)} หน่วย
                                   </td>

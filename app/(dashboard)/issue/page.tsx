@@ -23,8 +23,9 @@ import {
   normalizeTransactions,
   formatDate,
   formatNumber,
+  matchesMasterProduct,
 } from "@/lib/stock-flow/utils";
-import type { Transaction, InventoryLotItem, ProductImportType } from "@/types/stock-flow";
+import type { Transaction, InventoryLotItem, ProductImportType, ProductMaster } from "@/types/stock-flow";
 
 type OverviewFilter = "all" | ProductImportType;
 
@@ -209,6 +210,7 @@ function buildAutoAllocationPlan(item: IssueProductItem, quantity: number) {
 export default function IssuePage() {
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [issueImportTypeFilter, setIssueImportTypeFilter] = useState<OverviewFilter>("all");
   const [issueSelections, setIssueSelections] = useState<Record<string, IssueSelectionValue>>({});
@@ -237,6 +239,20 @@ export default function IssuePage() {
     }
   }
 
+  async function fetchMasterProducts() {
+    try {
+      const res = await fetch("/api/master-products");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setMasterProducts(data as ProductMaster[]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch master products:", error);
+    }
+  }
+
   async function fetchUserDirectory() {
     try {
       const res = await fetch("/api/user-directory", { cache: "no-store" });
@@ -260,6 +276,7 @@ export default function IssuePage() {
 
   useEffect(() => {
     fetchTransactions();
+    fetchMasterProducts();
     fetchUserDirectory();
 
     const cachedDraft = localStorage.getItem("pending_draft");
@@ -292,8 +309,13 @@ export default function IssuePage() {
   }, []);
 
   const inventoryLots = useMemo(() => {
+    const inactiveMasterProducts = masterProducts.filter((item) => !item.isActive);
     const lots = [...buildInventoryLotMap(transactions).values()]
-      .filter((item) => item.balance > 0)
+      .filter(
+        (item) =>
+          item.balance > 0 &&
+          !inactiveMasterProducts.some((product) => matchesMasterProduct(item, product))
+      )
       .sort((a, b) => {
         const typeCompare = getProductImportTypeLabel(a.productImportType).localeCompare(
           getProductImportTypeLabel(b.productImportType),
@@ -323,7 +345,7 @@ export default function IssuePage() {
         }`,
       };
     });
-  }, [transactions]);
+  }, [masterProducts, transactions]);
 
   const inventory = useMemo(() => {
     const grouped = new Map<string, IssueProductItem>();

@@ -153,6 +153,13 @@ function HistorySection({
             const relatedPerson = isStockIn
               ? item.requester || "จุดเก็บไม่ระบุ"
               : item.requester || "ผู้ขอไม่ระบุ";
+            const canViewIssueDocument =
+              !isStockIn &&
+              issueKey !== "-" &&
+              (!item.status ||
+                item.status === "approved" ||
+                item.status === "employee_confirmed" ||
+                item.status === "completed");
 
             return (
               <tr key={`history-${item.id}`} className="history-group-row">
@@ -226,7 +233,7 @@ function HistorySection({
                     <span className={`stock-pill ${isStockIn ? "stock-pill-ok" : getRequisitionStatusClass(item.status)}`}>
                       {isStockIn ? RECEIVE_STATUS_LABEL : getRequisitionStatusLabel(item.status)}
                     </span>
-                    {!isStockIn && issueKey !== "-" ? (
+                    {canViewIssueDocument ? (
                       <Button
                         type="button"
                         variant="secondary"

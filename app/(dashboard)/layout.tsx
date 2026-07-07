@@ -36,7 +36,7 @@ const navigationGroups = [
       { label: "รายการสินค้า", href: "/items", icon: Database },
       { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
       { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
-      { label: "ใกล้หมดสต็อก / โครงการ", href: "/expiring", icon: Clock3 },
+      { label: "ใกล้หมดสต็อก", href: "/expiring", icon: Clock3 },
     ],
   },
   {
