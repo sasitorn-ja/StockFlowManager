@@ -8,22 +8,15 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, store, sbm]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup SSH key
+      - name: Sync project to deploy directory
         shell: bash
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p 22 192.168.1.141 >> ~/.ssh/known_hosts
-
-      - name: Sync project to server
-        shell: bash
-        run: |
+          mkdir -p /opt/sbm-inventory-management
           rsync -az --delete \
             --filter='P .env.production' \
             --exclude '.git' \
@@ -31,10 +24,11 @@ jobs:
             --exclude 'node_modules' \
             --exclude '.next' \
             --exclude '.env' \
-            ./ "root@192.168.1.141:/opt/sbm-inventory-management/"
+            ./ /opt/sbm-inventory-management/
 
       - name: Deploy on server
         shell: bash
         run: |
-          ssh -p 22 "root@192.168.1.141" \
-            'cd /opt/sbm-inventory-management && chmod +x scripts/deploy-container.sh && ./scripts/deploy-container.sh'
+          cd /opt/sbm-inventory-management
+          chmod +x scripts/deploy-container.sh
+          ./scripts/deploy-container.sh
