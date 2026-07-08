@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import {
@@ -241,7 +242,7 @@ function DeliveryNoteContent() {
   async function fetchTransactions() {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/transactions");
+      const res = await fetch(withBasePath("/api/transactions"));
       if (res.ok) {
         const data = await res.json();
         setTransactions(normalizeTransactions(data));

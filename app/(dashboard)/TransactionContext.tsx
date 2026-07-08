@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { withBasePath } from "@/lib/base-path";
 import { normalizeTransactions } from "@/lib/stock-flow/utils";
 import type { Transaction } from "@/types/stock-flow";
 
@@ -20,7 +21,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/transactions");
+      const res = await fetch(withBasePath("/api/transactions"));
       if (res.ok) {
         const data = await res.json();
         setTransactions(normalizeTransactions(data));

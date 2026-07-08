@@ -1,0 +1,20 @@
+services:
+  sbm-inventory-management:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/sbm-inventory-management}
+    container_name: sbm-inventory-management
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/sbm-inventory-management}
+    extra_hosts:
+      - "rmc-sso.cipcloud.net:192.168.1.48"
+    ports:
+      - "3001:3000"

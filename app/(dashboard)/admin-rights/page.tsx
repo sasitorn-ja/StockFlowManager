@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Shield, UserCheck, ShieldAlert } from "lucide-react";
+import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
@@ -30,7 +31,7 @@ export default function AdminRightsPage() {
     if (cachedRole === "admin" || cachedRole === "manager" || cachedRole === "employee") {
       setCurrentRole(cachedRole);
     }
-    fetch("/api/auth/session", { cache: "no-store" })
+    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
       .then((res) => res.ok ? res.json() : null)
       .then((data) => setCurrentRole(data?.user?.role ?? "employee"))
       .catch(() => setCurrentRole("employee"));
@@ -40,7 +41,7 @@ export default function AdminRightsPage() {
   async function fetchUsers() {
     try {
       setIsLoading(true);
-      const res = await fetch("/api/admin-users");
+      const res = await fetch(withBasePath("/api/admin-users"));
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
@@ -68,7 +69,7 @@ export default function AdminRightsPage() {
     );
 
     try {
-      const res = await fetch("/api/admin-users", {
+      const res = await fetch(withBasePath("/api/admin-users"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, role: nextRole }),

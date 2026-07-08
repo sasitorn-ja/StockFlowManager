@@ -6,119 +6,118 @@ import { getCurrentUser } from "@/lib/auth/users";
 
 export const dynamic = "force-dynamic";
 
-// In-memory cache flag to avoid checking table existence on every query
-let isTableChecked = false;
+let transactionTableSetup: Promise<void> | null = null;
 
-// Helper function to create the stock_flow_transactions table if it doesn't exist
 async function ensureTableExists() {
-  if (isTableChecked) return;
-  try {
-    // Ensure stock_flow_admin_users table exists
-    await sql`
-      CREATE TABLE IF NOT EXISTS stock_flow_admin_users (
-        username VARCHAR(255) PRIMARY KEY,
-        is_admin BOOLEAN DEFAULT TRUE,
-        role VARCHAR(50) DEFAULT 'admin',
-        created_at BIGINT
-      );
-    `;
+  if (transactionTableSetup) return transactionTableSetup;
 
-    await sql`ALTER TABLE stock_flow_admin_users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'admin';`;
-    await sql`
-      UPDATE stock_flow_admin_users
-      SET role = CASE WHEN is_admin THEN 'admin' ELSE 'employee' END
-      WHERE role IS NULL OR role = '';
-    `;
+  transactionTableSetup = (async () => {
+    await sql.begin(async (tx) => {
+      await tx`SELECT pg_advisory_xact_lock(732942)`;
 
-    // Seed default admin if it doesn't exist
-    const admins = await sql`SELECT 1 FROM stock_flow_admin_users WHERE username = 'แอดมิน' LIMIT 1;`;
-    if (admins.length === 0) {
-      await sql`
-        INSERT INTO stock_flow_admin_users (username, is_admin, role, created_at)
-        VALUES ('แอดมิน', TRUE, 'admin', ${Date.now()});
-      `;
-    }
-
-    const managers = await sql`SELECT 1 FROM stock_flow_admin_users WHERE username = 'ผู้จัดการ' LIMIT 1;`;
-    if (managers.length === 0) {
-      await sql`
-        INSERT INTO stock_flow_admin_users (username, is_admin, role, created_at)
-        VALUES ('ผู้จัดการ', FALSE, 'manager', ${Date.now()});
-      `;
-    }
-
-    // Check if table exists
-    await sql`SELECT 1 FROM stock_flow_transactions LIMIT 1;`;
-    
-    // Add column if it doesn't exist for existing DBs
-    await sql`ALTER TABLE stock_flow_transactions ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'confirmed';`;
-    isTableChecked = true;
-  } catch (error: any) {
-    // If table doesn't exist, create it
-    if (error?.message?.includes("does not exist") || error?.code === "42P01") {
-      console.log("Table 'stock_flow_transactions' does not exist. Creating it...");
-      await sql`
-        CREATE TABLE IF NOT EXISTS stock_flow_transactions (
-          id VARCHAR(100) PRIMARY KEY,
-          name VARCHAR(255) NOT NULL,
-          sku VARCHAR(100),
-          category VARCHAR(100),
-          "imageDataUrl" TEXT,
-          "productImportType" VARCHAR(50),
-          unit VARCHAR(50),
-          type VARCHAR(50),
-          quantity NUMERIC,
-          price NUMERIC,
-          "costPrice" NUMERIC,
-          "costCurrency" VARCHAR(10),
-          date VARCHAR(50),
-          "expiryDate" VARCHAR(50),
-          "issueKey" VARCHAR(100),
-          requester VARCHAR(255),
-          approver VARCHAR(255),
-          note TEXT,
-          "createdAt" BIGINT,
-          status VARCHAR(50) DEFAULT 'confirmed'
+      await tx`
+        CREATE TABLE IF NOT EXISTS stock_flow_admin_users (
+          username VARCHAR(255) PRIMARY KEY,
+          is_admin BOOLEAN DEFAULT TRUE,
+          role VARCHAR(50) DEFAULT 'admin',
+          created_at BIGINT
         );
       `;
 
-      // Seed table with sample data
-      const sampleTxns = createSampleTransactions();
-      for (const item of sampleTxns) {
-        await sql`
-          INSERT INTO stock_flow_transactions (
-            id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
-            quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, approver, note, "createdAt", status
-          ) VALUES (
-            ${item.id},
-            ${item.name},
-            ${item.sku || ""},
-            ${item.category || "-"},
-            ${item.imageDataUrl || ""},
-            ${item.productImportType},
-            ${item.unit},
-            ${item.type},
-            ${item.quantity},
-            ${item.price},
-            ${item.costPrice},
-            ${item.costCurrency},
-            ${item.date},
-            ${item.expiryDate || ""},
-            ${item.issueKey || ""},
-            ${item.requester || ""},
-            ${item.approver || ""},
-            ${item.note || ""},
-            ${item.createdAt},
-            'confirmed'
-          )
+      await tx`ALTER TABLE stock_flow_admin_users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'admin';`;
+      await tx`
+        UPDATE stock_flow_admin_users
+        SET role = CASE WHEN is_admin THEN 'admin' ELSE 'employee' END
+        WHERE role IS NULL OR role = '';
+      `;
+
+      const admins = await tx`SELECT 1 FROM stock_flow_admin_users WHERE username = 'แอดมิน' LIMIT 1;`;
+      if (admins.length === 0) {
+        await tx`
+          INSERT INTO stock_flow_admin_users (username, is_admin, role, created_at)
+          VALUES ('แอดมิน', TRUE, 'admin', ${Date.now()});
         `;
       }
-      console.log("Table 'stock_flow_transactions' created and seeded successfully.");
-      isTableChecked = true;
-    } else {
-      console.error("Error checking or creating database tables:", error);
-    }
-  }
+
+      const managers = await tx`SELECT 1 FROM stock_flow_admin_users WHERE username = 'ผู้จัดการ' LIMIT 1;`;
+      if (managers.length === 0) {
+        await tx`
+          INSERT INTO stock_flow_admin_users (username, is_admin, role, created_at)
+          VALUES ('ผู้จัดการ', FALSE, 'manager', ${Date.now()});
+        `;
+      }
+
+      const tableLookup = await tx`
+        SELECT to_regclass('public.stock_flow_transactions')::text AS table_name
+      `;
+      const tableExists = Boolean(tableLookup[0]?.table_name);
+
+      if (!tableExists) {
+        await tx`
+          CREATE TABLE stock_flow_transactions (
+            id VARCHAR(100) PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            sku VARCHAR(100),
+            category VARCHAR(100),
+            "imageDataUrl" TEXT,
+            "productImportType" VARCHAR(50),
+            unit VARCHAR(50),
+            type VARCHAR(50),
+            quantity NUMERIC,
+            price NUMERIC,
+            "costPrice" NUMERIC,
+            "costCurrency" VARCHAR(10),
+            date VARCHAR(50),
+            "expiryDate" VARCHAR(50),
+            "issueKey" VARCHAR(100),
+            requester VARCHAR(255),
+            approver VARCHAR(255),
+            note TEXT,
+            "createdAt" BIGINT,
+            status VARCHAR(50) DEFAULT 'confirmed'
+          );
+        `;
+
+        const sampleTxns = createSampleTransactions();
+        for (const item of sampleTxns) {
+          await tx`
+            INSERT INTO stock_flow_transactions (
+              id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
+              quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, approver, note, "createdAt", status
+            ) VALUES (
+              ${item.id},
+              ${item.name},
+              ${item.sku || ""},
+              ${item.category || "-"},
+              ${item.imageDataUrl || ""},
+              ${item.productImportType},
+              ${item.unit},
+              ${item.type},
+              ${item.quantity},
+              ${item.price},
+              ${item.costPrice},
+              ${item.costCurrency},
+              ${item.date},
+              ${item.expiryDate || ""},
+              ${item.issueKey || ""},
+              ${item.requester || ""},
+              ${item.approver || ""},
+              ${item.note || ""},
+              ${item.createdAt},
+              ${"confirmed"}
+            )
+          `;
+        }
+      } else {
+        await tx`ALTER TABLE stock_flow_transactions ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'confirmed';`;
+      }
+    });
+  })().catch((error) => {
+    transactionTableSetup = null;
+    throw error;
+  });
+
+  return transactionTableSetup;
 }
 
 // GET all stock_flow_transactions

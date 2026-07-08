@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth/users";
 import { sql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const actor = await getCurrentUser();
+    if (actor?.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     if (!process.env.DATABASE_URL) {
       return NextResponse.json({ error: "DATABASE_URL is not set" }, { status: 500 });
     }

@@ -2,8 +2,8 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import * as XLSX from "xlsx";
 import { Plus, Search, Filter, ChevronDown, FileText, Image as ImageIcon } from "lucide-react";
+import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { ComboboxInput } from "@/components/ui/combobox-input";
@@ -303,7 +303,7 @@ export default function ReceivePage() {
   useEffect(() => {
     async function fetchMasterProducts() {
       try {
-        const res = await fetch("/api/master-products");
+        const res = await fetch(withBasePath("/api/master-products"));
         if (!res.ok) {
           return;
         }
@@ -563,7 +563,7 @@ export default function ReceivePage() {
     setForm(createEmptyForm());
   }
 
-  function handleReceiveExport() {
+  async function handleReceiveExport() {
     const rows = receiveTransactions.map((item, index) => ({
       "เลขที่รับเข้า": `IN-${item.date.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`,
       "วันที่รับเข้า": formatDate(item.date),
@@ -586,10 +586,42 @@ export default function ReceivePage() {
       return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Receive");
-    XLSX.writeFile(workbook, `receive-transactions-${getLocalDateValue()}.xlsx`);
+    const ExcelJS = await import("exceljs");
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Receive");
+    const headers = Object.keys(rows[0]);
+
+    worksheet.addRow(headers);
+    rows.forEach((row) => {
+      worksheet.addRow(headers.map((header) => row[header as keyof typeof row]));
+    });
+
+    worksheet.columns.forEach((column) => {
+      let maxLength = 16;
+      column?.eachCell?.({ includeEmpty: true }, (cell) => {
+        const cellLength = String(cell.value ?? "").length;
+        if (cellLength > maxLength) {
+          maxLength = cellLength;
+        }
+      });
+      if (column) {
+        column.width = Math.min(maxLength + 2, 40);
+      }
+    });
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `receive-transactions-${getLocalDateValue()}.xlsx`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -653,7 +685,7 @@ export default function ReceivePage() {
     setIsSubmitting(true);
 
     // Pessimistically update UI & database
-    fetch("/api/transactions", {
+    fetch(withBasePath("/api/transactions"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(transaction),

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BarChart3, ClipboardPlus, Database, PackageMinus } from "lucide-react";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
@@ -405,7 +406,7 @@ export default function OverviewPage() {
               <h3>รอผู้จัดการอนุมัติ</h3>
               <p>ใบเบิกใหม่ที่ยังไม่ได้รับการอนุมัติ</p>
             </div>
-            <a href="/approve">ดูทั้งหมด</a>
+            <Link href="/approve">ดูทั้งหมด</Link>
           </div>
 
           <div className="overview-pending-list">

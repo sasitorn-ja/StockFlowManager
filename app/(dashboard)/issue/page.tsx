@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Filter, PackageMinus, X, Trash2, Check, ChevronDown } from "lucide-react";
+import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { ComboboxInput } from "@/components/ui/combobox-input";
 import {
@@ -229,7 +230,7 @@ export default function IssuePage() {
 
   async function fetchTransactions() {
     try {
-      const res = await fetch("/api/transactions");
+      const res = await fetch(withBasePath("/api/transactions"));
       if (res.ok) {
         const data = await res.json();
         setTransactions(normalizeTransactions(data));
@@ -241,7 +242,7 @@ export default function IssuePage() {
 
   async function fetchMasterProducts() {
     try {
-      const res = await fetch("/api/master-products");
+      const res = await fetch(withBasePath("/api/master-products"));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -255,7 +256,7 @@ export default function IssuePage() {
 
   async function fetchUserDirectory() {
     try {
-      const res = await fetch("/api/user-directory", { cache: "no-store" });
+      const res = await fetch(withBasePath("/api/user-directory"), { cache: "no-store" });
       if (res.ok) {
         const users = (await res.json()) as DirectoryUser[];
         setDirectoryUsers(users);
@@ -605,7 +606,7 @@ export default function IssuePage() {
 
     try {
       // 1. Persist directly to Supabase PostgreSQL (saves request as 'pending' reservation)
-      const saveRes = await fetch("/api/transactions", {
+      const saveRes = await fetch(withBasePath("/api/transactions"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(pendingTransactions),
@@ -628,7 +629,7 @@ export default function IssuePage() {
       }
 
       // 2. Dispatch email notification to manager
-      const response = await fetch("/api/issue-request-email", {
+      const response = await fetch(withBasePath("/api/issue-request-email"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

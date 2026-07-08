@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { withBasePath } from "@/lib/base-path";
 import { TransactionProvider } from "./TransactionContext";
 import {
   Menu,
@@ -83,7 +84,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [ssoUser, setSsoUser] = useState<{ name: string; email?: string; userId?: string; role: UserRole } | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/session", { cache: "no-store" })
+    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
         const user = data?.user ?? null;
@@ -233,7 +234,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
             <p className="text-xs font-semibold text-slate-800">{ssoUser?.name ?? "ผู้ใช้งาน"}</p>
             {ssoUser?.email ? <p className="text-[11px] text-slate-500">{ssoUser.email}</p> : null}
           </div>
-          <a href="/api/auth/logout" className="icon-button" aria-label="ออกจากระบบ" title="ออกจากระบบ"><LogOut aria-hidden="true" size={18} /></a>
+          <a href={withBasePath("/api/auth/logout")} className="icon-button" aria-label="ออกจากระบบ" title="ออกจากระบบ"><LogOut aria-hidden="true" size={18} /></a>
         </div>
       </header>
 

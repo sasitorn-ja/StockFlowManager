@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { toAbsoluteAppUrl, withBasePath } from "@/lib/base-path";
 
 function decodeBase64Url(value: string) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  const binary = atob(normalized);
+  const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+  const binary = atob(padded);
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
@@ -25,10 +27,10 @@ async function hasValidSession(request: NextRequest) {
 
 export async function proxy(request: NextRequest) {
   if (await hasValidSession(request)) return NextResponse.next();
-  if (request.nextUrl.pathname.startsWith("/api/")) {
+  if (request.nextUrl.pathname.startsWith(withBasePath("/api/"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const login = new URL("/login", request.url);
+  const login = toAbsoluteAppUrl(request.url, "/login");
   return NextResponse.redirect(login);
 }
 
