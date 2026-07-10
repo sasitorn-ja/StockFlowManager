@@ -49,10 +49,17 @@ export function ComboboxSelect({
   value,
 }: ComboboxSelectProps) {
   const [open, setOpen] = React.useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const activeOption = options.find((option) => option.value === value);
 
+  React.useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [open]);
+
   return (
-    <Popover modal open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -67,9 +74,13 @@ export function ComboboxSelect({
           <ChevronDown size={15} className="shrink-0 text-slate-500" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align={align} className={cn("w-[--radix-popover-trigger-width] p-0", contentClassName)}>
+      <PopoverContent
+        align={align}
+        portalled={false}
+        className={cn("w-[--radix-popover-trigger-width] p-0", contentClassName)}
+      >
         <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput ref={inputRef} placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>

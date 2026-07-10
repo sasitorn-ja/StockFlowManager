@@ -81,7 +81,7 @@ function normalizeCategoryValue(value: string) {
 
 export default function ReceivePage() {
   const { transactions, refresh } = useTransactions();
-  const [simulatedRole, setSimulatedRole] = useState<UserRole>("employee");
+  const [currentRole, setCurrentRole] = useState<UserRole>("employee");
   const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [receiveFilter, setReceiveFilter] = useState<OverviewFilter>("all");
@@ -237,7 +237,7 @@ export default function ReceivePage() {
     [autoRecordTime]
   );
   const isCategoryReady = Boolean(form.productImportType && form.category.trim());
-  const canCreateNewProduct = simulatedRole === "admin";
+  const canCreateNewProduct = currentRole === "admin";
   const hasMatchedCategory = useMemo(() => {
     const normalizedCategory = form.category.trim().toLowerCase();
 
@@ -283,21 +283,21 @@ export default function ReceivePage() {
   }, [isReceivePanelOpen]);
 
   useEffect(() => {
-    const loadSimulatedRole = () => {
-      const storedRole = localStorage.getItem("simulated_role");
+    const loadCurrentRole = () => {
+      const storedRole = localStorage.getItem("current_role");
 
       if (storedRole === "admin" || storedRole === "manager" || storedRole === "employee") {
-        setSimulatedRole(storedRole);
+        setCurrentRole(storedRole);
         return;
       }
 
-      setSimulatedRole("employee");
+      setCurrentRole("employee");
     };
 
-    loadSimulatedRole();
-    window.addEventListener("simulated-role-changed", loadSimulatedRole);
+    loadCurrentRole();
+    window.addEventListener("current-user-changed", loadCurrentRole);
 
-    return () => window.removeEventListener("simulated-role-changed", loadSimulatedRole);
+    return () => window.removeEventListener("current-user-changed", loadCurrentRole);
   }, []);
 
   useEffect(() => {
@@ -641,7 +641,7 @@ export default function ReceivePage() {
     );
 
     if (inactiveProduct) {
-      window.alert(`สินค้า "${inactiveProduct.name}" ถูกปิดใช้งาน กรุณาเปิดใช้งานใน Master Data ก่อนรับเข้า`);
+      window.alert(`สินค้า "${inactiveProduct.name}" ถูกปิดใช้งาน กรุณาเปิดใช้งานใน ข้อมูลหลักสินค้า ก่อนรับเข้า`);
       return;
     }
 
@@ -652,7 +652,7 @@ export default function ReceivePage() {
 
     setIsSubmitting(true);
 
-    // Pessimistically update UI & database
+    // Update UI after the database write
     fetch("/api/transactions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -663,7 +663,7 @@ export default function ReceivePage() {
           refresh();
           closeReceiveDialog();
         } else {
-          window.alert("ไม่สามารถบันทึกรายการสินค้าเข้าฐานข้อมูล Supabase PostgreSQL ได้");
+          window.alert("ไม่สามารถบันทึกรายการสินค้าเข้าฐานข้อมูลได้");
         }
       })
       .catch((err) => {
@@ -923,7 +923,7 @@ export default function ReceivePage() {
                   showMissingProductError ? (
                     <small className="receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
                   ) : (
-                    <small>ถ้าไม่พบสินค้าในรายการ ต้องให้แอดมินหรือผู้จัดการเพิ่มสินค้าใหม่ก่อน</small>
+                    <small>ถ้าไม่พบสินค้าในรายการ ต้องให้แอดมินเพิ่มสินค้าใหม่ก่อน</small>
                   )
                 ) : null}
               </label>

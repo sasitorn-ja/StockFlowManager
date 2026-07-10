@@ -231,7 +231,7 @@ export default function MasterDataPage() {
 
   useEffect(() => {
     const syncRole = () => {
-      const storedRole = localStorage.getItem("simulated_role");
+      const storedRole = localStorage.getItem("current_role");
       if (storedRole === "admin" || storedRole === "manager" || storedRole === "employee") {
         setUserRole(storedRole);
         return;
@@ -241,9 +241,9 @@ export default function MasterDataPage() {
     };
 
     syncRole();
-    window.addEventListener("simulated-role-changed", syncRole);
+    window.addEventListener("current-user-changed", syncRole);
 
-    return () => window.removeEventListener("simulated-role-changed", syncRole);
+    return () => window.removeEventListener("current-user-changed", syncRole);
   }, []);
 
   useEffect(() => {
@@ -292,10 +292,10 @@ export default function MasterDataPage() {
           if (!res.ok) {
             const data = (await res.json().catch(() => null)) as { error?: string } | null;
             if (
-              data?.error !== "รหัสสินค้านี้มีอยู่แล้วใน Master Data" &&
-              data?.error !== "สินค้านี้มีอยู่แล้วใน Master Data"
+              data?.error !== "รหัสสินค้านี้มีอยู่แล้วใน ข้อมูลหลักสินค้า" &&
+              data?.error !== "สินค้านี้มีอยู่แล้วใน ข้อมูลหลักสินค้า"
             ) {
-              throw new Error(data?.error || "ไม่สามารถซิงก์สินค้าเข้า Master Data ได้");
+              throw new Error(data?.error || "ไม่สามารถซิงก์สินค้าเข้า ข้อมูลหลักสินค้า ได้");
             }
           }
         }
@@ -324,7 +324,7 @@ export default function MasterDataPage() {
           "error" in data &&
           typeof data.error === "string"
             ? data.error
-            : "ไม่สามารถดึงข้อมูล Master Data ได้";
+            : "ไม่สามารถดึงข้อมูล ข้อมูลหลักสินค้า ได้";
 
         throw new Error(errorMessage);
       }
@@ -332,7 +332,7 @@ export default function MasterDataPage() {
       setMasterProducts(data as ProductMaster[]);
     } catch (error) {
       console.error(error);
-      window.alert("ไม่สามารถโหลด Master Data สินค้าได้");
+      window.alert("ไม่สามารถโหลด ข้อมูลหลักสินค้า สินค้าได้");
     } finally {
       setIsLoading(false);
     }
@@ -434,14 +434,14 @@ export default function MasterDataPage() {
 
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
-        throw new Error(data.error || "ไม่สามารถบันทึก Master Data สินค้าได้");
+        throw new Error(data.error || "ไม่สามารถบันทึก ข้อมูลหลักสินค้า สินค้าได้");
       }
 
       await Promise.all([fetchMasterProducts(), refresh()]);
       closeDialog();
     } catch (error) {
       console.error(error);
-      window.alert(error instanceof Error ? error.message : "ไม่สามารถบันทึก Master Data สินค้าได้");
+      window.alert(error instanceof Error ? error.message : "ไม่สามารถบันทึก ข้อมูลหลักสินค้า สินค้าได้");
     } finally {
       setIsSaving(false);
     }
@@ -480,7 +480,7 @@ export default function MasterDataPage() {
   }
 
   async function handleDeleteProduct(product: ProductMaster) {
-    const confirmed = window.confirm(`ต้องการลบสินค้า "${product.name}" ออกจาก Master Data ใช่หรือไม่`);
+    const confirmed = window.confirm(`ต้องการลบสินค้า "${product.name}" ออกจาก ข้อมูลหลักสินค้า ใช่หรือไม่`);
 
     if (!confirmed) {
       return;
@@ -493,13 +493,13 @@ export default function MasterDataPage() {
 
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
-        throw new Error(data.error || "ไม่สามารถลบสินค้าออกจาก Master Data ได้");
+        throw new Error(data.error || "ไม่สามารถลบสินค้าออกจาก ข้อมูลหลักสินค้า ได้");
       }
 
       await fetchMasterProducts();
     } catch (error) {
       console.error(error);
-      window.alert(error instanceof Error ? error.message : "ไม่สามารถลบสินค้าออกจาก Master Data ได้");
+      window.alert(error instanceof Error ? error.message : "ไม่สามารถลบสินค้าออกจาก ข้อมูลหลักสินค้า ได้");
     }
   }
 
@@ -510,7 +510,7 @@ export default function MasterDataPage() {
           <div className="flex items-start gap-3">
             <ShieldAlert className="mt-1 text-rose-500" size={22} />
             <div>
-              <h2 className="dashboard-section-title">Master Data สินค้า</h2>
+              <h2 className="dashboard-section-title">ข้อมูลหลักสินค้า สินค้า</h2>
               <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
                 หน้านี้สำหรับแอดมินใช้เพิ่มหรือแก้ไขสินค้าใหม่ในระบบเท่านั้น
               </p>
@@ -528,9 +528,9 @@ export default function MasterDataPage() {
           <div className="dashboard-panel-header">
             <div>
               <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
-                Product Master
+                ข้อมูลมาตรฐานสินค้า
               </p>
-              <h2 className="dashboard-section-title">Master Data สินค้า</h2>
+              <h2 className="dashboard-section-title">ข้อมูลหลักสินค้า สินค้า</h2>
               <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
                 ใช้เพิ่มสินค้าใหม่และดูรายการสินค้ามาตรฐานของระบบ โดยระบบจะซิงก์สินค้าที่มีอยู่ในคลังเข้ามาให้ด้วย
               </p>
@@ -593,8 +593,8 @@ export default function MasterDataPage() {
         </section>
 
         <DataPanel
-          title="รายการสินค้าใน Master Data"
-          description="แอดมินและผู้จัดการสามารถเพิ่มสินค้าใหม่ไว้ที่หน้านี้ก่อนนำไปใช้ในหน้ารับเข้า"
+          title="รายการสินค้าใน ข้อมูลหลักสินค้า"
+          description="แอดมินสามารถเพิ่มสินค้าใหม่ไว้ที่หน้านี้ก่อนนำไปใช้ในหน้ารับเข้า"
           action={
             <div className="master-data-toolbar">
               <label className="master-data-search">
@@ -634,7 +634,7 @@ export default function MasterDataPage() {
               "สถานะ",
               "จัดการ",
             ]}
-            emptyMessage={isLoading ? "กำลังโหลด Master Data..." : "ยังไม่มีสินค้าใน Master Data"}
+            emptyMessage={isLoading ? "กำลังโหลด ข้อมูลหลักสินค้า..." : "ยังไม่มีสินค้าใน ข้อมูลหลักสินค้า"}
             columnCount={8}
           >
             {filteredProducts.map((product) => (
@@ -712,7 +712,7 @@ export default function MasterDataPage() {
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[860px]">
           <DialogHeader>
-            <DialogTitle>{editingId ? "แก้ไข Master Data สินค้า" : "เพิ่มสินค้าใหม่ใน Master Data"}</DialogTitle>
+            <DialogTitle>{editingId ? "แก้ไข ข้อมูลหลักสินค้า สินค้า" : "เพิ่มสินค้าใหม่ใน ข้อมูลหลักสินค้า"}</DialogTitle>
             <DialogDescription>
               กำหนดข้อมูลมาตรฐานของสินค้าเพื่อให้ใช้ต่อในหน้ารับเข้าได้ทันที
             </DialogDescription>

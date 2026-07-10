@@ -26,6 +26,12 @@ type DashboardLayoutProps = {
 };
 
 type UserRole = "employee" | "manager" | "admin";
+type NavigationItem = {
+  label: string;
+  href: string;
+  icon: typeof Database;
+  roles?: UserRole[];
+};
 
 const navigationGroups = [
   {
@@ -33,11 +39,11 @@ const navigationGroups = [
     label: "คลังสินค้า",
     icon: Database,
     items: [
-      { label: "รายการสินค้า", href: "/items", icon: Database },
-      { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
+      { label: "รายการสินค้า", href: "/items", icon: Database, roles: ["manager", "admin"] },
+      { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus, roles: ["manager", "admin"] },
       { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
-      { label: "ใกล้หมดสต็อก", href: "/expiring", icon: Clock3 },
-    ],
+      { label: "ใกล้หมดสต็อก", href: "/expiring", icon: Clock3, roles: ["manager", "admin"] },
+    ] satisfies NavigationItem[],
   },
   {
     id: "requisition",
@@ -45,18 +51,18 @@ const navigationGroups = [
     icon: PackageCheck,
     items: [
       { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
-      { label: "ประวัติรายการ", href: "/history", icon: History },
-    ],
+      { label: "ประวัติรายการ", href: "/history", icon: History, roles: ["manager", "admin"] },
+    ] satisfies NavigationItem[],
   },
   {
     id: "system",
     label: "งานผู้ดูแลระบบ",
     icon: Settings,
     items: [
-      { label: "ข้อมูลหลักสินค้า", href: "/master-data", icon: Database, adminOnly: true },
-      { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck, adminOnly: true },
-      { label: "ตั้งค่า", href: "/settings", icon: Settings, adminOnly: true },
-    ],
+      { label: "ข้อมูลหลักสินค้า", href: "/master-data", icon: Database, roles: ["admin"] },
+      { label: "จัดการสิทธิ์แอดมิน", href: "/admin-rights", icon: UserCheck, roles: ["admin"] },
+      { label: "ตั้งค่า", href: "/settings", icon: Settings, roles: ["admin"] },
+    ] satisfies NavigationItem[],
   },
 ];
 
@@ -90,10 +96,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         setSsoUser(user);
         const role: UserRole = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
         setUserRole(role);
-        // Keep existing feature pages in sync while their UI reads this shared value.
-        localStorage.setItem("simulated_role", role);
-        localStorage.setItem("simulated_username", user?.name ?? "ผู้ใช้งาน");
-        window.dispatchEvent(new Event("simulated-role-changed"));
+        localStorage.setItem("current_role", role);
+        localStorage.setItem("current_username", user?.name ?? "ผู้ใช้งาน");
+        window.dispatchEvent(new Event("current-user-changed"));
       })
       .catch(() => setSsoUser(null));
   }, []);
@@ -144,7 +149,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
         {navigationGroups.map((group) => {
           const visibleItems = group.items.filter(
-            (item) => !("adminOnly" in item) || !item.adminOnly || userRole === "admin"
+            (item) => !item.roles || (item.roles as readonly UserRole[]).includes(userRole)
           );
           if (visibleItems.length === 0) return null;
           const isOpen = Boolean(openGroups[group.id]);

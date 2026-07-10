@@ -13,21 +13,21 @@ async function ensureMasterProductTableExists() {
 
   masterProductTableSetup = (async () => {
     await sql`
-      CREATE TABLE IF NOT EXISTS stock_flow_master_products (
+      CREATE TABLE IF NOT EXISTS products (
         id VARCHAR(100) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         sku VARCHAR(100) DEFAULT '',
         category VARCHAR(255) DEFAULT '-',
         "productImportType" VARCHAR(50) DEFAULT 'resale',
-        "imageDataUrl" TEXT DEFAULT '',
+        "imageDataUrl" TEXT,
         unit VARCHAR(50) NOT NULL,
-        price NUMERIC DEFAULT 0,
-        "costPrice" NUMERIC DEFAULT 0,
+        price DECIMAL(15,4) DEFAULT 0,
+        "costPrice" DECIMAL(15,4) DEFAULT 0,
         "costCurrency" VARCHAR(10) DEFAULT 'THB',
         "defaultStorageLocation" VARCHAR(255) DEFAULT '',
         "defaultExpiryDate" VARCHAR(50) DEFAULT '',
         vendor VARCHAR(255) DEFAULT '',
-        note TEXT DEFAULT '',
+        note TEXT,
         "isActive" BOOLEAN DEFAULT TRUE,
         "createdAt" BIGINT,
         "updatedAt" BIGINT
@@ -50,7 +50,7 @@ async function syncMasterProductsFromTransactions() {
   try {
     const existingProducts = (await sql`
       SELECT id, name, sku, category, "productImportType", unit
-      FROM stock_flow_master_products;
+      FROM products;
     `) as Array<{
       id: string;
       name: string;
@@ -86,7 +86,7 @@ async function syncMasterProductsFromTransactions() {
         requester,
         "expiryDate",
         "createdAt"
-      FROM stock_flow_transactions
+      FROM transactions
       WHERE COALESCE(name, '') <> '' AND COALESCE(unit, '') <> ''
       ORDER BY "createdAt" DESC;
     `) as Array<{
@@ -136,7 +136,7 @@ async function syncMasterProductsFromTransactions() {
       const timestamp = Number(product.createdAt || Date.now());
 
       await sql`
-        INSERT INTO stock_flow_master_products (
+        INSERT INTO products (
           id,
           name,
           sku,
@@ -182,7 +182,7 @@ async function syncMasterProductsFromTransactions() {
       existingKeys.add(uniqueKey);
     }
   } catch (error) {
-    console.error("Sync master-products from stock_flow_transactions error:", error);
+    console.error("Sync master-products from transactions error:", error);
   }
 }
 
@@ -220,19 +220,19 @@ async function validateDuplicateProduct(
 ) {
   if (normalizedProduct.sku) {
     const skuRows = await sql`
-      SELECT id FROM stock_flow_master_products
+      SELECT id FROM products
       WHERE LOWER(sku) = LOWER(${normalizedProduct.sku})
         AND (${excludedId || ""} = '' OR id <> ${excludedId || ""})
       LIMIT 1;
     `;
 
     if (skuRows.length > 0) {
-      return "รหัสสินค้านี้มีอยู่แล้วใน Master Data";
+      return "รหัสสินค้านี้มีอยู่แล้วใน ข้อมูลหลักสินค้า";
     }
   }
 
   const duplicateRows = await sql`
-    SELECT id FROM stock_flow_master_products
+    SELECT id FROM products
     WHERE LOWER(name) = LOWER(${normalizedProduct.name})
       AND LOWER(category) = LOWER(${normalizedProduct.category})
       AND LOWER(unit) = LOWER(${normalizedProduct.unit})
@@ -242,7 +242,7 @@ async function validateDuplicateProduct(
   `;
 
   if (duplicateRows.length > 0) {
-    return "สินค้านี้มีอยู่แล้วใน Master Data";
+    return "สินค้านี้มีอยู่แล้วใน ข้อมูลหลักสินค้า";
   }
 
   return null;
@@ -272,7 +272,7 @@ export async function GET() {
         "isActive",
         "createdAt",
         "updatedAt"
-      FROM stock_flow_master_products
+      FROM products
       ORDER BY "isActive" DESC, "updatedAt" DESC, name ASC;
     `;
 
@@ -303,7 +303,7 @@ export async function POST(request: Request) {
     const timestamp = Date.now();
 
     await sql`
-      INSERT INTO stock_flow_master_products (
+      INSERT INTO products (
         id,
         name,
         sku,
@@ -359,12 +359,12 @@ export async function PUT(request: Request) {
     const id = String(body.id || "").trim();
 
     if (!id) {
-      return NextResponse.json({ error: "ไม่พบรหัสสินค้าใน Master Data" }, { status: 400 });
+      return NextResponse.json({ error: "ไม่พบรหัสสินค้าใน ข้อมูลหลักสินค้า" }, { status: 400 });
     }
 
     if (action === "toggle_active") {
       await sql`
-        UPDATE stock_flow_master_products
+        UPDATE products
         SET "isActive" = NOT "isActive", "updatedAt" = ${Date.now()}
         WHERE id = ${id};
       `;
@@ -374,13 +374,13 @@ export async function PUT(request: Request) {
 
     const existingRows = await sql`
       SELECT id, name, sku, category, "productImportType", unit
-      FROM stock_flow_master_products
+      FROM products
       WHERE id = ${id}
       LIMIT 1;
     `;
 
     if (existingRows.length === 0) {
-      return NextResponse.json({ error: "ไม่พบสินค้าใน Master Data" }, { status: 404 });
+      return NextResponse.json({ error: "ไม่พบสินค้าใน ข้อมูลหลักสินค้า" }, { status: 404 });
     }
 
     const existingProduct = existingRows[0] as {
@@ -405,7 +405,7 @@ export async function PUT(request: Request) {
     const timestamp = Date.now();
 
     await sql`
-      UPDATE stock_flow_master_products
+      UPDATE products
       SET
         name = ${product.name},
         sku = ${product.sku},
@@ -426,7 +426,7 @@ export async function PUT(request: Request) {
     `;
 
     await sql`
-      UPDATE stock_flow_transactions
+      UPDATE transactions
       SET
         name = ${product.name},
         sku = ${product.sku},
@@ -465,10 +465,10 @@ export async function DELETE(request: Request) {
     const id = url.searchParams.get("id")?.trim();
 
     if (!id) {
-      return NextResponse.json({ error: "ไม่พบรหัสสินค้าใน Master Data" }, { status: 400 });
+      return NextResponse.json({ error: "ไม่พบรหัสสินค้าใน ข้อมูลหลักสินค้า" }, { status: 400 });
     }
 
-    await sql`DELETE FROM stock_flow_master_products WHERE id = ${id};`;
+    await sql`DELETE FROM products WHERE id = ${id};`;
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

@@ -45,6 +45,7 @@ export function ComboboxInput({
 }: ComboboxInputProps) {
   const [open, setOpen] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const activeOption = options.find((option) => option.value === value);
 
   function handleOpenChange(nextOpen: boolean) {
@@ -54,8 +55,14 @@ export function ComboboxInput({
     }
   }
 
+  React.useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [open]);
+
   return (
-    <Popover modal open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -71,9 +78,10 @@ export function ComboboxInput({
           <ChevronDown size={15} className="shrink-0 text-slate-500" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[--radix-popover-trigger-width] p-0">
+      <PopoverContent align="start" portalled={false} className="w-[--radix-popover-trigger-width] p-0">
         <Command shouldFilter>
           <CommandInput
+            ref={inputRef}
             value={searchValue}
             onValueChange={(nextValue) => {
               setSearchValue(nextValue);

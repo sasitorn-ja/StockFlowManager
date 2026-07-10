@@ -11,7 +11,7 @@ export async function GET() {
 
     const users = await sql`
       SELECT display_name, email, sso_user_id, role
-      FROM stock_flow_admin_users
+      FROM users
       WHERE sso_subject IS NOT NULL
       ORDER BY display_name ASC, email ASC
     `;

@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CPAC SB&M Inventory Management Flow</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eaf4ff;
+      font-family: "Noto Sans Thai", "Tahoma", "Arial", sans-serif;
+      color: #0c2b5b;
+    }
+    .slide {
+      position: relative;
+      width: 2048px;
+      height: 1152px;
+      overflow: hidden;
+      background:
+        linear-gradient(120deg, rgba(255,255,255,.9) 0%, rgba(240,248,255,.96) 42%, rgba(229,242,255,.98) 100%),
+        radial-gradient(circle at 94% 8%, rgba(14, 92, 235, .16), transparent 26%),
+        radial-gradient(circle at 8% 90%, rgba(0, 165, 255, .18), transparent 30%);
+    }
+    .slide:before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(16, 109, 235, .055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(16, 109, 235, .055) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.2), rgba(0,0,0,.5));
+    }
+    .left {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 520px;
+      height: 1152px;
+      padding: 58px 42px;
+      background:
+        linear-gradient(172deg, rgba(255,255,255,.92) 0 45%, rgba(219,239,255,.98) 46% 70%, rgba(0,104,255,.94) 71% 100%);
+      border-right: 1px solid rgba(0, 89, 210, .18);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 16px;
+      border-radius: 20px;
+      background: #061a36;
+      color: white;
+      font-weight: 900;
+      font-size: 34px;
+      letter-spacing: 0;
+      box-shadow: 0 18px 38px rgba(8, 53, 135, .18);
+    }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #0cc6ff, #0065ff);
+      font-size: 28px;
+    }
+    h1 {
+      margin: 70px 0 0;
+      font-size: 64px;
+      line-height: 1.15;
+      color: #063aa0;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+    .subtitle {
+      margin-top: 24px;
+      font-size: 27px;
+      line-height: 1.7;
+      color: #174aa6;
+      font-weight: 700;
+    }
+    .system-name {
+      margin-top: 8px;
+      color: #0057df;
+      font-weight: 900;
+      font-size: 30px;
+    }
+    .laptop {
+      position: absolute;
+      left: 44px;
+      bottom: 88px;
+      width: 430px;
+      padding: 18px;
+      border-radius: 28px;
+      background: linear-gradient(180deg, #142947, #07172d);
+      box-shadow: 0 28px 70px rgba(0, 47, 130, .34);
+    }
+    .laptop img {
+      display: block;
+      width: 100%;
+      height: 238px;
+      object-fit: cover;
+      object-position: left top;
+      border-radius: 16px;
+      border: 2px solid rgba(255,255,255,.18);
+    }
+    .laptop:after {
+      content: "";
+      position: absolute;
+      left: 92px;
+      right: 92px;
+      bottom: -20px;
+      height: 20px;
+      border-radius: 0 0 28px 28px;
+      background: #07172d;
+    }
+    .main {
+      position: absolute;
+      left: 560px;
+      top: 42px;
+      width: 1440px;
+      height: 1068px;
+    }
+    .top-title {
+      position: absolute;
+      left: 500px;
+      top: 0;
+      width: 520px;
+      height: 64px;
+      display: grid;
+      place-items: center;
+      border-radius: 32px;
+      background: linear-gradient(180deg, #0b6dff, #034ee7);
+      color: white;
+      font-size: 34px;
+      font-weight: 900;
+      box-shadow: 0 18px 40px rgba(0, 74, 210, .26);
+      z-index: 2;
+    }
+    .flow-strip {
+      position: absolute;
+      left: 0;
+      top: 38px;
+      width: 1440px;
+      height: 230px;
+      border-radius: 34px;
+      background: rgba(255,255,255,.8);
+      border: 3px solid rgba(5, 99, 255, .48);
+      box-shadow: 0 20px 50px rgba(28, 91, 180, .11);
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      align-items: center;
+      padding: 30px 36px 20px;
+      gap: 18px;
+    }
+    .mini-step {
+      position: relative;
+      text-align: center;
+      color: #084ed0;
+      font-weight: 900;
+      font-size: 20px;
+      line-height: 1.25;
+    }
+    .mini-step:not(:last-child):after {
+      content: "";
+      position: absolute;
+      right: -32px;
+      top: 60px;
+      width: 0;
+      height: 0;
+      border-top: 22px solid transparent;
+      border-bottom: 22px solid transparent;
+      border-left: 32px solid #0961ee;
+      filter: drop-shadow(0 6px 8px rgba(0, 88, 210, .2));
+    }
+    .num {
+      position: absolute;
+      top: -10px;
+      left: calc(50% - 24px);
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #0a5df2;
+      color: white;
+      font-size: 27px;
+      box-shadow: 0 8px 16px rgba(0, 88, 220, .24);
+    }
+    .mini-icon {
+      width: 74px;
+      height: 74px;
+      margin: 46px auto 12px;
+      display: grid;
+      place-items: center;
+      border-radius: 22px;
+      background: #eaf3ff;
+      border: 3px solid rgba(8, 93, 235, .22);
+      color: #075cf0;
+    }
+    .mini-icon svg { width: 44px; height: 44px; stroke-width: 3; }
+    .cards {
+      position: absolute;
+      top: 292px;
+      left: 0;
+      width: 1440px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px 24px;
+    }
+    .card {
+      height: 276px;
+      border-radius: 24px;
+      padding: 21px 24px 18px;
+      background: rgba(255,255,255,.92);
+      border: 2px solid rgba(17, 105, 232, .16);
+      box-shadow: 0 18px 44px rgba(13, 80, 170, .11);
+    }
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: #064bc5;
+      font-size: 28px;
+      font-weight: 900;
+    }
+    .card-num {
+      flex: 0 0 auto;
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #0a5df2;
+      color: white;
+      font-size: 32px;
+      box-shadow: 0 8px 18px rgba(0, 84, 220, .22);
+    }
+    .role {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 18px;
+      padding: 8px 14px;
+      border-radius: 16px;
+      background: #e8f2ff;
+      color: #0050cc;
+      font-size: 18px;
+      font-weight: 900;
+      border: 1px solid rgba(0, 92, 220, .18);
+    }
+    .desc {
+      margin-top: 13px;
+      font-size: 20px;
+      line-height: 1.45;
+      color: #113a76;
+      font-weight: 700;
+    }
+    .output {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 14px;
+      background: #f5f9ff;
+      color: #526579;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .roles-panel {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 150px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      padding: 16px 20px;
+      border-radius: 28px;
+      background: rgba(3, 53, 130, .92);
+      box-shadow: 0 18px 48px rgba(5, 48, 116, .24);
+    }
+    .role-box {
+      border-radius: 20px;
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.18);
+      color: white;
+      padding: 18px 20px;
+    }
+    .role-box strong {
+      display: block;
+      font-size: 23px;
+      margin-bottom: 6px;
+    }
+    .role-box span {
+      display: block;
+      font-size: 17px;
+      line-height: 1.35;
+      color: rgba(255,255,255,.82);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="slide">
+    <aside class="left">
+      <div class="brand"><span class="brand-mark">SB</span> CPAC</div>
+      <h1>ภาพรวม<br />Flow ระบบ</h1>
+      <div class="subtitle">ระบบบริหารจัดการสต็อกสินค้า<br />รับเข้า เบิกจ่าย อนุมัติ<br />และติดตามประวัติในที่เดียว</div>
+      <div class="system-name">SB&M Inventory Management</div>
+      <div class="laptop">
+        <img src="sbm-dashboard-screenshot.png" alt="Dashboard screenshot" />
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="top-title">6 ขั้นตอนการจัดการสต็อก</div>
+      <section class="flow-strip">
+        <div class="mini-step">
+          <div class="num">1</div>
+          <div class="mini-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+          </div>
+          เข้าสู่ระบบ
+        </div>
+        <div class="mini-step">
+          <div class="num">2</div>
+          <div class="mini-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          Dashboard
+        </div>
+        <div class="mini-step">
+          <div class="num">3</div>
+          <div class="mini-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+          </div>
+          ตรวจสต็อก
+        </div>
+        <div class="mini-step">
+          <div class="num">4</div>
+          <div class="mini-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14"/><path d="M5 12h14"/><path d="M4 4h16v16H4z"/></svg>
+          </div>
+          รับเข้า / ใบเบิก
+        </div>
+        <div class="mini-step">
+          <div class="num">5</div>
+          <div class="mini-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/><path d="M21 12a9 9 0 1 1-5.3-8.2"/></svg>
+          </div>
+          อนุมัติ
+        </div>
+        <div class="mini-step">
+          <div class="num">6</div>
+          <div class="mini-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          </div>
+          ประวัติ / รายงาน
+        </div>
+      </section>
+
+      <section class="cards">
+        <article class="card">
+          <div class="card-head"><span class="card-num">1</span>เข้าสู่ระบบ</div>
+          <div class="role">Role: ทุกผู้ใช้งาน</div>
+          <div class="desc">ผู้ใช้งาน Login เพื่อเข้าใช้งานระบบตามสิทธิ์ของตนเอง</div>
+          <div class="output">ผลลัพธ์: เข้าสู่หน้าหลักของระบบ</div>
+        </article>
+        <article class="card">
+          <div class="card-head"><span class="card-num">2</span>ดูภาพรวมสต็อก</div>
+          <div class="role">Role: ผู้จัดการ / Admin</div>
+          <div class="desc">ดูจำนวนสินค้าทั้งหมด รับเข้า เบิกจ่าย และสินค้าใกล้หมดจาก Dashboard</div>
+          <div class="output">ผลลัพธ์: เห็นสถานะคลังแบบรวดเร็ว</div>
+        </article>
+        <article class="card">
+          <div class="card-head"><span class="card-num">3</span>ตรวจสินค้าในคลัง</div>
+          <div class="role">Role: พนักงานทั่วไป / Admin</div>
+          <div class="desc">ตรวจรายการสินค้า จำนวนคงเหลือ หน่วยนับ และสถานะต่ำกว่ากำหนด</div>
+          <div class="output">ผลลัพธ์: รู้ว่าสินค้าใดต้องเติมหรือควบคุม</div>
+        </article>
+        <article class="card">
+          <div class="card-head"><span class="card-num">4</span>รับเข้า / สร้างใบเบิก</div>
+          <div class="role">Role: พนักงานทั่วไป</div>
+          <div class="desc">ทีมคลังบันทึกรับเข้า ส่วนผู้ขอเบิกสร้างใบเบิกพร้อมระบุรายการและจำนวน</div>
+          <div class="output">ผลลัพธ์: เกิดรายการเคลื่อนไหวหรือใบเบิกรออนุมัติ</div>
+        </article>
+        <article class="card">
+          <div class="card-head"><span class="card-num">5</span>อนุมัติใบเบิก</div>
+          <div class="role">Role: ผู้จัดการ</div>
+          <div class="desc">ตรวจสอบใบเบิก รายการสินค้า และจำนวนที่ขอ ก่อนอนุมัติหรือปฏิเสธ</div>
+          <div class="output">ผลลัพธ์: ใบเบิกผ่านการควบคุมก่อนตัดสต็อก</div>
+        </article>
+        <article class="card">
+          <div class="card-head"><span class="card-num">6</span>ตัดสต็อกและติดตาม</div>
+          <div class="role">Role: Admin / ผู้จัดการ</div>
+          <div class="desc">หลังอนุมัติ ระบบปรับยอดคงเหลือ และเก็บประวัติรับเข้า-เบิกจ่ายย้อนหลัง</div>
+          <div class="output">ผลลัพธ์: ตรวจสอบย้อนหลังและทำรายงานได้</div>
+        </article>
+      </section>
+
+      <section class="roles-panel">
+        <div class="role-box"><strong>พนักงานทั่วไป</strong><span>ตรวจสอบสินค้า สร้างใบเบิก และติดตามสถานะคำขอของตนเอง</span></div>
+        <div class="role-box"><strong>ผู้จัดการ</strong><span>ดูภาพรวมสต็อก ตรวจสอบข้อมูล และอนุมัติใบเบิกก่อนตัดสต็อก</span></div>
+        <div class="role-box"><strong>Admin</strong><span>ดูแลข้อมูลพื้นฐาน ผู้ใช้งาน สิทธิ์ รายการสินค้า และความถูกต้องของระบบ</span></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -16,7 +16,7 @@ export async function GET() {
     const users = await sql`
       SELECT username, sso_subject, email, display_name, sso_user_id, department,
              division, role, created_at, last_login_at
-      FROM stock_flow_admin_users
+      FROM users
       WHERE sso_subject IS NOT NULL
       ORDER BY display_name ASC, email ASC
     `;
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid user or role" }, { status: 400 });
     }
 
-    const target = await sql`SELECT sso_subject, role FROM stock_flow_admin_users WHERE username = ${username} LIMIT 1`;
+    const target = await sql`SELECT sso_subject, role FROM users WHERE username = ${username} LIMIT 1`;
     if (!target[0]?.sso_subject) {
       return NextResponse.json({ error: "SSO user not found" }, { status: 404 });
     }
@@ -56,14 +56,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "ไม่สามารถลดสิทธิ์บัญชีของตนเองได้" }, { status: 400 });
     }
     if (target[0].role === "admin" && nextRole !== "admin") {
-      const admins = await sql`SELECT COUNT(*)::int AS count FROM stock_flow_admin_users WHERE sso_subject IS NOT NULL AND role = 'admin'`;
+      const admins = await sql`SELECT COUNT(*) AS count FROM users WHERE sso_subject IS NOT NULL AND role = 'admin'`;
       if (Number(admins[0]?.count) <= 1) {
         return NextResponse.json({ error: "ระบบต้องมีแอดมินอย่างน้อย 1 คน" }, { status: 400 });
       }
     }
 
     await sql`
-      UPDATE stock_flow_admin_users
+      UPDATE users
       SET role = ${nextRole}, is_admin = ${nextRole === "admin"}
       WHERE username = ${username} AND sso_subject IS NOT NULL
     `;

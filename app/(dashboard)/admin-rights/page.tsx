@@ -26,7 +26,7 @@ export default function AdminRightsPage() {
   const [currentRole, setCurrentRole] = useState<AdminUser["role"] | null>(null);
 
   useEffect(() => {
-    const cachedRole = localStorage.getItem("simulated_role");
+    const cachedRole = localStorage.getItem("current_role");
     if (cachedRole === "admin" || cachedRole === "manager" || cachedRole === "employee") {
       setCurrentRole(cachedRole);
     }
@@ -175,16 +175,16 @@ export default function AdminRightsPage() {
                   {user.role === "admin" ? (
                     <span className="inline-flex items-center rounded-md bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 ring-1 ring-inset ring-rose-600/10">
                       <Shield size={12} className="mr-1" />
-                      แอดมิน (Admin)
+                      แอดมิน
                     </span>
                   ) : user.role === "manager" ? (
                     <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/10">
                       <UserCheck size={12} className="mr-1" />
-                      ผู้จัดการ (Manager)
+                      ผู้จัดการ
                     </span>
                   ) : (
                     <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">
-                      พนักงาน (Employee)
+                      พนักงาน
                     </span>
                   )}
                 </td>

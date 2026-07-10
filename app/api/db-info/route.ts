@@ -15,7 +15,7 @@ export async function GET() {
       const url = new URL(process.env.DATABASE_URL);
       host = url.hostname;
     } catch {
-      // If it's a non-standard postgres:// URL (e.g. pooler), try to parse manually
+      // If it's a non-standard URL, try to parse manually.
       const match = process.env.DATABASE_URL.match(/@([^/?:#]+)/);
       if (match) {
         host = match[1];
@@ -29,7 +29,7 @@ export async function GET() {
     // Get table count
     let rowCount = 0;
     try {
-      const countRes = await sql`SELECT COUNT(*) as count FROM stock_flow_transactions;`;
+      const countRes = await sql`SELECT COUNT(*) as count FROM transactions;`;
       rowCount = parseInt(countRes[0]?.count || "0", 10);
     } catch (e) {
       // Table might not exist yet
@@ -41,7 +41,8 @@ export async function GET() {
       columns = await sql`
         SELECT column_name, data_type, is_nullable
         FROM information_schema.columns
-        WHERE table_name = 'stock_flow_transactions'
+        WHERE table_schema = DATABASE()
+          AND table_name = 'transactions'
         ORDER BY ordinal_position;
       `;
     } catch (e) {
@@ -50,9 +51,10 @@ export async function GET() {
 
     return NextResponse.json({
       connected: true,
+      engine: "mysql",
       host,
       pingMs: ping,
-      tableName: "stock_flow_transactions",
+      tableName: "transactions",
       rowCount,
       columns: columns.map((col: any) => ({
         columnName: col.column_name,

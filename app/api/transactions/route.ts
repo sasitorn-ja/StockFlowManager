@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sql } from "@/lib/db";
+import { ensureColumn, sql } from "@/lib/db";
 import { createSampleTransactions } from "@/lib/stock-flow/sample-data";
 import { buildItemKey } from "@/lib/stock-flow/utils";
 import { getCurrentUser } from "@/lib/auth/users";
@@ -9,56 +9,39 @@ export const dynamic = "force-dynamic";
 // In-memory cache flag to avoid checking table existence on every query
 let isTableChecked = false;
 
-// Helper function to create the stock_flow_transactions table if it doesn't exist
+// Helper function to create the transactions table if it doesn't exist
 async function ensureTableExists() {
   if (isTableChecked) return;
   try {
-    // Ensure stock_flow_admin_users table exists
+    // Ensure users table exists
     await sql`
-      CREATE TABLE IF NOT EXISTS stock_flow_admin_users (
+      CREATE TABLE IF NOT EXISTS users (
         username VARCHAR(255) PRIMARY KEY,
-        is_admin BOOLEAN DEFAULT TRUE,
-        role VARCHAR(50) DEFAULT 'admin',
+        is_admin BOOLEAN DEFAULT 0,
+        role VARCHAR(50) DEFAULT 'employee',
         created_at BIGINT
       );
     `;
 
-    await sql`ALTER TABLE stock_flow_admin_users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'admin';`;
+    await ensureColumn("users", "role", "VARCHAR(50) DEFAULT 'employee'");
     await sql`
-      UPDATE stock_flow_admin_users
+      UPDATE users
       SET role = CASE WHEN is_admin THEN 'admin' ELSE 'employee' END
       WHERE role IS NULL OR role = '';
     `;
 
-    // Seed default admin if it doesn't exist
-    const admins = await sql`SELECT 1 FROM stock_flow_admin_users WHERE username = 'แอดมิน' LIMIT 1;`;
-    if (admins.length === 0) {
-      await sql`
-        INSERT INTO stock_flow_admin_users (username, is_admin, role, created_at)
-        VALUES ('แอดมิน', TRUE, 'admin', ${Date.now()});
-      `;
-    }
-
-    const managers = await sql`SELECT 1 FROM stock_flow_admin_users WHERE username = 'ผู้จัดการ' LIMIT 1;`;
-    if (managers.length === 0) {
-      await sql`
-        INSERT INTO stock_flow_admin_users (username, is_admin, role, created_at)
-        VALUES ('ผู้จัดการ', FALSE, 'manager', ${Date.now()});
-      `;
-    }
-
     // Check if table exists
-    await sql`SELECT 1 FROM stock_flow_transactions LIMIT 1;`;
+    await sql`SELECT 1 FROM transactions LIMIT 1;`;
     
     // Add column if it doesn't exist for existing DBs
-    await sql`ALTER TABLE stock_flow_transactions ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'confirmed';`;
+    await ensureColumn("transactions", "status", "VARCHAR(50) DEFAULT 'confirmed'");
     isTableChecked = true;
   } catch (error: any) {
     // If table doesn't exist, create it
-    if (error?.message?.includes("does not exist") || error?.code === "42P01") {
-      console.log("Table 'stock_flow_transactions' does not exist. Creating it...");
+    if (error?.code === "ER_NO_SUCH_TABLE") {
+      console.log("Table 'transactions' does not exist. Creating it...");
       await sql`
-        CREATE TABLE IF NOT EXISTS stock_flow_transactions (
+        CREATE TABLE IF NOT EXISTS transactions (
           id VARCHAR(100) PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           sku VARCHAR(100),
@@ -67,9 +50,9 @@ async function ensureTableExists() {
           "productImportType" VARCHAR(50),
           unit VARCHAR(50),
           type VARCHAR(50),
-          quantity NUMERIC,
-          price NUMERIC,
-          "costPrice" NUMERIC,
+          quantity DECIMAL(15,4),
+          price DECIMAL(15,4),
+          "costPrice" DECIMAL(15,4),
           "costCurrency" VARCHAR(10),
           date VARCHAR(50),
           "expiryDate" VARCHAR(50),
@@ -86,7 +69,7 @@ async function ensureTableExists() {
       const sampleTxns = createSampleTransactions();
       for (const item of sampleTxns) {
         await sql`
-          INSERT INTO stock_flow_transactions (
+          INSERT INTO transactions (
             id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
             quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, approver, note, "createdAt", status
           ) VALUES (
@@ -113,7 +96,7 @@ async function ensureTableExists() {
           )
         `;
       }
-      console.log("Table 'stock_flow_transactions' created and seeded successfully.");
+      console.log("Table 'transactions' created and seeded successfully.");
       isTableChecked = true;
     } else {
       console.error("Error checking or creating database tables:", error);
@@ -121,7 +104,7 @@ async function ensureTableExists() {
   }
 }
 
-// GET all stock_flow_transactions
+// GET all transactions
 export async function GET() {
   try {
     await ensureTableExists();
@@ -135,13 +118,13 @@ export async function GET() {
         CAST("costPrice" AS FLOAT) as "costPrice", 
         "costCurrency", date, "expiryDate", "issueKey", 
         requester, approver, note, "createdAt", status
-      FROM stock_flow_transactions 
+      FROM transactions 
       ORDER BY "createdAt" DESC;
     `;
 
     return NextResponse.json(rows);
   } catch (error: any) {
-    console.error("GET stock_flow_transactions error:", error);
+    console.error("GET transactions error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -150,10 +133,18 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureTableExists();
+    const actor = await getCurrentUser();
+    if (!actor) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
 
-    // Check if it is a batch of stock_flow_transactions (array)
+    // Check if it is a batch of transactions (array)
     const items = Array.isArray(body) ? body : [body];
+    const hasStockIn = items.some((item) => (item.type || "in") === "in");
+    if (hasStockIn && actor.role !== "admin" && actor.role !== "manager") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     for (const item of items) {
       if (!item.name || !item.unit) {
@@ -161,7 +152,7 @@ export async function POST(request: Request) {
       }
 
       await sql`
-        INSERT INTO stock_flow_transactions (
+        INSERT INTO transactions (
           id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
           quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, approver, note, "createdAt", status
         ) VALUES (
@@ -191,12 +182,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, count: items.length });
   } catch (error: any) {
-    console.error("POST stock_flow_transactions error:", error);
+    console.error("POST transactions error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// PUT (update a product across stock_flow_transactions or a single transaction)
+// PUT (update a product across transactions or a single transaction)
 export async function PUT(request: Request) {
   try {
     await ensureTableExists();
@@ -220,7 +211,7 @@ export async function PUT(request: Request) {
       if (!canApprove) {
         const ownedRows = await sql`
           SELECT 1
-          FROM stock_flow_transactions
+          FROM transactions
           WHERE "issueKey" = ${issueKey}
             AND TRIM(requester) = ${actor.name.trim()}
           LIMIT 1
@@ -232,13 +223,13 @@ export async function PUT(request: Request) {
 
       if (body.approver) {
         await sql`
-          UPDATE stock_flow_transactions
+          UPDATE transactions
           SET status = ${status}, approver = ${body.approver}
           WHERE "issueKey" = ${issueKey}
         `;
       } else {
         await sql`
-          UPDATE stock_flow_transactions
+          UPDATE transactions
           SET status = ${status}
           WHERE "issueKey" = ${issueKey}
         `;
@@ -246,9 +237,9 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // Action 1: Update all stock_flow_transactions matching a product itemKey
+    // Action 1: Update all transactions matching a product itemKey
     if (action === "update_product" && itemKey && updatedData) {
-      const rows = await sql`SELECT id, name, sku, category, "productImportType", unit, "expiryDate" FROM stock_flow_transactions;`;
+      const rows = await sql`SELECT id, name, sku, category, "productImportType", unit, "expiryDate" FROM transactions;`;
       const hasLotSelection = Object.prototype.hasOwnProperty.call(body, "lotExpiryDate");
       
       const idsToUpdate: string[] = [];
@@ -273,7 +264,7 @@ export async function PUT(request: Request) {
 
           if (isSelectedLot) {
             await sql`
-              UPDATE stock_flow_transactions
+              UPDATE transactions
               SET name = ${updatedData.name}, sku = ${updatedData.sku}, category = ${updatedData.category || "-"},
                   "productImportType" = ${updatedData.productImportType}, "imageDataUrl" = ${updatedData.imageDataUrl || ""},
                   unit = ${updatedData.unit}, price = ${updatedData.price}, "costPrice" = ${updatedData.costPrice},
@@ -282,7 +273,7 @@ export async function PUT(request: Request) {
             `;
           } else {
             await sql`
-              UPDATE stock_flow_transactions
+              UPDATE transactions
               SET name = ${updatedData.name}, sku = ${updatedData.sku}, category = ${updatedData.category || "-"},
                   "productImportType" = ${updatedData.productImportType}, "imageDataUrl" = ${updatedData.imageDataUrl || ""},
                   unit = ${updatedData.unit}
@@ -298,7 +289,7 @@ export async function PUT(request: Request) {
     // Action 2: Update a single transaction
     if (id) {
       await sql`
-        UPDATE stock_flow_transactions
+        UPDATE transactions
         SET 
           name = ${body.name},
           sku = ${body.sku || ""},
@@ -326,12 +317,12 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ error: "Invalid action or parameters" }, { status: 400 });
   } catch (error: any) {
-    console.error("PUT stock_flow_transactions error:", error);
+    console.error("PUT transactions error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// DELETE stock_flow_transactions
+// DELETE transactions
 export async function DELETE(request: Request) {
   try {
     const actor = await getCurrentUser();
@@ -346,13 +337,13 @@ export async function DELETE(request: Request) {
 
     // Case 1: Reset database
     if (reset === "true") {
-      await sql`DELETE FROM stock_flow_transactions;`;
-      return NextResponse.json({ success: true, message: "Cleared all stock_flow_transactions" });
+      await sql`DELETE FROM transactions;`;
+      return NextResponse.json({ success: true, message: "Cleared all transactions" });
     }
 
     // Case 2: Delete by product itemKey
     if (itemKey) {
-      const rows = await sql`SELECT id, name, sku, category, "productImportType", unit FROM stock_flow_transactions;`;
+      const rows = await sql`SELECT id, name, sku, category, "productImportType", unit FROM transactions;`;
       const idsToDelete: string[] = [];
       for (const row of rows) {
         const key = buildItemKey({
@@ -370,7 +361,7 @@ export async function DELETE(request: Request) {
 
       if (idsToDelete.length > 0) {
         for (const idToDelete of idsToDelete) {
-          await sql`DELETE FROM stock_flow_transactions WHERE id = ${idToDelete}`;
+          await sql`DELETE FROM transactions WHERE id = ${idToDelete}`;
         }
       }
 
@@ -379,13 +370,13 @@ export async function DELETE(request: Request) {
 
     // Case 3: Delete single transaction
     if (id) {
-      await sql`DELETE FROM stock_flow_transactions WHERE id = ${id}`;
+      await sql`DELETE FROM transactions WHERE id = ${id}`;
       return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: "Missing delete target parameters" }, { status: 400 });
   } catch (error: any) {
-    console.error("DELETE stock_flow_transactions error:", error);
+    console.error("DELETE transactions error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

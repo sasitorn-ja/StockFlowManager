@@ -58,8 +58,8 @@ export default function RequisitionTrackerPage() {
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [simulatedRole, setSimulatedRole] = useState("employee");
-  const [simulatedUsername, setSimulatedUsername] = useState("สมชาย");
+  const [currentRole, setCurrentRole] = useState("employee");
+  const [currentUsername, setCurrentUsername] = useState("ผู้ใช้งาน");
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
   const [showOnlyMine, setShowOnlyMine] = useState(false);
@@ -68,7 +68,7 @@ export default function RequisitionTrackerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
 
-  // Fetch transactions from the Supabase PostgreSQL
+  // Fetch transactions from the configured database.
   async function fetchTransactions() {
     setIsLoading(true);
     try {
@@ -84,7 +84,7 @@ export default function RequisitionTrackerPage() {
     }
   }
 
-  // Load and listen to the simulated role from layout
+  // Load and listen to the current role from the dashboard layout.
   useEffect(() => {
     // Load created issue keys
     try {
@@ -96,11 +96,11 @@ export default function RequisitionTrackerPage() {
       console.error("Failed to parse created issue keys", e);
     }
 
-    const loadSimulatedRole = () => {
-      const role = localStorage.getItem("simulated_role") || "employee";
-      const name = localStorage.getItem("simulated_username") || "สมชาย";
-      setSimulatedRole(role);
-      setSimulatedUsername(name);
+    const loadCurrentRole = () => {
+      const role = localStorage.getItem("current_role") || "employee";
+      const name = localStorage.getItem("current_username") || "ผู้ใช้งาน";
+      setCurrentRole(role);
+      setCurrentUsername(name);
       
       // Auto-toggle "show only mine" if employee
       if (role === "employee") {
@@ -110,12 +110,12 @@ export default function RequisitionTrackerPage() {
       }
     };
 
-    loadSimulatedRole();
+    loadCurrentRole();
     fetchTransactions();
 
-    window.addEventListener("simulated-role-changed", loadSimulatedRole);
+    window.addEventListener("current-user-changed", loadCurrentRole);
     return () => {
-      window.removeEventListener("simulated-role-changed", loadSimulatedRole);
+      window.removeEventListener("current-user-changed", loadCurrentRole);
     };
   }, []);
 
@@ -179,7 +179,7 @@ export default function RequisitionTrackerPage() {
   const ownedRequisitions = useMemo(() => {
     return groupedRequisitions.filter((req) => {
       if (showOnlyMine) {
-        const isOwnName = req.requester === simulatedUsername;
+        const isOwnName = req.requester === currentUsername;
         const isLegacyOwnKey = (!req.requester || req.requester === "-" || req.requester === "พนักงาน") && myCreatedIssueKeys.includes(req.issueKey);
         if (!isOwnName && !isLegacyOwnKey) {
           return false;
@@ -187,7 +187,7 @@ export default function RequisitionTrackerPage() {
       }
       return true;
     });
-  }, [groupedRequisitions, showOnlyMine, simulatedUsername, myCreatedIssueKeys]);
+  }, [groupedRequisitions, showOnlyMine, currentUsername, myCreatedIssueKeys]);
 
   // Filter based on active tab status and search query
   const filteredRequisitions = useMemo(() => {
@@ -297,8 +297,8 @@ export default function RequisitionTrackerPage() {
   }
 
   // Role Action Controls
-  const isAdmin = simulatedRole === "admin";
-  const isManagerOrAdmin = simulatedRole === "admin" || simulatedRole === "manager";
+  const isAdmin = currentRole === "admin";
+  const isManagerOrAdmin = currentRole === "admin" || currentRole === "manager";
   const pendingApprovalCount = useMemo(() => {
     if (!isManagerOrAdmin) {
       return 0;
@@ -314,7 +314,7 @@ export default function RequisitionTrackerPage() {
 
     if (confirmDialog.action === "approve") {
       updateRequisitionStatus(confirmDialog.issueKey, "approved", {
-        approver: simulatedUsername,
+        approver: currentUsername,
       });
       setConfirmDialog(null);
       return;
@@ -426,7 +426,7 @@ export default function RequisitionTrackerPage() {
                   onChange={(e) => setShowOnlyMine(e.target.checked)}
                   className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                 />
-                <span>แสดงเฉพาะใบเบิกของฉัน ({simulatedUsername})</span>
+                <span>แสดงเฉพาะใบเบิกของฉัน ({currentUsername})</span>
               </label>
             )}
             <Button
@@ -501,7 +501,7 @@ export default function RequisitionTrackerPage() {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
             </span>
             <span>
-              กำลังแสดง: <strong>{filteredRequisitions.length} ใบงาน</strong> (มุมมอง: <span className="text-sky-700 font-bold">{simulatedUsername}</span>)
+              กำลังแสดง: <strong>{filteredRequisitions.length} ใบงาน</strong> (มุมมอง: <span className="text-sky-700 font-bold">{currentUsername}</span>)
             </span>
           </div>
         </div>
@@ -514,7 +514,7 @@ export default function RequisitionTrackerPage() {
       >
         {isLoading ? (
           <div className="p-8 text-center text-sm text-[var(--text-muted)]">
-            กำลังโหลดข้อมูลจาก Supabase PostgreSQL...
+            กำลังโหลดข้อมูลจากฐานข้อมูล...
           </div>
         ) : (
           <Table
@@ -533,7 +533,7 @@ export default function RequisitionTrackerPage() {
           >
             {filteredRequisitions.map((req) => {
               const isExpanded = expandedKeys[req.issueKey];
-              const isOwnRequisition = req.requester === simulatedUsername;
+              const isOwnRequisition = req.requester === currentUsername;
 
               // Render human-friendly status badging
               let badgeTone: "warn" | "out" | "in" | "urgent" = "warn";
@@ -586,7 +586,7 @@ export default function RequisitionTrackerPage() {
                     </td>
                     <td className="w-[22%] min-w-[220px]">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        {/* 1. BUTTON: Manager/Admin Approves pending */}
+                        {/* ผู้จัดการหรือแอดมินอนุมัติใบเบิก */}
                         {req.status === "pending" && isManagerOrAdmin && (
                           <Button
                             type="button"
@@ -608,7 +608,7 @@ export default function RequisitionTrackerPage() {
                           </Button>
                         )}
 
-                        {/* 3. BUTTON: Admin Releases goods (final pick up) */}
+                        {/* แอดมินยืนยันจ่ายสินค้า */}
                         {req.status === "approved" && isAdmin && (
                           <Button
                             type="button"
@@ -629,7 +629,7 @@ export default function RequisitionTrackerPage() {
                           </Button>
                         )}
 
-                        {/* 5. BUTTON: View Delivery Document (Approved or Completed) */}
+                        {/* ดูเอกสารเบิกสินค้า */}
                         {(req.status === "approved" || req.status === "completed") && (
                           <Button
                             type="button"

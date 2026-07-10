@@ -438,14 +438,14 @@ export default function SettingsPage() {
       return;
     }
 
-    // Pessimistically delete
+    // Delete after the database write
     fetch(`/api/transactions?itemKey=${encodeURIComponent(item.key)}`, {
       method: "DELETE",
     }).then((res) => {
       if (res.ok) {
         refresh();
       } else {
-        window.alert("ไม่สามารถลบข้อมูลสินค้าออกจากฐานข้อมูล Supabase PostgreSQL ได้");
+        window.alert("ไม่สามารถลบข้อมูลสินค้าออกจากฐานข้อมูลได้");
       }
     });
   }
@@ -502,7 +502,7 @@ export default function SettingsPage() {
         setEditingItemKey("");
         setSelectedLotKey("");
       } else {
-        window.alert("ไม่สามารถอัปเดตข้อมูลสินค้าในฐานข้อมูล Supabase PostgreSQL ได้");
+        window.alert("ไม่สามารถอัปเดตข้อมูลสินค้าในฐานข้อมูลได้");
       }
     });
   }

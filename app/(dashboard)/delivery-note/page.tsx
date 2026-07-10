@@ -55,10 +55,10 @@ function DeliveryNoteSection({
       <section id="delivery-note" className="grid gap-3">
         <DataPanel
           title="ยังไม่มีใบกำกับเบิกสินค้า"
-          description="เมื่อ Approved และยืนยันเบิกสินค้าแล้ว ระบบจะแสดงเอกสารใบกำกับเบิกสินค้าในหน้านี้"
+          description="เมื่อใบเบิกได้รับอนุมัติและคลังยืนยันจ่ายสินค้าแล้ว ระบบจะแสดงเอกสารใบกำกับเบิกสินค้าในหน้านี้"
         >
           <Button type="button" onClick={() => setActiveSection("issue")}>
-            ไปหน้านำออกสินค้า
+            ไปหน้าเบิกจ่ายสินค้า
           </Button>
         </DataPanel>
       </section>

@@ -298,13 +298,12 @@ export default function IssuePage() {
       localStorage.removeItem("pending_draft");
     }
 
-    // Handle role changes reactively
-    const handleRoleChange = () => {
+    const handleUserChange = () => {
       // Do not auto-prefill to allow a transparent placeholder state
     };
-    window.addEventListener("simulated-role-changed", handleRoleChange);
+    window.addEventListener("current-user-changed", handleUserChange);
     return () => {
-      window.removeEventListener("simulated-role-changed", handleRoleChange);
+      window.removeEventListener("current-user-changed", handleUserChange);
     };
   }, []);
 
@@ -604,7 +603,7 @@ export default function IssuePage() {
     setIsSendingIssueEmail(true);
 
     try {
-      // 1. Persist directly to Supabase PostgreSQL (saves request as 'pending' reservation)
+      // 1. Persist directly to the database (saves request as 'pending' reservation)
       const saveRes = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

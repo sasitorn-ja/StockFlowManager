@@ -30,9 +30,7 @@ type GroupedInventoryItem = {
   productImportType: InventoryLotItem["productImportType"];
   unit: string;
   balance: number;
-  costPriceLabel: string;
   totalBalanceValue: number;
-  totalCostLabel: string;
   firstReceivedDate: string;
   nearestExpiryDate: string;
   lots: InventoryLotWithLabel[];
@@ -41,32 +39,6 @@ type GroupedInventoryItem = {
 type ItemsSectionProps = {
   inventory: GroupedInventoryItem[];
 };
-
-function formatCostPriceLabel(lots: InventoryLotWithLabel[]) {
-  const uniquePrices = Array.from(
-    new Set(lots.map((lot) => `${lot.costCurrency}:${lot.costPrice ?? 0}`))
-  );
-
-  if (uniquePrices.length === 1) {
-    const lot = lots[0];
-    return formatCurrencyWithLabel(lot?.costPrice ?? 0, lot?.costCurrency);
-  }
-
-  return "หลายราคา / สกุลเงิน";
-}
-
-function formatTotalCostLabel(lots: InventoryLotWithLabel[]) {
-  const totals = new Map<InventoryLotWithLabel["costCurrency"], number>();
-  lots.forEach((lot) => {
-    totals.set(
-      lot.costCurrency,
-      (totals.get(lot.costCurrency) ?? 0) + lot.balance * (lot.costPrice ?? 0)
-    );
-  });
-  return Array.from(totals.entries())
-    .map(([currency, value]) => formatCurrencyWithLabel(value, currency))
-    .join(" · ");
-}
 
 function ItemsSection({ inventory }: ItemsSectionProps) {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -88,14 +60,13 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
           headers={[
             "สินค้า",
             "หมวด",
-            "ล็อต",
+            "รายละเอียดล็อต",
             "คงเหลือรวม",
             "วันหมดอายุใกล้สุด",
-            "ต้นทุน/หน่วย",
-            "มูลค่าคงเหลือ",
+            "มูลค่าขายรวม",
           ]}
           emptyMessage="ยังไม่มีรายการสินค้า"
-          columnCount={7}
+          columnCount={6}
         >
           {inventory
             .slice()
@@ -136,7 +107,7 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
                         onClick={() => toggleRow(item.key)}
                         className="inline-flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-white px-3 py-2.5 text-left text-sm font-semibold text-sky-800 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
                       >
-                        <span className="whitespace-nowrap">{`มี ${formatNumber(item.lots.length)} ล็อต`}</span>
+                        <span className="whitespace-nowrap">{`เปิดดู ${formatNumber(item.lots.length)} ล็อต`}</span>
                         {isExpanded ? <ChevronUp size={16} className="shrink-0" /> : <ChevronDown size={16} className="shrink-0" />}
                       </button>
                       <div className="text-[12px] text-[var(--text-muted)] whitespace-nowrap">
@@ -158,13 +129,10 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
                     </span>
                   </td>
                   <td className="align-top text-right whitespace-nowrap">
-                    <span className="items-clean-primary-text">{item.costPriceLabel}</span>
-                  </td>
-                  <td className="align-top text-right whitespace-nowrap">
-                    <div className="grid gap-1.5 min-w-[140px]">
+                    <div className="grid gap-1.5 min-w-[150px]">
                       <strong>{formatCurrency(item.totalBalanceValue)}</strong>
                       <span className="text-[12px] text-[var(--text-muted)] whitespace-nowrap">
-                        ต้นทุน {item.totalCostLabel}
+                        ต้นทุนดูในรายละเอียดล็อต
                       </span>
                     </div>
                   </td>
@@ -173,7 +141,7 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
 
               const detailRow = isExpanded ? (
                 <tr key={`${item.key}-detail`}>
-                  <td colSpan={7} className="bg-slate-50/70">
+                  <td colSpan={6} className="bg-slate-50/70">
                     <div className="rounded-2xl border border-slate-200 bg-white p-4">
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div>
@@ -187,7 +155,7 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
                       </div>
 
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[760px] text-sm">
+                        <table className="w-full min-w-[900px] text-sm">
                           <thead>
                             <tr className="border-b border-slate-200 text-left text-[12px] font-semibold text-[var(--text-muted)]">
                               <th className="px-3 py-2">ล็อต</th>
@@ -195,7 +163,8 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
                               <th className="px-3 py-2">วันหมดอายุ</th>
                               <th className="px-3 py-2 text-right">คงเหลือ</th>
                               <th className="px-3 py-2 text-right">ต้นทุน/หน่วย</th>
-                              <th className="px-3 py-2 text-right">มูลค่าคงเหลือ</th>
+                              <th className="px-3 py-2 text-right">ต้นทุนคงเหลือ</th>
+                              <th className="px-3 py-2 text-right">มูลค่าขายคงเหลือ</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -220,6 +189,9 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
                                 </td>
                                 <td className="px-3 py-3 text-right whitespace-nowrap">
                                   {formatCurrencyWithLabel(lot.costPrice ?? 0, lot.costCurrency)}
+                                </td>
+                                <td className="px-3 py-3 text-right whitespace-nowrap">
+                                  {formatCurrencyWithLabel(lot.balance * (lot.costPrice ?? 0), lot.costCurrency)}
                                 </td>
                                 <td className="px-3 py-3 text-right whitespace-nowrap">
                                   {formatCurrency(lot.balance * lot.price)}
@@ -295,9 +267,7 @@ export default function ItemsPage() {
           productImportType: item.productImportType,
           unit: item.unit,
           balance: item.balance,
-          costPriceLabel: formatCostPriceLabel([item]),
           totalBalanceValue: item.balance * item.price,
-          totalCostLabel: formatTotalCostLabel([item]),
           firstReceivedDate: item.receivedDate,
           nearestExpiryDate: item.expiryDate,
           lots: [item],
@@ -326,8 +296,6 @@ export default function ItemsPage() {
 
     return Array.from(groupedInventory.values()).map((item) => ({
       ...item,
-      costPriceLabel: formatCostPriceLabel(item.lots),
-      totalCostLabel: formatTotalCostLabel(item.lots),
       lots: item.lots.sort(
         (a, b) =>
           a.receivedDate.localeCompare(b.receivedDate) ||
