@@ -3,6 +3,7 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Boxes, PackageCheck, Pencil, Plus, Search, ShieldAlert, Store, Trash2 } from "lucide-react";
+import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
 import {
@@ -268,7 +269,7 @@ export default function MasterDataPage() {
 
       try {
         for (const product of missingProducts) {
-          const res = await fetch("/api/master-products", {
+          const res = await fetch(withBasePath("/api/master-products"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -314,7 +315,7 @@ export default function MasterDataPage() {
   async function fetchMasterProducts() {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/master-products");
+      const res = await fetch(withBasePath("/api/master-products"));
       const data: unknown = await res.json().catch(() => null);
 
       if (!res.ok || !Array.isArray(data)) {
@@ -426,7 +427,7 @@ export default function MasterDataPage() {
     setIsSaving(true);
 
     try {
-      const res = await fetch("/api/master-products", {
+      const res = await fetch(withBasePath("/api/master-products"), {
         method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingId ? { id: editingId, ...payload } : payload),
@@ -461,7 +462,7 @@ export default function MasterDataPage() {
     }
 
     try {
-      const res = await fetch("/api/master-products", {
+      const res = await fetch(withBasePath("/api/master-products"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "toggle_active", id: product.id }),
@@ -487,7 +488,7 @@ export default function MasterDataPage() {
     }
 
     try {
-      const res = await fetch(`/api/master-products?id=${encodeURIComponent(product.id)}`, {
+      const res = await fetch(withBasePath(`/api/master-products?id=${encodeURIComponent(product.id)}`), {
         method: "DELETE",
       });
 

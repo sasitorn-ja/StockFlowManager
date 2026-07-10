@@ -6,41 +6,30 @@ import { getCurrentUser } from "@/lib/auth/users";
 
 export const dynamic = "force-dynamic";
 
-// In-memory cache flag to avoid checking table existence on every query
-let isTableChecked = false;
+let transactionTableSetup: Promise<void> | null = null;
 
-// Helper function to create the transactions table if it doesn't exist
 async function ensureTableExists() {
-  if (isTableChecked) return;
-  try {
-    // Ensure users table exists
-    await sql`
-      CREATE TABLE IF NOT EXISTS users (
-        username VARCHAR(255) PRIMARY KEY,
-        is_admin BOOLEAN DEFAULT 0,
-        role VARCHAR(50) DEFAULT 'employee',
-        created_at BIGINT
-      );
-    `;
+  if (transactionTableSetup) return transactionTableSetup;
 
-    await ensureColumn("users", "role", "VARCHAR(50) DEFAULT 'employee'");
-    await sql`
-      UPDATE users
-      SET role = CASE WHEN is_admin THEN 'admin' ELSE 'employee' END
-      WHERE role IS NULL OR role = '';
-    `;
+  transactionTableSetup = (async () => {
+    await sql.begin(async (tx) => {
+      await tx`
+        CREATE TABLE IF NOT EXISTS users (
+          username VARCHAR(255) PRIMARY KEY,
+          is_admin BOOLEAN DEFAULT 0,
+          role VARCHAR(50) DEFAULT 'employee',
+          created_at BIGINT
+        );
+      `;
 
-    // Check if table exists
-    await sql`SELECT 1 FROM transactions LIMIT 1;`;
-    
-    // Add column if it doesn't exist for existing DBs
-    await ensureColumn("transactions", "status", "VARCHAR(50) DEFAULT 'confirmed'");
-    isTableChecked = true;
-  } catch (error: any) {
-    // If table doesn't exist, create it
-    if (error?.code === "ER_NO_SUCH_TABLE") {
-      console.log("Table 'transactions' does not exist. Creating it...");
-      await sql`
+      await ensureColumn("users", "role", "VARCHAR(50) DEFAULT 'employee'");
+      await tx`
+        UPDATE users
+        SET role = CASE WHEN is_admin THEN 'admin' ELSE 'employee' END
+        WHERE role IS NULL OR role = '';
+      `;
+
+      await tx`
         CREATE TABLE IF NOT EXISTS transactions (
           id VARCHAR(100) PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
@@ -65,43 +54,14 @@ async function ensureTableExists() {
         );
       `;
 
-      // Seed table with sample data
-      const sampleTxns = createSampleTransactions();
-      for (const item of sampleTxns) {
-        await sql`
-          INSERT INTO transactions (
-            id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
-            quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, approver, note, "createdAt", status
-          ) VALUES (
-            ${item.id},
-            ${item.name},
-            ${item.sku || ""},
-            ${item.category || "-"},
-            ${item.imageDataUrl || ""},
-            ${item.productImportType},
-            ${item.unit},
-            ${item.type},
-            ${item.quantity},
-            ${item.price},
-            ${item.costPrice},
-            ${item.costCurrency},
-            ${item.date},
-            ${item.expiryDate || ""},
-            ${item.issueKey || ""},
-            ${item.requester || ""},
-            ${item.approver || ""},
-            ${item.note || ""},
-            ${item.createdAt},
-            'confirmed'
-          )
-        `;
-      }
-      console.log("Table 'transactions' created and seeded successfully.");
-      isTableChecked = true;
-    } else {
-      console.error("Error checking or creating database tables:", error);
-    }
-  }
+      await ensureColumn("transactions", "status", "VARCHAR(50) DEFAULT 'confirmed'");
+    });
+  })().catch((error) => {
+    transactionTableSetup = null;
+    throw error;
+  });
+
+  return transactionTableSetup;
 }
 
 // GET all transactions

@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { createAuthCookieOptions, createExpiredAuthCookieOptions } from "@/lib/auth/cookies";
+import { toAbsoluteAppUrl } from "@/lib/base-path";
 import { SSO, redirectUri, requireAuthSecrets } from "@/lib/auth/config";
 import { verifyRmcIdToken } from "@/lib/auth/id-token";
 import { createSessionCookie, FLOW_STATE_COOKIE, FLOW_VERIFIER_COOKIE, SESSION_COOKIE } from "@/lib/auth/session";
@@ -14,7 +16,9 @@ export async function GET(request: Request) {
   const expectedState = store.get(FLOW_STATE_COOKIE)?.value;
   const verifier = store.get(FLOW_VERIFIER_COOKIE)?.value;
   if (error || !code || !state || !expectedState || !verifier || state !== expectedState) {
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error ?? "invalid_callback")}`, request.url));
+    return NextResponse.redirect(
+      toAbsoluteAppUrl(request.url, `/login?error=${encodeURIComponent(error ?? "invalid_callback")}`)
+    );
   }
 
   try {
@@ -22,7 +26,7 @@ export async function GET(request: Request) {
     const tokenResponse = await fetch(SSO.tokenUrl, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ grant_type: "authorization_code", client_id: SSO.clientId, client_secret: clientSecret, redirect_uri: redirectUri(request.url), code, code_verifier: verifier }),
+      body: new URLSearchParams({ grant_type: "authorization_code", client_id: SSO.clientId, client_secret: clientSecret, redirect_uri: redirectUri(request), code, code_verifier: verifier }),
       cache: "no-store",
     });
     if (!tokenResponse.ok) throw new Error(`Token exchange failed (${tokenResponse.status})`);
@@ -46,12 +50,13 @@ export async function GET(request: Request) {
     };
     await syncSsoUser(sessionUser);
     const session = createSessionCookie(sessionUser);
-    const response = NextResponse.redirect(new URL("/overview", request.url));
-    response.cookies.set(SESSION_COOKIE, session, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 8 * 60 * 60 });
-    response.cookies.delete(FLOW_STATE_COOKIE); response.cookies.delete(FLOW_VERIFIER_COOKIE);
+    const response = NextResponse.redirect(toAbsoluteAppUrl(request.url, "/overview"));
+    response.cookies.set(SESSION_COOKIE, session, createAuthCookieOptions(8 * 60 * 60));
+    response.cookies.set(FLOW_STATE_COOKIE, "", createExpiredAuthCookieOptions());
+    response.cookies.set(FLOW_VERIFIER_COOKIE, "", createExpiredAuthCookieOptions());
     return response;
   } catch (cause) {
     console.error("SSO callback failed", { message: cause instanceof Error ? cause.message : "Unknown error" });
-    return NextResponse.redirect(new URL("/login?error=sso_failed", request.url));
+    return NextResponse.redirect(toAbsoluteAppUrl(request.url, "/login?error=sso_failed"));
   }
 }

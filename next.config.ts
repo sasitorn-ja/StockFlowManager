@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { appBasePath } from "./lib/base-path";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: [
@@ -8,6 +9,8 @@ const nextConfig: NextConfig = {
     "10.*.*.*",
     "192.168.*.*",
   ],
+  basePath: appBasePath || undefined,
+  output: "standalone",
   reactStrictMode: true,
 };
 

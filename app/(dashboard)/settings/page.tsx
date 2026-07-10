@@ -3,6 +3,7 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Boxes, Pencil, RotateCcw, SlidersHorizontal, Trash2, Workflow } from "lucide-react";
+import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
@@ -439,7 +440,7 @@ export default function SettingsPage() {
     }
 
     // Delete after the database write
-    fetch(`/api/transactions?itemKey=${encodeURIComponent(item.key)}`, {
+    fetch(withBasePath(`/api/transactions?itemKey=${encodeURIComponent(item.key)}`), {
       method: "DELETE",
     }).then((res) => {
       if (res.ok) {
@@ -486,7 +487,7 @@ export default function SettingsPage() {
       return;
     }
 
-    fetch("/api/transactions", {
+    fetch(withBasePath("/api/transactions"), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

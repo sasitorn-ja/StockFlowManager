@@ -1,3 +1,5 @@
+import { toAbsoluteAppUrl } from "@/lib/base-path";
+
 export const SSO = {
   issuer: process.env.SSO_ISSUER ?? "https://rmc-sso.cipcloud.net",
   clientId: process.env.SSO_CLIENT_ID ?? "cpac_sb-m",
@@ -25,16 +27,16 @@ export function requireAuthSecrets() {
   return { clientSecret, sessionSecret };
 }
 
-export function redirectUri(requestUrl: string) {
+export function redirectUri(request: Request | string) {
   return (
     process.env.SSO_REDIRECT_URI ??
-    `${new URL(requestUrl).origin}/api/auth/callback/rmc-sso`
+    toAbsoluteAppUrl(request, "/api/auth/callback/rmc-sso").toString()
   );
 }
 
-export function postLogoutRedirectUri(requestUrl: string) {
+export function postLogoutRedirectUri(request: Request | string) {
   return (
     process.env.SSO_POST_LOGOUT_REDIRECT_URI ??
-    `${new URL(requestUrl).origin}/signed-out`
+    toAbsoluteAppUrl(request, "/signed-out").toString()
   );
 }

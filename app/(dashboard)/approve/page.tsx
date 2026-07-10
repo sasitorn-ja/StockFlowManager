@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Eye, CheckCircle2, XCircle, Clock, CheckSquare, Layers, FileCheck, PackageCheck, Search } from "lucide-react";
+import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -72,7 +73,7 @@ export default function RequisitionTrackerPage() {
   async function fetchTransactions() {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/transactions");
+      const res = await fetch(withBasePath("/api/transactions"));
       if (res.ok) {
         const data = await res.json();
         setTransactions(normalizeTransactions(data));
@@ -271,7 +272,7 @@ export default function RequisitionTrackerPage() {
   async function updateRequisitionStatus(issueKey: string, newStatus: TransactionStatus, extraBody: Record<string, any> = {}) {
     setIsUpdating(issueKey);
     try {
-      const res = await fetch("/api/transactions", {
+      const res = await fetch(withBasePath("/api/transactions"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
