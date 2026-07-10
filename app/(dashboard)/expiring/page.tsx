@@ -73,9 +73,9 @@ export default function ExpiringPage() {
           description="แสดงสินค้าคงเหลือที่ใกล้หมดอายุภายใน 90 วัน เฉพาะกลุ่มนี้"
         >
           <Table
-            headers={["สินค้า", "วันหมดอายุ", "เหลือเวลา", "คงเหลือ", "คำแนะนำ"]}
+            headers={["สินค้า", "วันหมดอายุ", "เหลือเวลา", "คงเหลือ"]}
             emptyMessage={`ยังไม่มีสินค้า ${groupData.label} ที่ใกล้หมดอายุภายใน 90 วัน`}
-            columnCount={5}
+            columnCount={4}
           >
             {groupData.priorityItems.map((item) => {
               const daysLeft = getDaysUntil(item.nearestExpiryDate);
@@ -95,7 +95,6 @@ export default function ExpiringPage() {
                   <td className="text-right">
                     {formatNumber(item.balance)} {item.unit}
                   </td>
-                  <td>{daysLeft <= 30 ? "เร่งจัดโปรหรือวางหน้าร้าน" : "นำล็อตนี้ออกขายก่อน"}</td>
                 </tr>
               );
             })}

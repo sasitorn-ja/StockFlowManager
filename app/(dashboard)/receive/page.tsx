@@ -28,7 +28,6 @@ import {
 import type { Transaction, CostCurrency, ProductImportType, ProductMaster } from "@/types/stock-flow";
 import type { FormState } from "./types";
 import { useTransactions } from "../TransactionContext";
-import { RECEIVE_STATUS_LABEL } from "@/lib/stock-flow/status";
 
 type OverviewFilter = "all" | ProductImportType;
 type UserRole = "employee" | "manager" | "admin";
@@ -236,6 +235,7 @@ export default function ReceivePage() {
       }),
     [autoRecordTime]
   );
+  const hasSelectedProductType = Boolean(form.productImportType);
   const isCategoryReady = Boolean(form.productImportType && form.category.trim());
   const canCreateNewProduct = currentRole === "admin";
   const hasMatchedCategory = useMemo(() => {
@@ -322,6 +322,25 @@ export default function ReceivePage() {
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleProductImportTypeChange(value: ProductImportType) {
+    setForm((current) => ({
+      ...current,
+      productImportType: value,
+      category: "",
+      name: "",
+      sku: "",
+      imageDataUrl: "",
+      unit: "",
+      price: "0",
+      costPrice: "0",
+      costCurrency: "THB",
+      requester: "",
+      expiryDate: "",
+      issueKey: "",
+      note: "",
+    }));
   }
 
   function handleProductImageChange(event: ChangeEvent<HTMLInputElement>) {
@@ -550,7 +569,6 @@ export default function ReceivePage() {
   function openReceiveDialog() {
     setForm({
       ...createEmptyForm(),
-      productImportType: "resale",
       type: "in",
       date: getLocalDateValue(),
     });
@@ -578,7 +596,6 @@ export default function ReceivePage() {
       "หน่วย": item.unit,
       "มูลค่ารวม": item.quantity * (item.costPrice || item.price || 0),
       "หมายเหตุ": item.note || "-",
-      "สถานะ": RECEIVE_STATUS_LABEL,
     }));
 
     if (rows.length === 0) {
@@ -613,7 +630,13 @@ export default function ReceivePage() {
       return;
     }
 
+    if (!form.productImportType) {
+      window.alert("เลือกประเภทสินค้าก่อนบันทึกรับเข้า");
+      return;
+    }
+
     const baseProduct = matchedReceiveProduct;
+    const selectedProductImportType = form.productImportType;
 
     const transaction: Transaction = {
       id: createTransactionId(),
@@ -621,7 +644,7 @@ export default function ReceivePage() {
       sku: sanitizeSku((baseProduct?.sku ?? form.sku).trim()),
       category: (baseProduct?.category ?? form.category).trim() || "-",
       imageDataUrl: baseProduct?.imageDataUrl || form.imageDataUrl,
-      productImportType: baseProduct?.productImportType ?? form.productImportType,
+      productImportType: baseProduct?.productImportType ?? selectedProductImportType,
       unit: (baseProduct?.unit ?? form.unit).trim(),
       type: "in",
       quantity,
@@ -748,7 +771,6 @@ export default function ReceivePage() {
                     <th>จำนวนรายการ</th>
                     <th>มูลค่ารวม</th>
                     <th>หมายเหตุ</th>
-                    <th>สถานะการรับเข้า</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -799,15 +821,12 @@ export default function ReceivePage() {
                           <td>{formatNumber(item.quantity)}</td>
                           <td>{formatCurrency(totalValue)}</td>
                           <td>{item.note || "-"}</td>
-                          <td>
-                            <span className="stock-pill stock-pill-ok">{RECEIVE_STATUS_LABEL}</span>
-                          </td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={9}>
+                      <td colSpan={8}>
                         <div className="empty-state">ยังไม่มีรายการรับเข้าสินค้า</div>
                       </td>
                     </tr>
@@ -863,10 +882,9 @@ export default function ReceivePage() {
                 <span>ประเภทสินค้า *</span>
                 <ComboboxSelect
                   value={form.productImportType}
-                  onValueChange={(value) =>
-                    updateForm("productImportType", value as ProductImportType)
-                  }
+                  onValueChange={(value) => handleProductImportTypeChange(value as ProductImportType)}
                   options={productImportTypeOptions}
+                  placeholder="เลือกประเภทสินค้าก่อน"
                   searchPlaceholder="ค้นหาประเภทสินค้า..."
                 />
               </label>
@@ -888,10 +906,13 @@ export default function ReceivePage() {
                   }
                   searchPlaceholder="ค้นหาหรือพิมพ์หมวดหมู่..."
                   allowCustomValue={canCreateNewProduct}
+                  disabled={!hasSelectedProductType}
                 />
               </label>
-              {!isCategoryReady ? (
-                <small className="receive-grid-helper">กรุณาเลือกประเภทสินค้าและพิมพ์หรือเลือกหมวดหมู่ก่อน จึงจะกรอกข้อมูลส่วนอื่นได้</small>
+              {!hasSelectedProductType ? (
+                <small className="receive-grid-helper">ขั้นตอนที่ 1: เลือกประเภทสินค้าก่อน แล้วระบบจะปลดล็อกช่องหมวดหมู่</small>
+              ) : !isCategoryReady ? (
+                <small className="receive-grid-helper">ขั้นตอนที่ 2: เลือกหรือพิมพ์หมวดหมู่ก่อน จึงจะกรอกข้อมูลสินค้าได้</small>
               ) : showMissingCategoryError ? (
                 <small className="receive-grid-helper receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
               ) : !canCreateNewProduct ? (

@@ -758,7 +758,6 @@ export default function IssuePage() {
                 </th>
                 <th>รหัสสินค้า</th>
                 <th>รายการสินค้า</th>
-                <th>การจัดสรร</th>
                 <th>ประเภทสินค้า</th>
                 <th>คงเหลือ</th>
                 <th>หน่วย</th>
@@ -789,14 +788,6 @@ export default function IssuePage() {
                           ระบบจะเลือกล็อตให้อัตโนมัติตามวันหมดอายุหรือวันรับเข้า
                         </span>
                       </td>
-                      <td>
-                        <strong>{item.lots.some((lot) => Boolean(lot.expiryDate)) ? "FEFO" : "FIFO"}</strong>
-                        <span>
-                          {item.lots.length > 1
-                            ? `พร้อมจัดสรรจาก ${formatNumber(item.lots.length)} ล็อต`
-                            : "ระบบตัดล็อตให้อัตโนมัติ"}
-                        </span>
-                      </td>
                       <td>{getProductImportTypeLabel(item.productImportType)}</td>
                       <td className="text-right font-semibold">{formatNumber(item.totalBalance)}</td>
                       <td>{item.unit}</td>
@@ -805,7 +796,7 @@ export default function IssuePage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={6}>
                     <div className="empty-state">ยังไม่มีสินค้าพร้อมเบิกจ่าย</div>
                   </td>
                 </tr>

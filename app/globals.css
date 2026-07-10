@@ -1089,6 +1089,22 @@ textarea {
     box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
   }
 
+  .receive-form input:disabled,
+  .receive-form select:disabled,
+  .receive-form button:disabled[role="combobox"],
+  .receive-form textarea:disabled {
+    background: #f1f5f9;
+    border-color: #dbe5f0;
+    color: #94a3b8;
+    cursor: not-allowed;
+    opacity: 1;
+  }
+
+  .receive-form input:disabled::placeholder,
+  .receive-form textarea:disabled::placeholder {
+    color: #94a3b8;
+  }
+
   .receive-form .receive-input-error {
     border-color: #ef4444;
     background: rgba(254, 242, 242, 0.96);

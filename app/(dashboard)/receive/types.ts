@@ -5,7 +5,7 @@ export type FormState = {
   sku: string;
   category: string;
   imageDataUrl: string;
-  productImportType: ProductImportType;
+  productImportType: ProductImportType | "";
   unit: string;
   type: TransactionType;
   quantity: string;

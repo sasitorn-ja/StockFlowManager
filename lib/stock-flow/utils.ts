@@ -87,7 +87,7 @@ export function createEmptyForm(): FormState {
     sku: "",
     category: "",
     imageDataUrl: "",
-    productImportType: "resale",
+    productImportType: "",
     unit: "",
     type: "in",
     quantity: "",
