@@ -976,7 +976,7 @@ export default function ReceivePage() {
                   showMissingProductError ? (
                     <small className="receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
                   ) : (
-                    <small>ถ้าไม่พบสินค้าในรายการ ต้องให้แอดมินเพิ่มสินค้าใหม่ก่อน</small>
+                    <small>ถ้าไม่พบสินค้าในรายการ ต้องให้ผู้ดูแลระบบเพิ่มสินค้าใหม่ก่อน</small>
                   )
                 ) : null}
               </label>

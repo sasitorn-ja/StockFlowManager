@@ -41,7 +41,7 @@ const navigationGroups = [
     icon: Database,
     items: [
       { label: "รายการสินค้า", href: "/items", icon: Database, roles: ["manager", "admin"] },
-      { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus, roles: ["manager", "admin"] },
+      { label: "รับเข้าสินค้า", href: "/receive", icon: ClipboardPlus },
       { label: "เบิกจ่ายสินค้า", href: "/issue", icon: PackageMinus },
       { label: "ใกล้หมดสต็อก", href: "/expiring", icon: Clock3, roles: ["manager", "admin"] },
     ] satisfies NavigationItem[],
@@ -52,7 +52,7 @@ const navigationGroups = [
     icon: PackageCheck,
     items: [
       { label: "ติดตามสถานะการเบิก", href: "/approve", icon: PackageCheck },
-      { label: "ประวัติรายการ", href: "/history", icon: History, roles: ["manager", "admin"] },
+      { label: "ประวัติรับเข้า-เบิกจ่าย", href: "/history", icon: History },
     ] satisfies NavigationItem[],
   },
   {
@@ -138,15 +138,17 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       </div>
 
       <nav className="dashboard-nav" aria-label="เมนูหลัก">
-        <Link
-          className={`dashboard-nav-item ${pathname === "/overview" ? "dashboard-nav-item-active" : ""}`}
-          href="/overview"
-          onClick={closeMobileMenu}
-          aria-current={pathname === "/overview" ? "page" : undefined}
-        >
-          <Home aria-hidden="true" className="dashboard-nav-icon" size={17} strokeWidth={2.1} />
-          <span className="min-w-0 flex-1 truncate">ภาพรวมสต๊อก</span>
-        </Link>
+        {userRole === "manager" || userRole === "admin" ? (
+          <Link
+            className={`dashboard-nav-item ${pathname === "/overview" ? "dashboard-nav-item-active" : ""}`}
+            href="/overview"
+            onClick={closeMobileMenu}
+            aria-current={pathname === "/overview" ? "page" : undefined}
+          >
+            <Home aria-hidden="true" className="dashboard-nav-icon" size={17} strokeWidth={2.1} />
+            <span className="min-w-0 flex-1 truncate">ภาพรวมสต๊อก</span>
+          </Link>
+        ) : null}
 
         {navigationGroups.map((group) => {
           const visibleItems = group.items.filter(

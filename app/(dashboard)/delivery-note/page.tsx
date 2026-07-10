@@ -34,12 +34,14 @@ type DeliveryNoteSectionProps = {
   deliveryDocument: IssueDeliveryDocument | null;
   setActiveSection: (val: string) => void;
   isLoading: boolean;
+  canViewHistory: boolean;
 };
 
 function DeliveryNoteSection({
   deliveryDocument,
   setActiveSection,
   isLoading,
+  canViewHistory,
 }: DeliveryNoteSectionProps) {
   if (isLoading) {
     return (
@@ -79,9 +81,15 @@ function DeliveryNoteSection({
           </p>
           <h3 className="dashboard-section-title">เอกสารเบิกสินค้า</h3>
         </div>
-        <Button type="button" variant="secondary" onClick={() => setActiveSection("history")}>
-          กลับไปประวัติภาพรวม
-        </Button>
+        {canViewHistory ? (
+          <Button type="button" variant="secondary" onClick={() => setActiveSection("history")}>
+            กลับไปประวัติภาพรวม
+          </Button>
+        ) : (
+          <Button type="button" variant="secondary" onClick={() => setActiveSection("approve")}>
+            กลับไปหน้าติดตามสถานะ
+          </Button>
+        )}
       </div>
 
       <article className="delivery-document">
@@ -238,6 +246,7 @@ function DeliveryNoteContent() {
   const issueKey = searchParams.get("issueKey") || "";
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [canViewHistory, setCanViewHistory] = useState(false);
 
   async function fetchTransactions() {
     setIsLoading(true);
@@ -256,6 +265,16 @@ function DeliveryNoteContent() {
 
   useEffect(() => {
     fetchTransactions();
+  }, []);
+
+  useEffect(() => {
+    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const role = data?.user?.role;
+        setCanViewHistory(role === "admin" || role === "manager");
+      })
+      .catch(() => setCanViewHistory(false));
   }, []);
 
   const deliveryDocument = useMemo<IssueDeliveryDocument | null>(() => {
@@ -312,6 +331,7 @@ function DeliveryNoteContent() {
       deliveryDocument={deliveryDocument}
       setActiveSection={handleBack}
       isLoading={isLoading}
+      canViewHistory={canViewHistory}
     />
   );
 }

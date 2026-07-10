@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     };
     await syncSsoUser(sessionUser);
     const session = createSessionCookie(sessionUser);
-    const response = NextResponse.redirect(toAbsoluteAppUrl(request.url, "/overview"));
+    const response = NextResponse.redirect(toAbsoluteAppUrl(request.url, "/approve"));
     response.cookies.set(SESSION_COOKIE, session, createAuthCookieOptions(8 * 60 * 60));
     response.cookies.set(FLOW_STATE_COOKIE, "", createExpiredAuthCookieOptions());
     response.cookies.set(FLOW_VERIFIER_COOKIE, "", createExpiredAuthCookieOptions());

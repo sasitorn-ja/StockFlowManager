@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, BarChart3, ClipboardList, ClipboardPlus, Database, PackageMinus } from "lucide-react";
+import { withBasePath } from "@/lib/base-path";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import {
   addDays,
@@ -40,7 +42,7 @@ function clampDate(value: string, min: string, max: string) {
   return value;
 }
 
-function isManagerRole(role: UserRole) {
+function canViewStockOverviewRole(role: UserRole) {
   return role === "admin" || role === "manager";
 }
 
@@ -71,25 +73,34 @@ function groupRequisitions(transactions: Transaction[]) {
 }
 
 export default function OverviewPage() {
+  const router = useRouter();
   const { transactions } = useTransactions();
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [overviewDateFrom, setOverviewDateFrom] = useState(() => addDays(getLocalDateValue(), -6));
   const [overviewDateTo, setOverviewDateTo] = useState(getLocalDateValue);
 
   const userRole = currentUser?.role ?? "employee";
-  const canViewStockOverview = isManagerRole(userRole);
+  const canViewStockOverview = canViewStockOverviewRole(userRole);
   const currentUserName = currentUser?.name?.trim() || "";
 
   useEffect(() => {
-    fetch("/api/auth/session", { cache: "no-store" })
+    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         const user = data?.user;
-        const role: UserRole = isManagerRole(user?.role) ? user.role : "employee";
+        const role: UserRole = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
         setCurrentUser(user ? { name: user.name ?? "ผู้ใช้งาน", email: user.email, role } : null);
       })
-      .catch(() => setCurrentUser(null));
+      .catch(() => setCurrentUser(null))
+      .finally(() => setIsCheckingSession(false));
   }, []);
+
+  useEffect(() => {
+    if (!isCheckingSession && !canViewStockOverview) {
+      router.replace("/approve");
+    }
+  }, [canViewStockOverview, isCheckingSession, router]);
 
   const earliestAllowedOverviewDateFrom = useMemo(
     () => addDays(overviewDateTo, -MAX_OVERVIEW_DAY_RANGE),
@@ -323,6 +334,14 @@ export default function OverviewPage() {
       .slice(0, 5);
   }, [canViewStockOverview, ownRequisitions, transactionsUntilOverviewDate]);
 
+  if (isCheckingSession || !canViewStockOverview) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-[var(--text-muted)]">
+        กำลังตรวจสอบสิทธิ์...
+      </div>
+    );
+  }
+
   return (
     <section id="import" className="overview-page">
       <div className="overview-header">
@@ -330,7 +349,7 @@ export default function OverviewPage() {
           <h2>{canViewStockOverview ? "ภาพรวมสต็อก" : "ภาพรวมการเบิกของฉัน"}</h2>
           <p>
             {canViewStockOverview
-              ? "สรุปสถานะคลังสินค้าแบบรวดเร็วสำหรับผู้จัดการและทีมคลัง"
+              ? "สรุปสถานะคลังสินค้าแบบรวดเร็วสำหรับผู้จัดการและผู้ดูแลระบบ"
               : "แสดงเฉพาะใบเบิกและปริมาณเบิกของคุณ ข้อมูลคลังรวมถูกซ่อนตามสิทธิ์"}
           </p>
         </div>
@@ -534,7 +553,7 @@ export default function OverviewPage() {
               </div>
             </div>
             <div className="overview-soft-empty">
-              ข้อมูลคงคลังรวม รายการใกล้หมด และใบเบิกของผู้อื่นจะแสดงเฉพาะผู้จัดการหรือแอดมิน
+              ข้อมูลคงคลังรวม รายการใกล้หมด และใบเบิกของผู้อื่นจะแสดงเฉพาะผู้จัดการและผู้ดูแลระบบ
             </div>
           </article>
         )}

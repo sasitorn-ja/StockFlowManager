@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS roles (
 INSERT INTO roles (id, name, description, permissions, created_at, updated_at)
 VALUES
   ('employee', 'พนักงาน', 'สร้างใบเบิกและติดตามสถานะใบเบิกของตนเอง', JSON_ARRAY('request:create', 'request:cancel_own'), UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000, UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
-  ('manager', 'ผู้จัดการ', 'ตรวจสอบภาพรวมคลังและอนุมัติใบเบิก', JSON_ARRAY('stock:view', 'request:approve', 'request:reject'), UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000, UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
+  ('manager', 'ผู้จัดการ', 'ใช้งานเหมือนพนักงาน ดูภาพรวมคลัง และอนุมัติใบเบิก', JSON_ARRAY('stock:view', 'request:approve', 'request:reject'), UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000, UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
   ('admin', 'แอดมิน', 'จัดการสินค้า ผู้ใช้ สิทธิ์ ระบบ และข้อมูลคลังทั้งหมด', JSON_ARRAY('admin:*'), UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000, UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000)
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),

@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PackageMinus, FileText, PackagePlus } from "lucide-react";
+import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { StatsGrid } from "@/components/stock-flow/StatsGrid";
 import { Table } from "@/components/stock-flow/Table";
@@ -21,11 +22,13 @@ import type { StatCard } from "@/components/stock-flow/StatsGrid";
 import { getRequisitionStatusClass, getRequisitionStatusLabel, RECEIVE_STATUS_LABEL } from "@/lib/stock-flow/status";
 
 type HistoryFilter = "all" | TransactionType;
+type UserRole = "employee" | "manager" | "admin";
 
 type HistorySectionProps = {
   movementOverview: {
     transactions: Transaction[];
   };
+  isGlobalView: boolean;
   movementStats: StatCard[];
   lotLabels: Map<string, string>;
   activeFilter: HistoryFilter;
@@ -51,6 +54,7 @@ function getReceiveDocumentNo(item: Transaction) {
 
 function HistorySection({
   movementOverview,
+  isGlobalView,
   movementStats,
   lotLabels,
   activeFilter,
@@ -69,7 +73,9 @@ function HistorySection({
           <div>
             <h3 className="dashboard-section-title">ประวัติรับเข้า-เบิกจ่ายสินค้า</h3>
             <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              รวมความเคลื่อนไหวสินค้าเข้าและออก เรียงตามเวลาที่บันทึกล่าสุด
+              {isGlobalView
+                ? "รวมความเคลื่อนไหวสินค้าเข้าและออก เรียงตามเวลาที่บันทึกล่าสุด"
+                : "แสดงประวัติใบเบิกของคุณ เรียงตามเวลาที่บันทึกล่าสุด"}
             </p>
           </div>
           <div className="history-filter-row">
@@ -122,7 +128,9 @@ function HistorySection({
           <div>
             <h2 className="dashboard-section-title">รายการเคลื่อนไหวทั้งหมด</h2>
             <p className="dashboard-subtitle">
-              ใช้ตรวจย้อนหลังได้ทั้งวันที่รับเข้า วันที่เบิก และเวลาที่ระบบบันทึก
+              {isGlobalView
+                ? "ใช้ตรวจย้อนหลังได้ทั้งวันที่รับเข้า วันที่เบิก และเวลาที่ระบบบันทึก"
+                : "ใช้ตรวจย้อนหลังใบเบิกของคุณ วันที่เบิก และเวลาที่ระบบบันทึก"}
             </p>
           </div>
         </div>
@@ -258,8 +266,25 @@ function HistorySection({
 export default function HistoryPage() {
   const router = useRouter();
   const { transactions } = useTransactions();
+  const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
+  const [currentUserName, setCurrentUserName] = useState("");
   const [activeFilter, setActiveFilter] = useState<HistoryFilter>("all");
   const today = getLocalDateValue();
+
+  useEffect(() => {
+    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const user = data?.user;
+        const role = user?.role;
+        setCurrentRole(role === "admin" || role === "manager" ? role : "employee");
+        setCurrentUserName(user?.name?.trim() || "");
+      })
+      .catch(() => {
+        setCurrentRole("employee");
+        setCurrentUserName("");
+      });
+  }, []);
   const earliestTransactionDate = useMemo(() => {
     if (transactions.length === 0) {
       return today;
@@ -275,9 +300,17 @@ export default function HistoryPage() {
 
   const effectiveDateFrom = dateFrom || earliestTransactionDate;
   const effectiveDateTo = dateTo || today;
+  const isGlobalView = currentRole === "admin" || currentRole === "manager";
 
   const movementOverview = useMemo(() => {
     const movementTransactions = transactions
+      .filter((item) => {
+        if (isGlobalView) {
+          return true;
+        }
+
+        return item.type === "out" && (item.requester || "").trim() === currentUserName;
+      })
       .filter((item) => activeFilter === "all" || item.type === activeFilter)
       .filter((item) => item.date >= effectiveDateFrom && item.date <= effectiveDateTo)
       .slice()
@@ -297,7 +330,7 @@ export default function HistoryPage() {
       ),
       todayMovements: movementTransactions.filter((item) => item.date === today).length,
     };
-  }, [activeFilter, effectiveDateFrom, effectiveDateTo, today, transactions]);
+  }, [activeFilter, currentUserName, effectiveDateFrom, effectiveDateTo, isGlobalView, today, transactions]);
 
   const lotLabels = useMemo(() => {
     const lots = Array.from(buildInventoryLotMap(transactions).values()).sort(
@@ -327,21 +360,23 @@ export default function HistoryPage() {
         label: "รายการทั้งหมด",
         value: formatNumber(movementOverview.totalMovements),
         unit: "รายการ",
-        helper: activeFilter === "all" ? "รวมรับเข้าและเบิกจ่าย" : "ตามตัวกรองที่เลือก",
+        helper: isGlobalView
+          ? activeFilter === "all" ? "รวมรับเข้าและเบิกจ่าย" : "ตามตัวกรองที่เลือก"
+          : "เฉพาะใบเบิกของคุณ",
         tone: "sky",
       },
       {
         label: "รับเข้าสินค้า",
         value: formatNumber(movementOverview.stockInCount),
         unit: "รายการ",
-        helper: "ประวัติรับเข้าสินค้าทั้งหมด",
+        helper: isGlobalView ? "ประวัติรับเข้าสินค้าทั้งหมด" : "คนทั่วไปดูประวัติรับเข้ารวมไม่ได้",
         tone: "emerald",
       },
       {
         label: "เบิกจ่ายสินค้า",
         value: formatNumber(movementOverview.stockOutCount),
         unit: "รายการ",
-        helper: "ประวัติเบิกจ่ายสินค้าทั้งหมด",
+        helper: isGlobalView ? "ประวัติเบิกจ่ายสินค้าทั้งหมด" : "เฉพาะใบเบิกของคุณ",
         tone: "orange",
       },
       {
@@ -365,7 +400,7 @@ export default function HistoryPage() {
         tone: "sky",
       },
     ],
-    [activeFilter, movementOverview]
+    [activeFilter, isGlobalView, movementOverview]
   );
 
   function openDeliveryDocumentFromHistory(issueKey: string) {
@@ -386,9 +421,18 @@ export default function HistoryPage() {
     }
   }
 
+  if (currentRole === null) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-[var(--text-muted)]">
+        กำลังตรวจสอบสิทธิ์...
+      </div>
+    );
+  }
+
   return (
     <HistorySection
       movementOverview={movementOverview}
+      isGlobalView={isGlobalView}
       movementStats={movementStats}
       lotLabels={lotLabels}
       activeFilter={activeFilter}

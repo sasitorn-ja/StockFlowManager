@@ -587,7 +587,7 @@ export default function RequisitionTrackerPage() {
                     </td>
                     <td className="w-[22%] min-w-[220px]">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        {/* ผู้จัดการหรือแอดมินอนุมัติใบเบิก */}
+                        {/* ผู้จัดการอนุมัติใบเบิก */}
                         {req.status === "pending" && isManagerOrAdmin && (
                           <Button
                             type="button"
@@ -609,7 +609,7 @@ export default function RequisitionTrackerPage() {
                           </Button>
                         )}
 
-                        {/* แอดมินยืนยันจ่ายสินค้า */}
+                        {/* ผู้ดูแลระบบยืนยันจ่ายสินค้า */}
                         {req.status === "approved" && isAdmin && (
                           <Button
                             type="button"
@@ -773,7 +773,7 @@ export default function RequisitionTrackerPage() {
                                 </div>
                                 <div>
                                   <p className={req.status !== "pending" && req.status !== "cancelled" ? "text-slate-800" : "text-slate-400 font-medium"}>
-                                    อนุมัติแล้ว / รอแอดมินจ่ายของ
+                                    อนุมัติแล้ว / รอคลังจ่ายของ
                                   </p>
                                   {req.approver && (
                                     <span className="block text-[10px] text-slate-400 font-normal">โดย: {req.approver}</span>
@@ -801,7 +801,7 @@ export default function RequisitionTrackerPage() {
                                 </div>
                                 <div>
                                   <p className={req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>
-                                    แอดมินจ่ายของ/ตัดสต๊อกถาวร
+                                    คลังจ่ายของ/ตัดสต๊อกถาวร
                                   </p>
                                 </div>
                                 {req.status === "completed" ? (
