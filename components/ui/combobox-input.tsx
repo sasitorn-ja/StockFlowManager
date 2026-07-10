@@ -78,7 +78,7 @@ export function ComboboxInput({
           <ChevronDown size={15} className="shrink-0 text-slate-500" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" portalled={false} className="w-[--radix-popover-trigger-width] p-0">
+      <PopoverContent align="start" className="w-[--radix-popover-trigger-width] max-w-[calc(100vw-1rem)] p-0">
         <Command shouldFilter>
           <CommandInput
             ref={inputRef}

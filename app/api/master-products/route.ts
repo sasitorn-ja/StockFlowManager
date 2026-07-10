@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sql } from "@/lib/db";
+import { ensureColumnDefinition, sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/users";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ async function ensureMasterProductTableExists() {
         sku VARCHAR(100) DEFAULT '',
         category VARCHAR(255) DEFAULT '-',
         "productImportType" VARCHAR(50) DEFAULT 'resale',
-        "imageDataUrl" TEXT,
+        "imageDataUrl" LONGTEXT,
         unit VARCHAR(50) NOT NULL,
         price DECIMAL(15,4) DEFAULT 0,
         "costPrice" DECIMAL(15,4) DEFAULT 0,
@@ -33,6 +33,8 @@ async function ensureMasterProductTableExists() {
         "updatedAt" BIGINT
       );
     `;
+
+    await ensureColumnDefinition("products", "imageDataUrl", "LONGTEXT");
 
   })().catch((error) => {
     masterProductTableSetup = null;

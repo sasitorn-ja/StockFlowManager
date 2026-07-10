@@ -76,8 +76,7 @@ export function ComboboxSelect({
       </PopoverTrigger>
       <PopoverContent
         align={align}
-        portalled={false}
-        className={cn("w-[--radix-popover-trigger-width] p-0", contentClassName)}
+        className={cn("w-[--radix-popover-trigger-width] max-w-[calc(100vw-1rem)] p-0", contentClassName)}
       >
         <Command>
           <CommandInput ref={inputRef} placeholder={searchPlaceholder} />

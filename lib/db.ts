@@ -122,6 +122,13 @@ export async function ensureColumn(tableName: string, columnName: string, defini
   }
 }
 
+export async function ensureColumnDefinition(tableName: string, columnName: string, definition: string) {
+  await ensureColumn(tableName, columnName, definition);
+  await pool.query(
+    `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\` ${definition}`
+  );
+}
+
 export async function ensureIndex(
   tableName: string,
   indexName: string,

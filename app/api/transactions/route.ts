@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureColumn, sql } from "@/lib/db";
+import { ensureColumn, ensureColumnDefinition, sql } from "@/lib/db";
 import { createSampleTransactions } from "@/lib/stock-flow/sample-data";
 import { buildItemKey } from "@/lib/stock-flow/utils";
 import { getCurrentUser } from "@/lib/auth/users";
@@ -35,7 +35,7 @@ async function ensureTableExists() {
           name VARCHAR(255) NOT NULL,
           sku VARCHAR(100),
           category VARCHAR(100),
-          "imageDataUrl" TEXT,
+          "imageDataUrl" LONGTEXT,
           "productImportType" VARCHAR(50),
           unit VARCHAR(50),
           type VARCHAR(50),
@@ -55,6 +55,7 @@ async function ensureTableExists() {
       `;
 
       await ensureColumn("transactions", "status", "VARCHAR(50) DEFAULT 'confirmed'");
+      await ensureColumnDefinition("transactions", "imageDataUrl", "LONGTEXT");
     });
   })().catch((error) => {
     transactionTableSetup = null;
