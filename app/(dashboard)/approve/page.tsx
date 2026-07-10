@@ -1,7 +1,7 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Fragment, Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronRight, Eye, CheckCircle2, XCircle, Clock, CheckSquare, Layers, FileCheck, PackageCheck, Search } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,16 @@ type ConfirmDialogState = {
 };
 
 export default function RequisitionTrackerPage() {
+  return (
+    <Suspense fallback={null}>
+      <RequisitionTrackerContent />
+    </Suspense>
+  );
+}
+
+function RequisitionTrackerContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentRole, setCurrentRole] = useState("employee");
@@ -69,6 +78,7 @@ export default function RequisitionTrackerPage() {
   const [myCreatedIssueKeys, setMyCreatedIssueKeys] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const deepLinkedIssueKey = searchParams.get("issueKey")?.trim() || "";
 
   // Fetch transactions from the configured database.
   async function fetchTransactions() {
@@ -120,6 +130,13 @@ export default function RequisitionTrackerPage() {
       window.removeEventListener("current-user-changed", loadCurrentRole);
     };
   }, []);
+
+  useEffect(() => {
+    if (!deepLinkedIssueKey) return;
+    setActiveTab("all");
+    setSearchQuery(deepLinkedIssueKey);
+    setExpandedKeys((current) => ({ ...current, [deepLinkedIssueKey]: true }));
+  }, [deepLinkedIssueKey]);
 
   // Group transactions by issueKey
   const groupedRequisitions = useMemo(() => {
@@ -236,28 +253,24 @@ export default function RequisitionTrackerPage() {
         label: "คำขอเบิกทั้งหมด",
         value: formatNumber(total),
         unit: "ใบงาน",
-        helper: "คำขอเบิกสะสมในระบบ",
         tone: "sky" as const,
       },
       {
         label: "รอผู้จัดการอนุมัติ",
         value: formatNumber(pending),
         unit: "ใบงาน",
-        helper: "รอผู้จัดการตรวจสอบคำขอ",
         tone: "amber" as const,
       },
       {
         label: "สต๊อกที่จองไว้",
         value: formatNumber(reserved),
         unit: "ใบงาน",
-        helper: "ใบเบิกที่ยังไม่จบหรือยกเลิก",
         tone: "violet" as const,
       },
       {
         label: "จ่ายสินค้าแล้ว",
         value: formatNumber(completed),
         unit: "ใบงาน",
-        helper: "คลังจ่ายสินค้าและปิดใบเบิกแล้ว",
         tone: "emerald" as const,
       },
     ];
@@ -504,16 +517,14 @@ export default function RequisitionTrackerPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
             </span>
-            <span>
-              กำลังแสดง: <strong>{filteredRequisitions.length} ใบงาน</strong> (มุมมอง: <span className="text-sky-700 font-bold">{currentUsername}</span>)
-            </span>
+            <span><strong>{filteredRequisitions.length} ใบงาน</strong></span>
           </div>
         </div>
       </div>
 
       {/* Main Table */}
       <DataPanel
-        title="ตารางติดตามเอกสารใบเบิก"
+        title="รายการใบเบิก"
         description="คลิกไอคอนลูกศรเพื่อขยายดูรายการสินค้าในแต่ละใบขอเบิก"
       >
         {isLoading ? (
@@ -531,10 +542,12 @@ export default function RequisitionTrackerPage() {
               "สินค้า / จำนวน",
               "ผู้อนุมัติ",
               "สถานะ",
-              "จัดการ",
+              "ดำเนินการ",
+              "เอกสาร",
             ]}
             emptyMessage="ไม่มีรายการที่สอดคล้องกับแท็บที่เลือก"
-            columnCount={9}
+            columnCount={10}
+            className="requisition-table"
           >
             {filteredRequisitions.map((req) => {
               const isExpanded = expandedKeys[req.issueKey];
@@ -653,20 +666,6 @@ export default function RequisitionTrackerPage() {
                           </Button>
                         )}
 
-                        {/* ดูเอกสารเบิกสินค้า */}
-                        {req.status !== "pending" && req.status !== "cancelled" && isAdmin && (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => router.push(`/delivery-note?issueKey=${encodeURIComponent(req.issueKey)}`)}
-                            className="text-xs px-2.5 h-8 py-1 rounded flex items-center gap-1.5"
-                          >
-                            <Eye size={12} />
-                            ดูใบเบิกสินค้า
-                          </Button>
-                        )}
-
                         {/* 4. BUTTON: Cancel at any stage before completed */}
                         {req.status === "pending" && (isOwnRequisition || isAdmin) && (
                           <Button
@@ -690,12 +689,19 @@ export default function RequisitionTrackerPage() {
                         )}
                       </div>
                     </td>
+                    <td className="whitespace-nowrap">
+                      {req.status !== "pending" && req.status !== "cancelled" && isAdmin ? (
+                        <Button type="button" variant="secondary" size="sm" onClick={() => router.push(`/delivery-note?issueKey=${encodeURIComponent(req.issueKey)}`)} className="text-xs px-2.5 h-8 py-1 rounded flex items-center gap-1.5">
+                          <Eye size={12} /> ดูใบเบิก
+                        </Button>
+                      ) : <span className="text-xs text-slate-300">—</span>}
+                    </td>
                   </tr>
 
                   {/* Expanded detail panel */}
                   {isExpanded && (
                     <tr className="bg-slate-50/50">
-                      <td colSpan={9} className="p-4 border-l-4 border-sky-400">
+                      <td colSpan={10} className="p-4 border-l-4 border-sky-400">
                         <div className="grid gap-3">
                           <div className="flex flex-col gap-1">
                             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">

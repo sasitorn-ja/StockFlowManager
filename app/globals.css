@@ -40,11 +40,9 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    linear-gradient(115deg, rgba(248, 252, 255, 0.84) 0%, rgba(240, 248, 255, 0.68) 48%, rgba(221, 237, 255, 0.5) 100%),
-    url("./picture/bg1.png") right top / cover fixed;
+  background: #f6faff;
   color: var(--text-body);
-  font-family: "Sarabun", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  font-family: "TH Sarabun New", "Sarabun", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
   font-feature-settings: "tnum";
 }
 
@@ -55,15 +53,13 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.52) 45%, rgba(235, 246, 255, 0.28) 100%),
-    radial-gradient(circle at 82% 12%, rgba(59, 130, 246, 0.16), transparent 34%);
+    linear-gradient(90deg, rgba(246, 250, 255, 0.96) 0%, rgba(246, 250, 255, 0.82) 45%, rgba(246, 250, 255, 0.72) 100%),
+    url("./picture/bg2.png") center / cover;
 }
 
 @media (max-width: 768px) {
   body {
-    background:
-      linear-gradient(180deg, rgba(247, 251, 255, 0.97), rgba(232, 243, 255, 0.92)),
-      url("./picture/bg2.png") center top / cover fixed;
+    background: #f6faff;
   }
 }
 
@@ -87,9 +83,7 @@ textarea {
   .dashboard-shell {
     position: relative;
     isolation: isolate;
-    background:
-      linear-gradient(115deg, rgba(255, 255, 255, 0.76), rgba(238, 247, 255, 0.55)),
-      url("./picture/bg1.png") right top / cover fixed;
+    background: transparent;
     @apply min-h-screen w-full;
   }
 
@@ -99,9 +93,7 @@ textarea {
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background:
-      radial-gradient(circle at 82% 8%, rgba(37, 99, 235, 0.16), transparent 30%),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.38));
+    background: transparent;
   }
 
   .dashboard-sidebar {
@@ -174,20 +166,97 @@ textarea {
   }
 
   .admin-role-preview {
-    @apply flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2 py-1.5 md:px-3;
+    @apply flex items-center gap-2 rounded-lg border border-blue-200 bg-white/80 px-2 py-1.5 shadow-none md:px-3;
   }
 
   .admin-role-preview span { @apply hidden text-[11px] font-bold text-blue-700 sm:inline; }
   .admin-role-preview select { @apply rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-bold text-slate-700 outline-none; }
-  .admin-preview-banner { @apply rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-center text-xs font-semibold text-blue-800; }
+  .admin-preview-banner { @apply px-1 py-1 text-center text-xs font-semibold text-blue-700; }
 
   .category-settings { @apply grid gap-4; }
+  .category-settings-note { @apply rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-slate-600; }
   .category-settings-add { @apply flex flex-col gap-2 sm:flex-row; }
   .category-settings-add input { @apply flex-1; }
   .category-settings-list { @apply grid gap-2 sm:grid-cols-2 lg:grid-cols-3; }
-  .category-settings-list > div { @apply flex min-h-12 items-center justify-between gap-2 rounded-xl border border-blue-100 bg-blue-50/50 px-3 py-2; }
+  .category-settings-list > div { @apply flex min-h-12 items-start justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/50 px-3 py-3; }
   .category-settings-list strong { @apply min-w-0 truncate text-sm text-slate-800; }
   .category-settings-list input { @apply min-w-0 flex-1; }
+  .category-settings-info { @apply min-w-0 grid gap-1; }
+  .category-settings-info small { @apply text-[12px] leading-5 text-slate-500; }
+
+  .manager-dashboard { @apply grid gap-3 bg-transparent p-0; }
+  .manager-dashboard-hero { @apply flex flex-col gap-3 rounded-none border-0 bg-transparent px-0 py-1 sm:flex-row sm:items-center sm:justify-between; }
+  .manager-dashboard-hero span { @apply text-[10px] font-black tracking-[0.18em] text-blue-600; }
+  .manager-dashboard-hero h2 { @apply mt-0.5 text-xl font-black text-slate-900 md:text-2xl; }
+  .manager-dashboard-hero strong { @apply mt-1 block text-sm text-slate-500; }
+  .manager-dashboard-hero > div:last-child { @apply flex flex-wrap gap-2; }
+  .manager-dashboard-hero a { @apply inline-flex h-10 items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 text-xs font-extrabold text-[#0b63bd] shadow-none; }
+  .manager-dashboard-hero a:last-child { @apply bg-white text-[#0b63bd] ring-0; }
+  .manager-kpi-grid { @apply grid grid-cols-2 gap-3 xl:grid-cols-4; }
+  .manager-kpi-grid article { @apply grid min-h-24 grid-cols-[auto_1fr] items-center gap-x-3 rounded-xl border border-blue-100 bg-white p-3; }
+  .manager-kpi-icon { @apply row-span-2 flex h-11 w-11 items-center justify-center rounded-xl; }
+  .manager-kpi-icon.amber { @apply bg-amber-100 text-amber-700; }
+  .manager-kpi-icon.sky { @apply bg-blue-100 text-blue-700; }
+  .manager-kpi-icon.violet { @apply bg-violet-100 text-violet-700; }
+  .manager-kpi-icon.emerald { @apply bg-emerald-100 text-emerald-700; }
+  .manager-kpi-grid article > span { @apply self-end text-[11px] font-bold text-slate-500; }
+  .manager-kpi-grid article > strong { @apply self-start text-2xl font-black text-slate-900; }
+  .manager-kpi-grid article > small { @apply col-start-2 -mt-5 ml-10 text-[10px] font-bold text-slate-400; }
+  .manager-dashboard-grid { @apply grid gap-4 xl:grid-cols-[1.15fr_.85fr]; }
+  .manager-work-card { @apply overflow-hidden rounded-xl border border-slate-200 bg-white; }
+  .manager-work-card-priority { @apply border-amber-200; }
+  .manager-work-heading { @apply flex items-center justify-between border-b border-slate-100 px-5 py-4; }
+  .manager-work-heading span { @apply text-[10px] font-black uppercase tracking-wider text-slate-400; }
+  .manager-work-heading h3 { @apply mt-0.5 text-lg font-black text-slate-900; }
+  .manager-work-heading > a { @apply rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-[#0b63bd]; }
+  .manager-request-list, .manager-own-list { @apply grid gap-2 p-3; }
+  .manager-request-list > a { @apply grid grid-cols-[1fr_auto_auto] items-center gap-4 rounded-xl border border-slate-100 px-4 py-3 transition hover:border-blue-200 hover:bg-blue-50/50; }
+  .manager-request-list a div, .manager-own-list a div { @apply min-w-0; }
+  .manager-request-list strong, .manager-own-list strong { @apply block truncate text-sm font-extrabold text-slate-800; }
+  .manager-request-list span, .manager-own-list span { @apply mt-1 block truncate text-[10px] font-semibold text-slate-400; }
+  .manager-request-list a > div:nth-child(2) { @apply text-right; }
+  .manager-request-list b { @apply block text-xs text-slate-700; }
+  .manager-own-list > a { @apply flex items-center justify-between gap-3 rounded-xl border border-slate-100 px-4 py-3 transition hover:border-blue-200 hover:bg-blue-50/50; }
+  .manager-own-list em { @apply shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[9px] font-bold not-italic text-blue-700; }
+  .manager-empty { @apply grid min-h-52 place-items-center content-center gap-2 rounded-xl border border-dashed border-slate-200 text-center text-slate-300; }
+  .manager-empty strong { @apply text-xs text-slate-500; }
+
+  /* Overview uses a flat dashboard canvas: one surface per information group. */
+  .overview-page { background: transparent; @apply gap-4 rounded-none p-0; }
+  .overview-kpi-grid { @apply gap-2 md:grid-cols-2 xl:grid-cols-4; }
+  .overview-kpi-card { border-color: #e2e8f0; box-shadow: none; @apply min-h-[76px] rounded-lg p-2.5; }
+  .overview-kpi-card:hover { box-shadow: 0 6px 16px rgba(30, 64, 175, 0.08); transform: none; }
+  .overview-chart-card, .overview-list-card { border-color: #e2e8f0; box-shadow: none; @apply rounded-lg p-3; }
+  .overview-chart-card { @apply md:p-4; }
+  .overview-bottom-grid { @apply gap-3; }
+  .overview-section-heading { @apply mb-2; }
+  .overview-date-input { @apply min-h-9 rounded-lg py-0.5; }
+  .overview-date-input input { @apply text-xs; }
+  .overview-bar-chart { @apply h-[130px] rounded-lg; }
+
+  /* Keep the requisition list above the fold. */
+  #requisition-tracker { @apply gap-3; }
+  #requisition-tracker > .dashboard-card { background: transparent; border: 0; box-shadow: none; }
+  #requisition-tracker > .dashboard-card .dashboard-panel-header { @apply min-h-0 px-0 py-0; }
+  #requisition-tracker > .dashboard-card .dashboard-section-title { @apply text-xl; }
+  #requisition-tracker .kpi-card { @apply min-h-[76px] rounded-lg p-2.5; box-shadow: none; }
+  #requisition-tracker .kpi-card:hover { box-shadow: none; transform: none; }
+  #requisition-tracker > .flex.flex-wrap.items-center.justify-between { @apply gap-2 border-0 pb-0; }
+  #requisition-tracker > .flex.flex-wrap.items-center.justify-between > div:first-child { @apply rounded-xl border border-slate-200/70 bg-transparent p-0.5; }
+  #requisition-tracker > .flex.flex-wrap.items-center.justify-between button { @apply rounded-lg px-2.5 py-1.5; }
+  #requisition-tracker > .flex.flex-wrap.items-center.justify-between .h-10 { @apply h-9 rounded-lg shadow-none; }
+  .requisition-table { min-width: 1020px !important; }
+  .requisition-table th:nth-child(1), .requisition-table td:nth-child(1) { width: 3%; }
+  .requisition-table th:nth-child(2), .requisition-table td:nth-child(2) { width: 8%; }
+  .requisition-table th:nth-child(3), .requisition-table td:nth-child(3) { width: 8%; }
+  .requisition-table th:nth-child(4), .requisition-table td:nth-child(4) { width: 13%; }
+  .requisition-table th:nth-child(5), .requisition-table td:nth-child(5) { width: 11%; }
+  .requisition-table th:nth-child(6), .requisition-table td:nth-child(6) { width: 13%; }
+  .requisition-table th:nth-child(7), .requisition-table td:nth-child(7) { width: 11%; }
+  .requisition-table th:nth-child(8), .requisition-table td:nth-child(8) { width: 12%; }
+  .requisition-table th:nth-child(9), .requisition-table td:nth-child(9) { width: 11%; }
+  .requisition-table th:nth-child(10), .requisition-table td:nth-child(10) { width: 10%; }
+  .requisition-table td:nth-child(4), .requisition-table td:nth-child(5), .requisition-table td:nth-child(7) { overflow-wrap: anywhere; }
 
   .dashboard-content:has(.overview-page) {
     @apply gap-2 py-3;
@@ -255,19 +324,18 @@ textarea {
   }
 
   .dashboard-card {
-    background: var(--surface);
-    border: 1px solid rgba(214, 229, 247, 0.9);
-    box-shadow: var(--shadow-soft);
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(214, 229, 247, 0.72);
+    box-shadow: none;
     backdrop-filter: blur(16px);
-    box-shadow: var(--shadow-soft), var(--shadow-inset);
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    @apply rounded-xl;
+    @apply rounded-lg;
   }
 
   .dashboard-card:hover {
-    box-shadow: var(--shadow-premium);
+    box-shadow: none;
     border-color: #bfdbfe;
-    transform: translateY(-2px);
+    transform: none;
   }
 
   .dashboard-panel-header {
@@ -422,15 +490,31 @@ textarea {
   }
 
   .overview-page {
-    @apply grid gap-3;
+    background: transparent;
+    @apply grid gap-3 rounded-none p-0;
   }
 
   .overview-header {
-    @apply flex flex-col gap-2 md:flex-row md:items-start md:justify-between;
+    @apply flex flex-col gap-2;
   }
 
   .overview-date-range {
     @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3;
+  }
+
+  .overview-summary-row {
+    @apply grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-stretch;
+  }
+
+  .overview-date-card {
+    background: #ffffff;
+    border: 1px solid rgba(214, 229, 247, 0.92);
+    @apply flex flex-col justify-center gap-2 rounded-xl p-3;
+  }
+
+  .overview-date-card-label {
+    color: var(--text-strong);
+    @apply text-sm font-extrabold;
   }
 
   .overview-header h2 {
@@ -449,8 +533,7 @@ textarea {
 
   .overview-date-input {
     border: 1px solid var(--border);
-    box-shadow: var(--shadow-soft);
-    @apply flex min-h-11 w-full min-w-[166px] flex-col justify-center rounded-xl bg-white px-3 py-1.5 sm:w-[200px];
+    @apply flex min-h-10 w-full min-w-[150px] flex-col justify-center rounded-lg bg-white px-3 py-1 sm:w-[180px];
   }
 
   .overview-date-input span {
@@ -472,21 +555,20 @@ textarea {
   }
 
   .overview-kpi-card {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 255, 0.94));
+    background: #ffffff;
     border: 1px solid rgba(214, 229, 247, 0.92);
-    box-shadow: var(--shadow-soft), var(--shadow-inset);
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    @apply grid min-h-[104px] grid-cols-[auto_1fr] grid-rows-[auto_auto] gap-x-3 gap-y-1 rounded-xl p-3;
+    @apply grid min-h-[86px] grid-cols-[auto_1fr] grid-rows-[auto_auto] gap-x-3 gap-y-0.5 rounded-xl p-3;
   }
 
   .overview-kpi-card:hover {
-    box-shadow: var(--shadow-premium);
+    box-shadow: var(--shadow-soft);
     border-color: #bfdbfe;
     transform: translateY(-3px);
   }
 
   .overview-kpi-icon {
-    @apply row-span-2 flex h-9 w-9 items-center justify-center rounded-full;
+    @apply row-span-2 flex h-8 w-8 items-center justify-center rounded-lg;
   }
 
   .overview-kpi-icon-sky {
@@ -521,7 +603,7 @@ textarea {
 
   .overview-kpi-card strong {
     color: var(--text-strong);
-    @apply mr-1 inline text-2xl font-extrabold leading-7;
+    @apply mr-1 inline text-xl font-extrabold leading-6;
   }
 
   .overview-kpi-card span,
@@ -538,11 +620,14 @@ textarea {
     @apply grid gap-4;
   }
 
+  .overview-insight-grid {
+    @apply grid gap-3 xl:grid-cols-2;
+  }
+
   .overview-chart-card {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 255, 0.94));
+    background: #ffffff;
     border: 1px solid rgba(214, 229, 247, 0.92);
-    box-shadow: var(--shadow-soft), var(--shadow-inset);
-    @apply rounded-xl p-4;
+    @apply rounded-xl p-3;
   }
 
   .overview-chart-header {
@@ -601,7 +686,7 @@ textarea {
     background:
       linear-gradient(to top, rgba(226, 232, 240, 0.72) 1px, transparent 1px) 0 0 / 100% 25%,
       #ffffff;
-    @apply mt-3 grid h-[190px] items-end gap-2 overflow-x-auto px-3 pt-4;
+    @apply mt-2 grid h-[150px] items-end gap-1.5 overflow-x-auto px-2 pt-3;
   }
 
   .overview-bar-group {
@@ -667,10 +752,9 @@ textarea {
   }
 
   .overview-list-card {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 255, 0.94));
+    background: #ffffff;
     border: 1px solid rgba(214, 229, 247, 0.92);
-    box-shadow: var(--shadow-soft), var(--shadow-inset);
-    @apply rounded-xl p-4;
+    @apply rounded-xl p-3;
   }
 
   .overview-section-heading {
@@ -775,6 +859,60 @@ textarea {
 
   .overview-low-stock-empty {
     @apply rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-[12px] text-slate-500;
+  }
+
+  .overview-brief-card {
+    @apply gap-0;
+  }
+
+  .overview-brief-list {
+    @apply grid gap-2;
+  }
+
+  .overview-brief-list div {
+    @apply flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2;
+  }
+
+  .overview-brief-list span {
+    color: var(--text-body);
+    @apply text-[12px] font-semibold;
+  }
+
+  .overview-brief-list strong {
+    color: var(--text-strong);
+    @apply text-sm font-extrabold text-right;
+  }
+
+  .overview-brief-note {
+    @apply mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-[12px] leading-5 text-slate-600;
+  }
+
+  .overview-priority-list {
+    @apply grid gap-2;
+  }
+
+  .overview-priority-item {
+    @apply flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5;
+  }
+
+  .overview-priority-item div:first-child {
+    @apply min-w-0;
+  }
+
+  .overview-priority-item strong {
+    @apply block text-sm font-bold text-slate-900;
+  }
+
+  .overview-priority-item span {
+    @apply block text-[11px] text-slate-500;
+  }
+
+  .overview-priority-item div:last-child {
+    @apply text-right;
+  }
+
+  .overview-secondary-block + .overview-secondary-block {
+    @apply mt-5 border-t border-slate-200 pt-4;
   }
 
   .overview-status-list i {
@@ -1045,7 +1183,13 @@ textarea {
   }
 
   .receive-table {
-    @apply min-w-[720px];
+    @apply min-w-[980px];
+  }
+
+  .receive-table-note {
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-soft);
+    @apply px-4 py-2 text-[12px] font-semibold md:px-5;
   }
 
   .receive-panel {
@@ -1217,7 +1361,11 @@ textarea {
     border: 1px solid var(--border-soft);
     background: #ffffff;
     color: var(--text-strong);
-    @apply inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition hover:bg-slate-50;
+    @apply inline-flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-lg p-1 transition hover:bg-slate-50;
+  }
+
+  .receive-table-image {
+    @apply h-full w-full rounded-md object-cover;
   }
 
   .receive-dialog-image {
@@ -1246,35 +1394,35 @@ textarea {
   }
 
   .issue-table-card {
-    background: var(--surface);
-    border: 1px solid rgba(214, 229, 247, 0.92);
-    box-shadow: var(--shadow-soft), var(--shadow-inset);
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(214, 229, 247, 0.72);
+    box-shadow: none;
     @apply overflow-hidden rounded-lg;
   }
 
   .issue-marketplace {
-    @apply min-w-0 overflow-hidden rounded-2xl bg-[#f4f8fd];
+    @apply min-w-0 bg-transparent;
   }
 
   .issue-shop-hero {
-    background: linear-gradient(120deg, #0757a6 0%, #0b72cf 62%, #3b9bf2 100%);
-    @apply flex flex-col gap-5 px-5 py-7 text-white sm:flex-row sm:items-center sm:justify-between md:px-8;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.72);
+    @apply flex flex-col gap-3 bg-transparent px-0 py-3 sm:flex-row sm:items-center sm:justify-between;
   }
 
   .issue-shop-kicker {
-    @apply text-[11px] font-extrabold tracking-[0.18em] text-blue-100;
+    @apply text-[10px] font-extrabold tracking-[0.18em] text-blue-600;
   }
 
   .issue-shop-hero h2 {
-    @apply mt-1 text-2xl font-black leading-tight md:text-3xl;
+    @apply mt-0.5 text-xl font-black leading-tight text-slate-900 md:text-2xl;
   }
 
   .issue-shop-hero p {
-    @apply mt-2 text-sm font-medium text-blue-50;
+    @apply mt-1 text-sm font-medium text-slate-500;
   }
 
   .issue-cart-button {
-    @apply relative flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 font-extrabold text-[#0b63bd] shadow-lg transition hover:-translate-y-0.5;
+    @apply relative flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 font-extrabold text-[#0b63bd] shadow-none transition hover:bg-blue-100;
   }
 
   .issue-cart-button b {
@@ -1282,7 +1430,7 @@ textarea {
   }
 
   .issue-shop-toolbar {
-    @apply bg-white p-4 md:px-6 md:py-5;
+    @apply bg-transparent px-0 py-3;
   }
 
   .issue-shop-search {
@@ -1294,7 +1442,7 @@ textarea {
   }
 
   .issue-category-chips {
-    @apply flex gap-2 overflow-x-auto border-t border-slate-100 bg-white px-4 pb-4 md:justify-center md:px-6;
+    @apply flex gap-2 overflow-x-auto border-t border-slate-100 bg-transparent px-0 py-3 md:justify-center;
   }
 
   .issue-category-chips button {
@@ -1368,15 +1516,15 @@ textarea {
   .issue-shop-empty h3 { @apply text-base font-bold text-slate-700; }
   .issue-shop-empty p { @apply text-xs; }
 
-  .inventory-shop-page { @apply min-w-0 overflow-hidden rounded-2xl bg-[#f4f8fd]; }
-  .inventory-shop-hero { background: linear-gradient(120deg,#0757a6,#0b72cf 62%,#3b9bf2); @apply flex flex-col gap-5 px-5 py-7 text-white sm:flex-row sm:items-center sm:justify-between md:px-8; }
-  .inventory-shop-hero span { @apply text-[11px] font-extrabold tracking-[0.18em] text-blue-100; }
-  .inventory-shop-hero h2 { @apply mt-1 text-2xl font-black md:text-3xl; }
-  .inventory-shop-hero p { @apply mt-2 text-sm font-medium text-blue-50; }
-  .inventory-shop-total { @apply grid min-w-36 grid-cols-[auto_1fr] items-center gap-x-2 rounded-xl bg-white/15 px-4 py-3 backdrop-blur; }
+  .inventory-shop-page { @apply min-w-0 bg-transparent; }
+  .inventory-shop-hero { border-bottom: 1px solid rgba(226, 232, 240, 0.72); @apply flex flex-col gap-3 bg-transparent px-0 py-3 sm:flex-row sm:items-center sm:justify-between; }
+  .inventory-shop-hero span { @apply text-[10px] font-extrabold tracking-[0.18em] text-blue-600; }
+  .inventory-shop-hero h2 { @apply mt-0.5 text-xl font-black text-slate-900 md:text-2xl; }
+  .inventory-shop-hero p { @apply mt-1 text-sm font-medium text-slate-500; }
+  .inventory-shop-total { @apply grid min-w-36 grid-cols-[auto_1fr] items-center gap-x-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[#0b63bd]; }
   .inventory-shop-total b { @apply text-2xl font-black; }
-  .inventory-shop-total small { @apply col-start-2 text-[10px] font-semibold text-blue-100; }
-  .inventory-shop-controls { @apply grid gap-3 bg-white p-4 md:px-6 md:py-5; }
+  .inventory-shop-total small { @apply col-start-2 text-[10px] font-semibold text-blue-600; }
+  .inventory-shop-controls { @apply grid gap-3 bg-transparent px-0 py-3; }
   .inventory-shop-controls > label { @apply mx-auto flex h-12 w-full max-w-3xl items-center gap-3 rounded-xl border-2 border-[#0b63bd] px-4 text-[#0b63bd]; }
   .inventory-shop-controls input { @apply h-full min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none; }
   .inventory-shop-controls > div { @apply flex justify-start gap-2 overflow-x-auto md:justify-center; }
@@ -1516,30 +1664,6 @@ textarea {
 
   .issue-toolbar-actions {
     @apply flex flex-col gap-2 md:flex-row md:flex-nowrap md:items-end md:justify-end;
-  }
-
-  .issue-type-filter {
-    @apply flex min-w-0 flex-col gap-1 md:w-[220px] md:shrink-0;
-  }
-
-  .issue-type-filter span {
-    color: var(--text-body);
-    @apply text-[11px] font-bold;
-  }
-
-  .issue-type-filter-button {
-    background: rgba(255, 255, 255, 0.94);
-    border-color: var(--border);
-    box-shadow: var(--shadow-soft);
-    color: var(--text-body);
-    @apply h-10 w-full justify-between rounded-xl px-3 text-[13px] font-semibold;
-  }
-
-  .issue-type-filter-button:hover,
-  .issue-type-filter-button:focus-visible {
-    background: #ffffff;
-    border-color: #bfdbfe;
-    color: var(--text-strong);
   }
 
   .issue-table {
@@ -2141,8 +2265,14 @@ textarea {
     @apply grid gap-4;
   }
 
+  .master-data-hero {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
   .master-data-hero .dashboard-panel-header {
-    @apply items-start gap-4 px-5 py-5 md:px-6;
+    @apply items-start gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 md:px-6;
   }
 
   .master-data-stats {

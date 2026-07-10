@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Search, Package, Boxes } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
-import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import {
   buildInventoryLotMap,
   formatCurrencyWithLabel,
@@ -14,6 +13,7 @@ import {
 } from "@/lib/stock-flow/utils";
 import type { InventoryLotItem } from "@/types/stock-flow";
 import { useTransactions } from "../TransactionContext";
+import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
 type InventoryLotWithLabel = InventoryLotItem & {
   lotLabel: string;
@@ -39,9 +39,10 @@ type GroupedInventoryItem = {
 
 type ItemsSectionProps = {
   inventory: GroupedInventoryItem[];
+  lowStockThreshold: number;
 };
 
-function ItemsSection({ inventory }: ItemsSectionProps) {
+function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "resale" | "stable">("all");
@@ -86,7 +87,7 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
         return <article key={item.key} className={`inventory-product-card ${expanded ? "expanded" : ""}`}>
           <div className="inventory-product-image">{item.imageDataUrl ? <img src={item.imageDataUrl} alt={item.name} /> : <Package size={42} />}<span>{getProductImportTypeLabel(item.productImportType)}</span></div>
           <div className="inventory-product-content"><small>{item.sku || "ไม่มีรหัสสินค้า"}</small><h3>{item.name}</h3><p>{item.category}</p>
-            <div className="inventory-balance"><span>คงเหลือ</span><strong className={item.balance <= LOW_STOCK_THRESHOLD ? "low" : ""}>{formatNumber(item.balance)} <small>{item.unit}</small></strong></div>
+            <div className="inventory-balance"><span>คงเหลือ</span><strong className={item.balance <= lowStockThreshold ? "low" : ""}>{formatNumber(item.balance)} <small>{item.unit}</small></strong></div>
             <dl><div><dt>ล็อต</dt><dd>{formatNumber(item.lots.length)}</dd></div><div><dt>หมดอายุใกล้สุด</dt><dd>{item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}</dd></div><div><dt>ต้นทุนรวม</dt><dd>{formatCurrencyWithLabel(item.totalCostValue, item.costCurrency)}</dd></div></dl>
             <button type="button" className="inventory-lot-toggle" onClick={() => toggleRow(item.key)}><span>{expanded ? "ซ่อนรายละเอียดล็อต" : `ดูรายละเอียด ${formatNumber(item.lots.length)} ล็อต`}</span>{expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
           </div>
@@ -101,6 +102,8 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
 export default function ItemsPage() {
   const { transactions } = useTransactions();
   const [canViewInventory, setCanViewInventory] = useState<boolean | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
+  const lowStockThreshold = Number(appSettings.lowStockThreshold || defaultAppSettings.lowStockThreshold);
 
   useEffect(() => {
     fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
@@ -110,6 +113,10 @@ export default function ItemsPage() {
         setCanViewInventory(role === "admin");
       })
       .catch(() => setCanViewInventory(false));
+    fetch(withBasePath("/api/settings"), { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : defaultAppSettings)
+      .then((settings) => setAppSettings({ ...defaultAppSettings, ...settings }))
+      .catch(() => setAppSettings(defaultAppSettings));
   }, []);
 
   const inventory = useMemo(() => {
@@ -229,5 +236,5 @@ export default function ItemsPage() {
     );
   }
 
-  return <ItemsSection inventory={inventory} />;
+  return <ItemsSection inventory={inventory} lowStockThreshold={lowStockThreshold} />;
 }

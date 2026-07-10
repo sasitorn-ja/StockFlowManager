@@ -2,20 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Filter, PackageMinus, X, Trash2, Check, ChevronDown, ShoppingCart, Plus, Minus, Package } from "lucide-react";
+import { Search, Filter, X, Trash2, ShoppingCart, Plus, Minus, Package } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { ComboboxInput } from "@/components/ui/combobox-input";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 import {
   buildInventoryLotMap,
   createTransactionId,
@@ -27,91 +17,9 @@ import {
   matchesMasterProduct,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, InventoryLotItem, ProductImportType, ProductMaster } from "@/types/stock-flow";
+import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
 type OverviewFilter = "all" | ProductImportType;
-
-type IssueTypeOption = {
-  keywords?: string;
-  triggerLabel?: string;
-  value: string;
-  label: string;
-};
-
-type IssueTypeComboboxProps = {
-  disabled?: boolean;
-  emptyText?: string;
-  label: string;
-  onValueChange: (value: string) => void;
-  open: boolean;
-  options: IssueTypeOption[];
-  placeholder: string;
-  searchPlaceholder: string;
-  setOpen: (open: boolean) => void;
-  value: string;
-};
-
-function IssueTypeCombobox({
-  disabled = false,
-  emptyText = "ไม่พบรายการที่ค้นหา",
-  label,
-  onValueChange,
-  open,
-  options,
-  placeholder,
-  searchPlaceholder,
-  setOpen,
-  value,
-}: IssueTypeComboboxProps) {
-  const activeOption = options.find((option) => option.value === value);
-
-  return (
-    <div className="issue-type-filter">
-      <span>{label}</span>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={disabled}
-            role="combobox"
-            aria-expanded={open}
-            className="issue-type-filter-button"
-          >
-            <span className="truncate">{activeOption?.triggerLabel ?? activeOption?.label ?? placeholder}</span>
-            <ChevronDown size={15} className="shrink-0 text-slate-500" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-[264px] p-0">
-          <Command>
-            <CommandInput placeholder={searchPlaceholder} />
-            <CommandList>
-              <CommandEmpty>{emptyText}</CommandEmpty>
-              <CommandGroup>
-                {options.map((option) => (
-                  <CommandItem
-                    key={option.value}
-                    value={option.keywords || option.label}
-                    onSelect={() => {
-                      onValueChange(option.value);
-                      setOpen(false);
-                    }}
-                  >
-                    <Check
-                      size={16}
-                      className={cn("shrink-0", value === option.value ? "opacity-100" : "opacity-0")}
-                    />
-                    <span>{option.label}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
-}
 
 const filterOptions: { value: OverviewFilter; label: string }[] = [
   { value: "all", label: "ทั้งหมด" },
@@ -123,6 +31,11 @@ type IssueLotItem = InventoryLotItem & {
   lotLabel: string;
   lotSummary: string;
 };
+
+type AllocationLot = Pick<
+  IssueLotItem,
+  "price" | "costPrice" | "costCurrency" | "expiryDate" | "balance"
+>;
 
 type IssueProductItem = {
   key: string;
@@ -177,7 +90,11 @@ function parseApproverContactValue(value: string) {
   return { email: "", name: value.trim() };
 }
 
-function sortLotsForAutoAllocation(a: IssueLotItem, b: IssueLotItem) {
+function sortLotsForAutoAllocation(a: IssueLotItem, b: IssueLotItem, allocationMode: AppSettings["allocationMode"]) {
+  if (allocationMode === "fifo") {
+    return a.receivedDate.localeCompare(b.receivedDate) || a.createdAt - b.createdAt || a.expiryDate.localeCompare(b.expiryDate);
+  }
+
   if (a.expiryDate && b.expiryDate) {
     return a.expiryDate.localeCompare(b.expiryDate) || a.receivedDate.localeCompare(b.receivedDate) || a.createdAt - b.createdAt;
   }
@@ -193,11 +110,11 @@ function sortLotsForAutoAllocation(a: IssueLotItem, b: IssueLotItem) {
   return a.receivedDate.localeCompare(b.receivedDate) || a.createdAt - b.createdAt;
 }
 
-function buildAutoAllocationPlan(item: IssueProductItem, quantity: number) {
-  const plan: Array<{ lot: IssueLotItem; quantity: number }> = [];
+function buildAutoAllocationPlan(item: IssueProductItem, quantity: number, allocationMode: AppSettings["allocationMode"], allowNegativeStock = false) {
+  const plan: Array<{ lot: AllocationLot; quantity: number }> = [];
   let remaining = quantity;
 
-  for (const lot of item.lots.slice().sort(sortLotsForAutoAllocation)) {
+  for (const lot of item.lots.slice().sort((a, b) => sortLotsForAutoAllocation(a, b, allocationMode))) {
     if (remaining <= 0) {
       break;
     }
@@ -209,6 +126,21 @@ function buildAutoAllocationPlan(item: IssueProductItem, quantity: number) {
 
     plan.push({ lot, quantity: allocatedQuantity });
     remaining -= allocatedQuantity;
+  }
+
+  if (allowNegativeStock && remaining > 0) {
+    const fallbackLot = item.lots[0];
+    plan.push({
+      lot: {
+        price: fallbackLot?.price ?? 0,
+        costPrice: fallbackLot?.costPrice ?? 0,
+        costCurrency: fallbackLot?.costCurrency ?? "THB",
+        expiryDate: fallbackLot?.expiryDate ?? "",
+        balance: 0,
+      },
+      quantity: remaining,
+    });
+    remaining = 0;
   }
 
   return { plan, remaining };
@@ -231,7 +163,7 @@ export default function IssuePage() {
   const [currentUser, setCurrentUser] = useState<DirectoryUser | null>(null);
   const [issueNote, setIssueNote] = useState("");
   const [isSendingIssueEmail, setIsSendingIssueEmail] = useState(false);
-  const [isIssueTypeFilterOpen, setIsIssueTypeFilterOpen] = useState(false);
+  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
 
   async function fetchTransactions() {
     try {
@@ -271,6 +203,17 @@ export default function IssuePage() {
     }
   }
 
+  async function fetchAppSettings() {
+    try {
+      const res = await fetch(withBasePath("/api/settings"), { cache: "no-store" });
+      if (res.ok) {
+        setAppSettings({ ...defaultAppSettings, ...(await res.json()) });
+      }
+    } catch (error) {
+      console.error("Failed to fetch app settings", error);
+    }
+  }
+
   async function fetchCurrentUser() {
     try {
       const res = await fetch(withBasePath("/api/auth/session"), { cache: "no-store" });
@@ -301,6 +244,7 @@ export default function IssuePage() {
     fetchTransactions();
     fetchMasterProducts();
     fetchUserDirectory();
+    fetchAppSettings();
     fetchCurrentUser();
 
     const cachedDraft = localStorage.getItem("pending_draft");
@@ -341,7 +285,7 @@ export default function IssuePage() {
     const lots = [...buildInventoryLotMap(transactions).values()]
       .filter(
         (item) =>
-          item.balance > 0 &&
+          (appSettings.allowNegativeStock ? item.totalIn > 0 : item.balance > 0) &&
           !inactiveMasterProducts.some((product) => matchesMasterProduct(item, product))
       )
       .sort((a, b) => {
@@ -373,7 +317,7 @@ export default function IssuePage() {
         }`,
       };
     });
-  }, [masterProducts, transactions]);
+  }, [appSettings.allowNegativeStock, masterProducts, transactions]);
 
   const inventory = useMemo(() => {
     const grouped = new Map<string, IssueProductItem>();
@@ -411,7 +355,7 @@ export default function IssuePage() {
 
     return inventory
       .filter((item) => {
-        if (item.totalBalance <= 0) {
+        if (!appSettings.allowNegativeStock && item.totalBalance <= 0) {
           return false;
         }
 
@@ -427,7 +371,7 @@ export default function IssuePage() {
       .sort(
         (a, b) => a.name.localeCompare(b.name, "th") || a.sku.localeCompare(b.sku, "th")
       );
-  }, [inventory, issueImportTypeFilter, searchTerm]);
+  }, [appSettings.allowNegativeStock, inventory, issueImportTypeFilter, searchTerm]);
 
   const issueRequesterSuggestions = useMemo(() => {
     return Array.from(new Set(directoryUsers.map((user) => user.name.trim()).filter(Boolean)))
@@ -556,7 +500,9 @@ export default function IssuePage() {
       return;
     }
 
-    if (!issueApprover.trim()) {
+    const approvalRequired = appSettings.approvalMode !== "off";
+
+    if (approvalRequired && !issueApprover.trim()) {
       window.alert("กรอกชื่อผู้อนุมัติก่อนบันทึก");
       return;
     }
@@ -564,17 +510,17 @@ export default function IssuePage() {
     const selectedManager = issueApproverContactSuggestions.find(
       (item) => item.name === issueApprover.trim() && item.email === issueApproverEmail.trim()
     );
-    if (!selectedManager) {
+    if (approvalRequired && !selectedManager) {
       window.alert("กรุณาเลือกผู้อนุมัติจากรายชื่อสำหรับบทบาทปัจจุบัน");
       return;
     }
 
-    if (!issueApproverEmail.trim()) {
+    if (approvalRequired && !issueApproverEmail.trim()) {
       window.alert("กรอกผู้อนุมัติให้มีทั้งชื่อและอีเมลก่อนบันทึก");
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(issueApproverEmail.trim())) {
+    if (approvalRequired && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(issueApproverEmail.trim())) {
       window.alert("กรอกผู้อนุมัติในรูปแบบ ชื่อ · อีเมล ให้ถูกต้อง");
       return;
     }
@@ -588,7 +534,9 @@ export default function IssuePage() {
       return;
     }
 
-    const overBalanceEntry = selectedEntries.find(({ item, quantity }) => quantity > item.totalBalance);
+    const overBalanceEntry = appSettings.allowNegativeStock
+      ? null
+      : selectedEntries.find(({ item, quantity }) => quantity > item.totalBalance);
 
     if (overBalanceEntry) {
       window.alert(
@@ -600,7 +548,7 @@ export default function IssuePage() {
     const allocationPlans = selectedEntries.map(({ item, quantity }) => ({
       item,
       quantity,
-      ...buildAutoAllocationPlan(item, quantity),
+      ...buildAutoAllocationPlan(item, quantity, appSettings.allocationMode, appSettings.allowNegativeStock),
     }));
 
     const failedAllocation = allocationPlans.find((entry) => entry.remaining > 0);
@@ -614,7 +562,7 @@ export default function IssuePage() {
 
     const now = Date.now();
     const issueDate = getLocalDateValue();
-    const batchIssueKey = `ISS-${String(now).slice(-6)}`;
+    const batchIssueKey = `${appSettings.issuePrefix || "REQ"}-${String(now).slice(-6)}`;
     let allocationSequence = 0;
     const pendingTransactions: Transaction[] = allocationPlans.flatMap(({ item, plan }) =>
       plan.map(({ lot, quantity }) => ({
@@ -634,10 +582,10 @@ export default function IssuePage() {
         issueKey: batchIssueKey,
         requester: issueRequester.trim(),
         createdBy: issueCreatedBy.trim(),
-        approver: issueApprover.trim(),
+        approver: approvalRequired ? issueApprover.trim() : "",
         note: issueNote.trim(),
         createdAt: now + allocationSequence++,
-        status: "pending",
+        status: approvalRequired ? "pending" : "approved",
       }))
     );
 
@@ -653,6 +601,35 @@ export default function IssuePage() {
 
       if (!saveRes.ok) {
         throw new Error("Failed to save pending requisition in DB");
+      }
+
+      if (approvalRequired) {
+        const emailRes = await fetch(withBasePath("/api/issue-request-email"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            approverEmail: issueApproverEmail.trim(),
+            approverName: issueApprover.trim(),
+            issueDate,
+            issueKey: batchIssueKey,
+            requester: issueRequester.trim(),
+            createdBy: issueCreatedBy.trim(),
+            note: issueNote.trim(),
+            items: selectedEntries.map(({ item, quantity }) => ({
+              name: item.name,
+              sku: item.sku,
+              quantity,
+              unit: item.unit,
+              productImportTypeLabel: getProductImportTypeLabel(item.productImportType),
+            })),
+          }),
+        });
+
+        if (!emailRes.ok) {
+          const emailPayload = await emailRes.json().catch(() => null);
+          console.error("Failed to send approval request email", emailPayload);
+          window.alert("บันทึกใบเบิกแล้ว แต่ส่งอีเมลแจ้งอนุมัติไม่สำเร็จ");
+        }
       }
 
       // Add issueKey to local storage my_created_issue_keys to track ownership
@@ -739,7 +716,7 @@ export default function IssuePage() {
                 {selected ? <div className="issue-card-stepper">
                   <button type="button" aria-label="ลดจำนวน" onClick={() => { const next = Math.max(1, Number(selected.quantity || 1) - 1); updateIssueSelection(item.key, { quantity: String(next) }); }}><Minus size={16} /></button>
                   <strong>{selected.quantity}</strong>
-                  <button type="button" aria-label="เพิ่มจำนวน" onClick={() => { const next = Math.min(item.totalBalance, Number(selected.quantity || 1) + 1); updateIssueSelection(item.key, { quantity: String(next) }); }}><Plus size={16} /></button>
+                  <button type="button" aria-label="เพิ่มจำนวน" onClick={() => { const next = appSettings.allowNegativeStock ? Number(selected.quantity || 1) + 1 : Math.min(item.totalBalance, Number(selected.quantity || 1) + 1); updateIssueSelection(item.key, { quantity: String(next) }); }}><Plus size={16} /></button>
                 </div> : <button type="button" className="issue-add-cart" onClick={() => openIssuePanelForItem(item)}><ShoppingCart size={16} /> เพิ่มลงตะกร้า</button>}
               </div>
             </article>;
@@ -786,16 +763,17 @@ export default function IssuePage() {
               />
             </label>
             <label>
-              <span>ผู้อนุมัติ *</span>
+              <span>ผู้อนุมัติ {appSettings.approvalMode === "off" ? "" : "*"}</span>
               <ComboboxInput
                 value={issueApproverContact}
                 onValueChange={handleApproverContactChange}
                 allowCustomValue={false}
+                disabled={appSettings.approvalMode === "off"}
                 options={issueApproverInputSuggestions.map((item) => ({
                   value: item,
                   label: item,
                 }))}
-                placeholder="เลือกผู้จัดการ"
+                placeholder={appSettings.approvalMode === "off" ? "ไม่ต้องอนุมัติตามการตั้งค่าระบบ" : "เลือกผู้จัดการ"}
                 searchPlaceholder="ค้นหาผู้จัดการ..."
                 emptyText="ยังไม่มีผู้ใช้งานที่ได้รับสิทธิ์ผู้จัดการ"
               />
@@ -810,7 +788,7 @@ export default function IssuePage() {
                   const requestedQuantity = Number(selection.quantity);
                   const allocationPreview =
                     Number.isFinite(requestedQuantity) && requestedQuantity > 0
-                      ? buildAutoAllocationPlan(item, requestedQuantity)
+                      ? buildAutoAllocationPlan(item, requestedQuantity, appSettings.allocationMode, appSettings.allowNegativeStock)
                       : { plan: [], remaining: 0 };
 
                   return (

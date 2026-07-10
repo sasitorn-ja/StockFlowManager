@@ -57,9 +57,7 @@ export function StatsGrid({ stats }: StatsGridProps) {
               {stat.value.slice(0, 1)}
             </div>
           </div>
-          <p className="text-[11px] leading-4 text-[var(--text-muted)]">
-            {stat.helper ?? "อัปเดตจากข้อมูลล่าสุด"}
-          </p>
+          {stat.helper ? <p className="text-[11px] leading-4 text-[var(--text-muted)]">{stat.helper}</p> : null}
         </article>
       ))}
     </section>

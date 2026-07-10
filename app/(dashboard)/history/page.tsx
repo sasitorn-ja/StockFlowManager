@@ -20,6 +20,7 @@ import { useTransactions } from "../TransactionContext";
 import type { Transaction, TransactionType } from "@/types/stock-flow";
 import type { StatCard } from "@/components/stock-flow/StatsGrid";
 import { getRequisitionStatusClass, getRequisitionStatusLabel, RECEIVE_STATUS_LABEL } from "@/lib/stock-flow/status";
+import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
 type HistoryFilter = "all" | TransactionType;
 type UserRole = "employee" | "manager" | "admin";
@@ -31,6 +32,7 @@ type HistorySectionProps = {
   isGlobalView: boolean;
   movementStats: StatCard[];
   lotLabels: Map<string, string>;
+  receivePrefix: string;
   activeFilter: HistoryFilter;
   dateFrom: string;
   dateTo: string;
@@ -47,9 +49,9 @@ const historyFilters: { value: HistoryFilter; label: string }[] = [
   { value: "out", label: "เบิกจ่าย" },
 ];
 
-function getReceiveDocumentNo(item: Transaction) {
+function getReceiveDocumentNo(item: Transaction, receivePrefix: string) {
   const documentSuffix = item.id.replace(/[^a-zA-Z0-9]/g, "").slice(-5).toUpperCase() || "00000";
-  return `IN-${item.date.replaceAll("-", "")}-${documentSuffix}`;
+  return `${receivePrefix || "IN"}-${item.date.replaceAll("-", "")}-${documentSuffix}`;
 }
 
 function HistorySection({
@@ -57,6 +59,7 @@ function HistorySection({
   isGlobalView,
   movementStats,
   lotLabels,
+  receivePrefix,
   activeFilter,
   dateFrom,
   dateTo,
@@ -150,7 +153,7 @@ function HistorySection({
           {movementOverview.transactions.map((item) => {
             const issueKey = item.issueKey || "-";
             const isStockIn = item.type === "in";
-            const documentNo = isStockIn ? getReceiveDocumentNo(item) : issueKey;
+            const documentNo = isStockIn ? getReceiveDocumentNo(item, receivePrefix) : issueKey;
             const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
             const lotLabel = lotLabels.get(lotKey) || "-";
             const relatedPerson = isStockIn
@@ -266,6 +269,7 @@ export default function HistoryPage() {
   const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
   const [currentUserName, setCurrentUserName] = useState("");
   const [activeFilter, setActiveFilter] = useState<HistoryFilter>("all");
+  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
   const today = getLocalDateValue();
 
   useEffect(() => {
@@ -281,6 +285,10 @@ export default function HistoryPage() {
         setCurrentRole("employee");
         setCurrentUserName("");
       });
+    fetch(withBasePath("/api/settings"), { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : defaultAppSettings)
+      .then((settings) => setAppSettings({ ...defaultAppSettings, ...settings }))
+      .catch(() => setAppSettings(defaultAppSettings));
   }, []);
   const earliestTransactionDate = useMemo(() => {
     if (transactions.length === 0) {
@@ -450,6 +458,7 @@ export default function HistoryPage() {
       isGlobalView={isGlobalView}
       movementStats={movementStats}
       lotLabels={lotLabels}
+      receivePrefix={appSettings.receivePrefix}
       activeFilter={activeFilter}
       dateFrom={effectiveDateFrom}
       dateTo={effectiveDateTo}

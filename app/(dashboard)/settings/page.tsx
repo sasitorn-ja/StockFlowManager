@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
-import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import {
   Dialog,
   DialogContent,
@@ -25,33 +24,11 @@ import {
   getProductImportTypeLabel,
   sanitizeSku,
 } from "@/lib/stock-flow/utils";
-import type { InventoryItem, ProductImportType } from "@/types/stock-flow";
+import type { InventoryItem, ProductImportType, Transaction } from "@/types/stock-flow";
 import { useTransactions } from "../TransactionContext";
+import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
 const inputClassName = "control-input";
-const SETTINGS_STORAGE_KEY = "stock-flow-manager-system-settings-v1";
-
-type AppSettings = {
-  lowStockThreshold: string;
-  expiryWarningDays: string;
-  issuePrefix: string;
-  receivePrefix: string;
-  approvalMode: "required" | "manager_only" | "off";
-  allocationMode: "fefo" | "fifo";
-  requireEmployeeConfirmation: boolean;
-  allowNegativeStock: boolean;
-};
-
-const defaultAppSettings: AppSettings = {
-  lowStockThreshold: "5",
-  expiryWarningDays: "90",
-  issuePrefix: "REQ",
-  receivePrefix: "IN",
-  approvalMode: "required",
-  allocationMode: "fefo",
-  requireEmployeeConfirmation: true,
-  allowNegativeStock: false,
-};
 
 const approvalModeOptions = [
   { value: "required", label: "ต้องอนุมัติทุกใบเบิก" },
@@ -78,6 +55,7 @@ type ProductEditForm = {
 
 type SettingsSectionProps = {
   inventory: InventoryItem[];
+  transactions: Transaction[];
   transactionsCount: number;
   appSettings: AppSettings;
   updateAppSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
@@ -88,6 +66,7 @@ type SettingsSectionProps = {
 
 function SettingsSection({
   inventory,
+  transactions,
   transactionsCount,
   appSettings,
   updateAppSetting,
@@ -103,6 +82,22 @@ function SettingsSection({
   const lowStockProducts = inventory.filter(
     (item) => item.balance > 0 && item.balance <= Number(appSettings.lowStockThreshold || 0)
   ).length;
+  const categoryStats = useMemo(() => {
+    return categories.map((category) => {
+      const productCount = inventory.filter((item) => item.category === category).length;
+      const movementCount = transactions.filter((item) => item.category === category).length;
+      const totalBalance = inventory
+        .filter((item) => item.category === category)
+        .reduce((sum, item) => sum + item.balance, 0);
+
+      return {
+        category,
+        productCount,
+        movementCount,
+        totalBalance,
+      };
+    });
+  }, [categories, inventory, transactions]);
 
   async function loadCategories() {
     const response = await fetch(withBasePath("/api/categories"), { cache: "no-store" });
@@ -121,6 +116,11 @@ function SettingsSection({
 
   async function saveCategory(oldName: string) {
     if (!editingCategoryValue.trim()) return;
+    const nextName = editingCategoryValue.trim();
+    const shouldSave = window.confirm(
+      `เปลี่ยนชื่อหมวดหมู่ "${oldName}" เป็น "${nextName}" ใช่หรือไม่\n\nระบบจะอัปเดตชื่อหมวดหมู่นี้ในสินค้าและประวัติรับเข้า-เบิกจ่ายทั้งหมดที่เชื่อมอยู่`
+    );
+    if (!shouldSave) return;
     const response = await fetch(withBasePath("/api/categories"), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ oldName, newName: editingCategoryValue }) });
     if (!response.ok) return window.alert("ไม่สามารถแก้ไขชื่อหมวดหมู่ได้");
     setEditingCategory(null);
@@ -250,17 +250,28 @@ function SettingsSection({
 
       </section>
 
-      <DataPanel title="จัดการหมวดหมู่สินค้า">
+      <DataPanel
+        title="ศูนย์กลางหมวดหมู่สินค้า"
+        description="เพิ่มหรือเปลี่ยนชื่อหมวดหมู่จากจุดเดียว แล้วระบบจะอัปเดตข้อมูลที่เชื่อมอยู่ทั้งหมด"
+      >
         <div className="category-settings">
+          <div className="category-settings-note">
+            หมวดหมู่ที่สร้างหรือเปลี่ยนชื่อจากหน้านี้ จะถูกใช้ร่วมกันในฟอร์มรับเข้า สินค้าในคลัง ข้อมูลสินค้า และประวัติรับเข้า-เบิกจ่ายทั้งหมด
+          </div>
           <div className="category-settings-add">
             <input className={inputClassName} value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder="ชื่อหมวดหมู่ใหม่" />
             <Button type="button" onClick={addCategory}><Plus size={16} />เพิ่มหมวดหมู่</Button>
           </div>
           <div className="category-settings-list">
-            {categories.map((category) => <div key={category}>
-              {editingCategory === category ? <input className={inputClassName} value={editingCategoryValue} onChange={(event) => setEditingCategoryValue(event.target.value)} autoFocus /> : <strong>{category}</strong>}
+            {categoryStats.map((item) => <div key={item.category}>
+              <div className="category-settings-info">
+                {editingCategory === item.category ? <input className={inputClassName} value={editingCategoryValue} onChange={(event) => setEditingCategoryValue(event.target.value)} autoFocus /> : <strong>{item.category}</strong>}
+                <small>
+                  {formatNumber(item.productCount)} สินค้า · {formatNumber(item.movementCount)} รายการเคลื่อนไหว · คงเหลือรวม {formatNumber(item.totalBalance)}
+                </small>
+              </div>
               <div>
-                {editingCategory === category ? <Button type="button" size="sm" onClick={() => saveCategory(category)}>บันทึก</Button> : <Button type="button" size="sm" variant="secondary" onClick={() => { setEditingCategory(category); setEditingCategoryValue(category); }}><Pencil size={14} />แก้ไข</Button>}
+                {editingCategory === item.category ? <Button type="button" size="sm" onClick={() => saveCategory(item.category)}>บันทึก</Button> : <Button type="button" size="sm" variant="secondary" onClick={() => { setEditingCategory(item.category); setEditingCategoryValue(item.category); }}><Pencil size={14} />เปลี่ยนชื่อทั้งระบบ</Button>}
               </div>
             </div>)}
           </div>
@@ -310,7 +321,7 @@ function SettingsSection({
                 <td>{item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}</td>
                 <td
                   className={`text-right ${
-                    item.balance <= LOW_STOCK_THRESHOLD ? "font-semibold text-amber-700" : ""
+                    item.balance <= Number(appSettings.lowStockThreshold || 0) ? "font-semibold text-amber-700" : ""
                   }`}
                 >
                   {formatNumber(item.balance)}{" "}
@@ -347,7 +358,7 @@ function SettingsSection({
                       onClick={() => handleDeleteProduct(item)}
                     >
                       <Trash2 size={14} />
-                      ลบ
+                      ปิดใช้งาน
                     </Button>
                   </div>
                 </td>
@@ -379,22 +390,26 @@ export default function SettingsPage() {
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
 
   useEffect(() => {
-    try {
-      const storedSettings = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-      if (!storedSettings) return;
-
-      setAppSettings({
-        ...defaultAppSettings,
-        ...(JSON.parse(storedSettings) as Partial<AppSettings>),
-      });
-    } catch (error) {
+    fetch(withBasePath("/api/settings"), { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : defaultAppSettings)
+      .then((settings) => setAppSettings({ ...defaultAppSettings, ...settings }))
+      .catch((error) => {
       console.error("Failed to load system settings", error);
-    }
+      });
   }, []);
 
-  function persistAppSettings(nextSettings: AppSettings) {
+  async function persistAppSettings(nextSettings: AppSettings) {
     setAppSettings(nextSettings);
-    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(nextSettings));
+    const response = await fetch(withBasePath("/api/settings"), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nextSettings),
+    });
+    if (response.ok) {
+      setAppSettings(await response.json());
+    } else {
+      window.alert("ไม่สามารถบันทึกตั้งค่าระบบได้");
+    }
   }
 
   function updateAppSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
@@ -402,7 +417,10 @@ export default function SettingsPage() {
   }
 
   function resetAppSettings() {
-    persistAppSettings(defaultAppSettings);
+    fetch(withBasePath("/api/settings"), { method: "DELETE" })
+      .then((response) => response.ok ? response.json() : defaultAppSettings)
+      .then((settings) => setAppSettings(settings))
+      .catch(() => window.alert("ไม่สามารถคืนค่าเริ่มต้นได้"));
   }
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
@@ -471,21 +489,30 @@ export default function SettingsPage() {
 
   function handleDeleteProduct(item: InventoryItem) {
     const shouldDelete = window.confirm(
-      `ต้องการลบสินค้า "${item.name}" ใช่หรือไม่\n\nรายการรับเข้า จ่ายออก และประวัติของสินค้านี้จะถูกลบออกทั้งหมด`
+      `ต้องการปิดใช้งานสินค้า "${item.name}" ใช่หรือไม่\n\nสินค้านี้จะไม่แสดงในหน้าเบิก แต่ประวัติรับเข้า-เบิกจ่ายจะยังอยู่ครบ`
     );
 
     if (!shouldDelete) {
       return;
     }
 
-    // Delete after the database write
-    fetch(withBasePath(`/api/transactions?itemKey=${encodeURIComponent(item.key)}`), {
-      method: "DELETE",
+    fetch(withBasePath("/api/master-products"), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "set_active_by_key",
+        name: item.name,
+        sku: item.sku,
+        category: item.category,
+        productImportType: item.productImportType,
+        unit: item.unit,
+        isActive: false,
+      }),
     }).then((res) => {
       if (res.ok) {
         refresh();
       } else {
-        window.alert("ไม่สามารถลบข้อมูลสินค้าออกจากฐานข้อมูลได้");
+        window.alert("ไม่สามารถปิดใช้งานสินค้าได้");
       }
     });
   }
@@ -573,6 +600,7 @@ export default function SettingsPage() {
     <>
       <SettingsSection
         inventory={inventory}
+        transactions={transactions}
         transactionsCount={transactions.length}
         appSettings={appSettings}
         updateAppSetting={updateAppSetting}

@@ -5,14 +5,15 @@ type TableProps = {
   children: ReactNode;
   emptyMessage: string;
   columnCount: number;
+  className?: string;
 };
 
-export function Table({ headers, children, emptyMessage, columnCount }: TableProps) {
+export function Table({ headers, children, emptyMessage, columnCount, className = "" }: TableProps) {
   const rows = Array.isArray(children) ? children.filter(Boolean) : children ? [children] : [];
 
   return (
     <div className="overflow-x-auto">
-      <table className="data-table min-w-[720px]">
+      <table className={`data-table min-w-[720px] ${className}`}>
         <thead>
           <tr>
             {headers.map((header, index) => (

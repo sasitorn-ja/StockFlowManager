@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Filter, ChevronDown, FileText, Image as ImageIcon } from "lucide-react";
+import { Plus, Search, Filter, ChevronDown, FileText } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
@@ -21,13 +21,14 @@ import {
   getLocalDateValue,
   formatDate,
   formatNumber,
-  formatCurrency,
+  formatCurrencyWithLabel,
   sanitizeSku,
   matchesMasterProduct,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, CostCurrency, ProductImportType, ProductMaster } from "@/types/stock-flow";
 import type { FormState } from "./types";
 import { useTransactions } from "../TransactionContext";
+import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
 type OverviewFilter = "all" | ProductImportType;
 type UserRole = "employee" | "manager" | "admin";
@@ -91,6 +92,7 @@ export default function ReceivePage() {
   const [receiveImagePreview, setReceiveImagePreview] = useState<{ src: string; title: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoRecordTime, setAutoRecordTime] = useState(Date.now());
+  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
@@ -335,6 +337,10 @@ export default function ReceivePage() {
     }
 
     fetchMasterProducts();
+    fetch(withBasePath("/api/settings"), { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : defaultAppSettings)
+      .then((settings) => setAppSettings({ ...defaultAppSettings, ...settings }))
+      .catch(() => setAppSettings(defaultAppSettings));
     fetch(withBasePath("/api/categories"), { cache: "no-store" })
       .then((response) => response.ok ? response.json() : [])
       .then((data) => setCategoryCatalog(Array.isArray(data) ? data : []))
@@ -604,7 +610,7 @@ export default function ReceivePage() {
 
   async function handleReceiveExport() {
     const rows = receiveTransactions.map((item, index) => ({
-      "เลขที่รับเข้า": `IN-${item.date.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`,
+      "เลขที่รับเข้า": `${appSettings.receivePrefix || "IN"}-${item.date.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`,
       "วันที่รับเข้า": formatDate(item.date),
       "เวลาบันทึก": new Date(item.createdAt).toLocaleTimeString("th-TH", {
         hour: "2-digit",
@@ -615,7 +621,9 @@ export default function ReceivePage() {
       "รหัสสินค้า": item.sku || "-",
       "จำนวน": item.quantity,
       "หน่วย": item.unit,
-      "มูลค่ารวม": item.quantity * (item.costPrice || item.price || 0),
+      "ต้นทุนต่อหน่วย": item.costPrice || item.price || 0,
+      "สกุลเงิน": item.costCurrency || "THB",
+      "มูลค่ารวมตามสกุล": item.quantity * (item.costPrice || item.price || 0),
       "หมายเหตุ": item.note || "-",
     }));
 
@@ -782,6 +790,17 @@ export default function ReceivePage() {
 
   const currentReceiveFilterLabel =
     filterOptions.find((item) => item.value === receiveFilter)?.label ?? "ทั้งหมด";
+  const receiveCurrencies = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          receiveTransactions
+            .map((item) => item.costCurrency || "THB")
+            .filter(Boolean)
+        )
+      ),
+    [receiveTransactions]
+  );
 
   if (!isRoleLoaded) {
     return (
@@ -866,6 +885,11 @@ export default function ReceivePage() {
               </div>
             </div>
 
+            <div className="receive-table-note">
+              แสดงมูลค่าตามสกุลของแต่ละรายการ
+              {receiveCurrencies.length > 1 ? ` · มี ${receiveCurrencies.join(", ")}` : ""}
+            </div>
+
             <div className="overview-table-wrap">
               <table className="overview-table receive-table">
                 <thead>
@@ -876,14 +900,15 @@ export default function ReceivePage() {
                     <th>จุดเก็บ / คลังย่อย</th>
                     <th>รายการสินค้า</th>
                     <th>จำนวนรายการ</th>
-                    <th>มูลค่ารวม</th>
+                    <th>ต้นทุนต่อหน่วย</th>
+                    <th>มูลค่ารวมตามสกุล</th>
                     <th>หมายเหตุ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {receiveTransactions.length > 0 ? (
                     receiveTransactions.map((item, index) => {
-                      const receiveNo = `IN-${item.date.replaceAll("-", "")}-${String(
+                      const receiveNo = `${appSettings.receivePrefix || "IN"}-${item.date.replaceAll("-", "")}-${String(
                         index + 1
                       ).padStart(3, "0")}`;
                       const totalValue = item.quantity * (item.costPrice || item.price || 0);
@@ -902,9 +927,13 @@ export default function ReceivePage() {
                                     title: item.name || receiveNo,
                                   })
                                 }
+                                aria-label={`ดูรูปสินค้า ${item.name || receiveNo}`}
                               >
-                                <ImageIcon size={15} />
-                                ดูรูป
+                                <img
+                                  src={item.imageDataUrl}
+                                  alt={item.name || receiveNo}
+                                  className="receive-table-image"
+                                />
                               </button>
                             ) : (
                               <span className="text-slate-400">-</span>
@@ -926,14 +955,21 @@ export default function ReceivePage() {
                             <span>{item.sku || "-"}</span>
                           </td>
                           <td>{formatNumber(item.quantity)}</td>
-                          <td>{formatCurrency(totalValue)}</td>
+                          <td>
+                            <strong>{formatCurrencyWithLabel(item.costPrice || item.price || 0, item.costCurrency)}</strong>
+                            <span>ต่อ {item.unit}</span>
+                          </td>
+                          <td>
+                            <strong>{formatCurrencyWithLabel(totalValue, item.costCurrency)}</strong>
+                            <span>{formatNumber(item.quantity)} {item.unit}</span>
+                          </td>
                           <td>{item.note || "-"}</td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={8}>
+                      <td colSpan={9}>
                         <div className="empty-state">ยังไม่มีรายการรับเข้าสินค้า</div>
                       </td>
                     </tr>

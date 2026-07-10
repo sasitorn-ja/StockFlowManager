@@ -144,7 +144,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         </div>
         <div className="min-w-0">
           <p className="brand-title">CPAC SB&amp;M</p>
-          <p className="brand-subtitle">PRECAST SOLUTIONS</p>
+          <p className="brand-subtitle">Inventory Management</p>
         </div>
         <button
           type="button"

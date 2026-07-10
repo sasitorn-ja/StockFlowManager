@@ -374,6 +374,23 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === "set_active_by_key") {
+      const product = normalizeProductPayload(body);
+      if (!product.name || !product.unit) {
+        return NextResponse.json({ error: "ข้อมูลสินค้าไม่ครบ" }, { status: 400 });
+      }
+      await sql`
+        UPDATE products
+        SET "isActive" = ${product.isActive}, "updatedAt" = ${Date.now()}
+        WHERE LOWER(name) = LOWER(${product.name})
+          AND LOWER(COALESCE(sku, '')) = LOWER(${product.sku})
+          AND LOWER(COALESCE(category, '-')) = LOWER(${product.category})
+          AND LOWER(COALESCE("productImportType", 'resale')) = LOWER(${product.productImportType})
+          AND LOWER(COALESCE(unit, '')) = LOWER(${product.unit});
+      `;
+      return NextResponse.json({ success: true });
+    }
+
     const existingRows = await sql`
       SELECT id, name, sku, category, "productImportType", unit
       FROM products
@@ -470,7 +487,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "ไม่พบรหัสสินค้าใน ข้อมูลหลักสินค้า" }, { status: 400 });
     }
 
-    await sql`DELETE FROM products WHERE id = ${id};`;
+    await sql`UPDATE products SET "isActive" = FALSE, "updatedAt" = ${Date.now()} WHERE id = ${id};`;
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

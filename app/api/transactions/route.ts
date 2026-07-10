@@ -4,6 +4,7 @@ import { createSampleTransactions } from "@/lib/stock-flow/sample-data";
 import { buildItemKey } from "@/lib/stock-flow/utils";
 import { getCurrentUser } from "@/lib/auth/users";
 import { sendRequisitionNotice } from "@/lib/requisition-email";
+import { getAppSettings } from "@/lib/app-settings";
 import type { TransactionStatus } from "@/types/stock-flow";
 
 export const dynamic = "force-dynamic";
@@ -110,18 +111,11 @@ export async function GET() {
       ORDER BY "createdAt" DESC
     `;
 
-    const visibleRows = actor.role === "admin" ? rows : rows.map((row) => {
-      if (row.type === "in") return row;
+    const visibleRows = actor.role === "admin" ? rows : rows.filter((row) => {
+      if (row.type === "in") return true;
       const related = row.requester === actor.name || row.createdBy === actor.name ||
         (actor.role === "manager" && row.approver === actor.name);
-      return related ? row : {
-        ...row,
-        issueKey: "",
-        requester: "",
-        createdBy: "",
-        approver: "",
-        note: "",
-      };
+      return related;
     });
     return NextResponse.json(visibleRows);
   } catch (error: any) {
@@ -139,6 +133,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
+    const settings = await getAppSettings();
 
     // Check if it is a batch of transactions (array)
     const items = Array.isArray(body) ? body : [body];
@@ -181,16 +176,17 @@ export async function POST(request: Request) {
           ${item.approver || ""},
           ${item.note || ""},
           ${item.createdAt || Date.now()},
-          ${item.status || (item.type === 'out' ? 'pending' : 'confirmed')}
+          ${item.status || (item.type === 'out' ? (settings.approvalMode === "off" ? "approved" : "pending") : 'confirmed')}
         )
       `;
     }
 
     const issue = items.find((item) => (item.type || "in") === "out");
     if (issue?.issueKey) {
+      const issueStatus = (issue.status || (settings.approvalMode === "off" ? "approved" : "pending")) as TransactionStatus;
       await sendRequisitionNotice({
         issueKey: issue.issueKey,
-        status: "pending",
+        status: issueStatus,
         actorName: actor.name,
         requester: issue.requester || actor.name,
         createdBy: actor.name,
@@ -226,6 +222,7 @@ export async function PUT(request: Request) {
       const requisition = requisitionRows[0];
       if (!requisition) return NextResponse.json({ error: "Requisition not found" }, { status: 404 });
       const currentStatus = requisition.status || "completed";
+      const settings = await getAppSettings();
       const isOwner = [requisition.requester, requisition.createdBy].some(
         (name) => String(name || "").trim() === actor.name.trim()
       );
@@ -233,6 +230,7 @@ export async function PUT(request: Request) {
         (status === "approved" && currentStatus === "pending" && (actor.role === "manager" || (actor.role === "admin" && isSasitornTester(actor))) && (!requisition.approver || requisition.approver === actor.name)) ||
         (status === "issued" && currentStatus === "approved" && actor.role === "admin") ||
         (status === "received" && currentStatus === "issued" && String(requisition.requester || "").trim() === actor.name.trim()) ||
+        (status === "completed" && currentStatus === "issued" && actor.role === "admin" && !settings.requireEmployeeConfirmation) ||
         (status === "completed" && (currentStatus === "received" || currentStatus === "employee_confirmed") && actor.role === "admin") ||
         (status === "cancelled" && currentStatus === "pending" && (isOwner || actor.role === "admin"));
       if (!allowed) return NextResponse.json({ error: "ไม่สามารถเปลี่ยนสถานะในขั้นตอนนี้ได้" }, { status: 403 });

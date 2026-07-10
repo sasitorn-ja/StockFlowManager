@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { resolveEmailRecipients } from "@/lib/email-routing";
 
 type IssueEmailRow = {
   name: string;
@@ -42,6 +43,8 @@ function formatThaiDate(value: string) {
 function buildEmailHtml(input: {
   appUrl: string;
   approverName: string;
+  originalRecipientsSummary: string;
+  simulationEnabled: boolean;
   issueDate: string;
   issueKey: string;
   items: IssueEmailRow[];
@@ -74,6 +77,15 @@ function buildEmailHtml(input: {
           <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">เรียน คุณ${escapeHtml(
             input.approverName
           )}</p>
+          ${
+            input.simulationEnabled
+              ? `<div style="margin:0 0 20px;padding:14px 16px;border:1px solid #bae6fd;border-radius:12px;background:#f0f9ff;">
+                  <p style="margin:0 0 6px;font-weight:700;color:#0369a1;">โหมดจำลองส่งอีเมล</p>
+                  <p style="margin:0;color:#0f172a;">อีเมลฉบับนี้ถูกส่งเข้า mailbox ทดสอบของศศิธรแทนผู้รับจริง</p>
+                  <p style="margin:8px 0 0;color:#475569;"><strong>ผู้รับปลายทางจริง:</strong> ${escapeHtml(input.originalRecipientsSummary)}</p>
+                </div>`
+              : ""
+          }
           <p style="margin:0 0 20px;font-size:15px;line-height:1.7;">คุณ${escapeHtml(input.createdBy)} ได้คีย์ใบเบิกสินค้าเพื่อขออนุมัติ กรุณาตรวจสอบรายการและจำนวนสินค้าด้านล่างก่อนดำเนินการ</p>
           <div style="margin-bottom:20px;padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
             <p style="margin:0 0 8px;"><strong>เลขที่ใบเบิก:</strong> ${escapeHtml(input.issueKey)}</p>
@@ -98,7 +110,7 @@ function buildEmailHtml(input: {
             <p style="margin:0;color:#475569;">${escapeHtml(input.note || "-")}</p>
           </div>
           <a href="${escapeHtml(
-            `${input.appUrl}/approve`
+            `${input.appUrl}/approve?issueKey=${encodeURIComponent(input.issueKey)}`
           )}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;">ตรวจสอบและอนุมัติใบเบิก</a>
           <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#64748b;">อีเมลฉบับนี้ส่งโดยอัตโนมัติจากระบบ กรุณาไม่ตอบกลับอีเมลนี้</p>
         </div>
@@ -156,19 +168,24 @@ export async function POST(request: Request) {
   });
 
   try {
+    const routedRecipients = resolveEmailRecipients([
+      {
+        name: approverName,
+        address: approverEmail,
+      },
+    ]);
     const result = await transporter.sendMail({
       from: {
         name: fromName,
         address: fromEmail,
       },
-      to: {
-        name: approverName,
-        address: approverEmail,
-      },
-      subject: `[รออนุมัติ] ใบเบิกสินค้า ${issueKey}`,
+      to: routedRecipients.recipients,
+      subject: `${routedRecipients.enabled ? "[SIMULATION] " : ""}[รออนุมัติ] ใบเบิกสินค้า ${issueKey}`,
       html: buildEmailHtml({
         appUrl,
         approverName,
+        originalRecipientsSummary: routedRecipients.summary,
+        simulationEnabled: routedRecipients.enabled,
         issueDate,
         issueKey,
         items,
@@ -176,7 +193,9 @@ export async function POST(request: Request) {
         requester,
         createdBy,
       }),
-      text: `เรียน คุณ${approverName}\n\nคุณ${createdBy} ได้คีย์ใบเบิกสินค้า ${issueKey} ให้ผู้ขอเบิก ${requester} เมื่อวันที่ ${formatThaiDate(issueDate)} เพื่อขออนุมัติ กรุณาตรวจสอบรายการและจำนวนสินค้าที่ ${appUrl}/approve\n\nอีเมลฉบับนี้ส่งโดยอัตโนมัติจากระบบ กรุณาไม่ตอบกลับอีเมลนี้`,
+      text: `เรียน คุณ${approverName}\n\n${
+        routedRecipients.enabled ? `โหมดจำลองส่งอีเมล: ระบบส่งเข้า mailbox ทดสอบของศศิธรแทนผู้รับจริง\nผู้รับปลายทางจริง: ${routedRecipients.summary}\n\n` : ""
+      }คุณ${createdBy} ได้คีย์ใบเบิกสินค้า ${issueKey} ให้ผู้ขอเบิก ${requester} เมื่อวันที่ ${formatThaiDate(issueDate)} เพื่อขออนุมัติ กรุณาตรวจสอบรายการและจำนวนสินค้าที่ ${appUrl}/approve?issueKey=${encodeURIComponent(issueKey)}\n\nอีเมลฉบับนี้ส่งโดยอัตโนมัติจากระบบ กรุณาไม่ตอบกลับอีเมลนี้`,
     });
 
     return NextResponse.json({ ok: true, id: result.messageId });

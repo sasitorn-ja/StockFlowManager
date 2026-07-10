@@ -337,13 +337,13 @@ export function getDaysUntil(dateString: string) {
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 }
 
-export function isExpiringSoon(dateString: string) {
+export function isExpiringSoon(dateString: string, warningDays = EXPIRY_WARNING_DAYS) {
   if (!dateString) {
     return false;
   }
 
   const daysLeft = getDaysUntil(dateString);
-  return daysLeft <= EXPIRY_WARNING_DAYS;
+  return daysLeft <= warningDays;
 }
 
 export function compareExpiryDate(dateA: string, dateB: string) {

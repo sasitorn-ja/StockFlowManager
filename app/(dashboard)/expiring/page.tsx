@@ -17,11 +17,13 @@ import {
 } from "@/lib/stock-flow/utils";
 import type { ProductImportType } from "@/types/stock-flow";
 import { useTransactions } from "../TransactionContext";
+import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
 export default function ExpiringPage() {
   const { transactions } = useTransactions();
   const [selectedImportType, setSelectedImportType] = useState<ProductImportType>("resale");
   const [canViewExpiring, setCanViewExpiring] = useState<boolean | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
 
   useEffect(() => {
     fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
@@ -31,6 +33,10 @@ export default function ExpiringPage() {
         setCanViewExpiring(role === "admin");
       })
       .catch(() => setCanViewExpiring(false));
+    fetch(withBasePath("/api/settings"), { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : defaultAppSettings)
+      .then((settings) => setAppSettings({ ...defaultAppSettings, ...settings }))
+      .catch(() => setAppSettings(defaultAppSettings));
   }, []);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
@@ -41,14 +47,14 @@ export default function ExpiringPage() {
       (item) => (item.productImportType ?? "resale") === selectedImportType
     );
     const priorityItems = groupInventory
-      .filter((item) => item.balance > 0 && isExpiringSoon(item.nearestExpiryDate))
+      .filter((item) => item.balance > 0 && isExpiringSoon(item.nearestExpiryDate, Number(appSettings.expiryWarningDays || 90)))
       .sort((a, b) => compareExpiryDate(a.nearestExpiryDate, b.nearestExpiryDate));
 
     return {
       label: groupLabel,
       priorityItems,
     };
-  }, [inventory, selectedImportType]);
+  }, [appSettings.expiryWarningDays, inventory, selectedImportType]);
 
   if (canViewExpiring === null) {
     return (
@@ -109,11 +115,11 @@ export default function ExpiringPage() {
       <section id="expiring" className="grid gap-3">
         <DataPanel
           title={`${groupData.label}: สินค้าที่ควรเร่งขายก่อน`}
-          description="แสดงสินค้าคงเหลือที่ใกล้หมดอายุภายใน 90 วัน เฉพาะกลุ่มนี้"
+          description={`แสดงสินค้าคงเหลือที่ใกล้หมดอายุภายใน ${formatNumber(Number(appSettings.expiryWarningDays || 90))} วัน เฉพาะกลุ่มนี้`}
         >
           <Table
             headers={["สินค้า", "วันหมดอายุ", "เหลือเวลา", "คงเหลือ"]}
-            emptyMessage={`ยังไม่มีสินค้า ${groupData.label} ที่ใกล้หมดอายุภายใน 90 วัน`}
+            emptyMessage={`ยังไม่มีสินค้า ${groupData.label} ที่ใกล้หมดอายุภายใน ${formatNumber(Number(appSettings.expiryWarningDays || 90))} วัน`}
             columnCount={4}
           >
             {groupData.priorityItems.map((item) => {
