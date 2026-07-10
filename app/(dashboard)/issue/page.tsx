@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Filter, PackageMinus, X, Trash2, Check, ChevronDown } from "lucide-react";
+import { Search, Filter, PackageMinus, X, Trash2, Check, ChevronDown, ShoppingCart, Plus, Minus, Package } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { ComboboxInput } from "@/components/ui/combobox-input";
@@ -152,6 +152,12 @@ type DirectoryUser = {
   userId: string;
 };
 
+function isSasitornTester(user: Pick<DirectoryUser, "name" | "email"> | null) {
+  const name = user?.name?.trim().toLowerCase() || "";
+  const email = user?.email?.trim().toLowerCase() || "";
+  return name === "ศศิธร จรุงจรรยาพงศ์" || email === "sasitoja@scg.com";
+}
+
 function formatApproverContactLabel(name: string, email: string) {
   return [name.trim(), email.trim()].filter(Boolean).join(" · ");
 }
@@ -217,13 +223,12 @@ export default function IssuePage() {
   const [issueSelections, setIssueSelections] = useState<Record<string, IssueSelectionValue>>({});
   const [isIssuePanelOpen, setIsIssuePanelOpen] = useState(false);
   const [issueRequester, setIssueRequester] = useState("");
+  const [issueCreatedBy, setIssueCreatedBy] = useState("ผู้ใช้งาน");
   const [issueApproverContact, setIssueApproverContact] = useState("");
   const [issueApprover, setIssueApprover] = useState("");
   const [issueApproverEmail, setIssueApproverEmail] = useState("");
-  const [issueApproverContactSuggestions, setIssueApproverContactSuggestions] = useState<
-    ApproverContactOption[]
-  >([]);
   const [directoryUsers, setDirectoryUsers] = useState<DirectoryUser[]>([]);
+  const [currentUser, setCurrentUser] = useState<DirectoryUser | null>(null);
   const [issueNote, setIssueNote] = useState("");
   const [isSendingIssueEmail, setIsSendingIssueEmail] = useState(false);
   const [isIssueTypeFilterOpen, setIsIssueTypeFilterOpen] = useState(false);
@@ -260,18 +265,35 @@ export default function IssuePage() {
       if (res.ok) {
         const users = (await res.json()) as DirectoryUser[];
         setDirectoryUsers(users);
-        setIssueApproverContactSuggestions(
-          users
-            .filter((user) => user.role === "manager" && Boolean(user.email))
-            .map((user) => ({
-              name: user.name,
-              email: user.email,
-              label: formatApproverContactLabel(user.name, user.email),
-            }))
-        );
       }
     } catch (error) {
       console.error("Failed to fetch SSO user directory", error);
+    }
+  }
+
+  async function fetchCurrentUser() {
+    try {
+      const res = await fetch(withBasePath("/api/auth/session"), { cache: "no-store" });
+      if (!res.ok) {
+        return;
+      }
+
+      const data = await res.json();
+      const user = data?.user;
+      const name = user?.name?.trim() || "ผู้ใช้งาน";
+      const role = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
+      const activeUser: DirectoryUser = { name, email: user?.email?.trim() || "", userId: user?.userId || "", role };
+      setCurrentUser(activeUser);
+      setIssueCreatedBy(name);
+      if (role === "admin" && isSasitornTester(activeUser)) {
+        const contact = formatApproverContactLabel(name, activeUser.email);
+        setIssueRequester(name);
+        setIssueApprover(name);
+        setIssueApproverEmail(activeUser.email);
+        setIssueApproverContact(contact);
+      }
+    } catch (error) {
+      console.error("Failed to fetch current user", error);
     }
   }
 
@@ -279,6 +301,7 @@ export default function IssuePage() {
     fetchTransactions();
     fetchMasterProducts();
     fetchUserDirectory();
+    fetchCurrentUser();
 
     const cachedDraft = localStorage.getItem("pending_draft");
     if (cachedDraft) {
@@ -300,7 +323,12 @@ export default function IssuePage() {
     }
 
     const handleUserChange = () => {
-      // Do not auto-prefill to allow a transparent placeholder state
+      const name = localStorage.getItem("current_username");
+      if (name?.trim()) {
+        setIssueCreatedBy(name.trim());
+      } else {
+        fetchCurrentUser();
+      }
     };
     window.addEventListener("current-user-changed", handleUserChange);
     return () => {
@@ -405,6 +433,17 @@ export default function IssuePage() {
     return Array.from(new Set(directoryUsers.map((user) => user.name.trim()).filter(Boolean)))
       .sort((a, b) => a.localeCompare(b, "th"));
   }, [directoryUsers]);
+
+  const issueApproverContactSuggestions = useMemo<ApproverContactOption[]>(() => {
+    const users = directoryUsers.filter(
+      (user) => user.role === "manager" || (isSasitornTester(user) && user.role === "admin")
+    );
+    return users.filter((user) => Boolean(user.email)).map((user) => ({
+      name: user.name,
+      email: user.email,
+      label: formatApproverContactLabel(user.name, user.email),
+    }));
+  }, [currentUser, directoryUsers]);
 
   const issueApproverInputSuggestions = useMemo(() => {
     const prioritizedContacts = new Map<string, string>();
@@ -526,7 +565,7 @@ export default function IssuePage() {
       (item) => item.name === issueApprover.trim() && item.email === issueApproverEmail.trim()
     );
     if (!selectedManager) {
-      window.alert("กรุณาเลือกผู้อนุมัติที่มีสิทธิ์ผู้จัดการจากรายชื่อ");
+      window.alert("กรุณาเลือกผู้อนุมัติจากรายชื่อสำหรับบทบาทปัจจุบัน");
       return;
     }
 
@@ -541,11 +580,11 @@ export default function IssuePage() {
     }
 
     const invalidEntry = selectedEntries.find(
-      ({ quantity }) => !Number.isFinite(quantity) || quantity <= 0
+      ({ quantity }) => !Number.isFinite(quantity) || !Number.isInteger(quantity) || quantity <= 0
     );
 
     if (invalidEntry) {
-      window.alert("กรอกจำนวนที่ต้องการเบิกให้ถูกต้องทุกรายการ");
+      window.alert("จำนวนที่ต้องการเบิกต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไปทุกรายการ");
       return;
     }
 
@@ -594,6 +633,7 @@ export default function IssuePage() {
         expiryDate: lot.expiryDate,
         issueKey: batchIssueKey,
         requester: issueRequester.trim(),
+        createdBy: issueCreatedBy.trim(),
         approver: issueApprover.trim(),
         note: issueNote.trim(),
         createdAt: now + allocationSequence++,
@@ -627,35 +667,6 @@ export default function IssuePage() {
         console.error("Failed to save created issueKey", e);
       }
 
-      // 2. Dispatch email notification to manager
-      const response = await fetch(withBasePath("/api/issue-request-email"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          approverEmail: issueApproverEmail.trim(),
-          approverName: issueApprover.trim(),
-          issueDate,
-          issueKey: batchIssueKey,
-          items: selectedEntries.map(({ item, quantity }) => ({
-            name: item.name,
-            productImportTypeLabel: getProductImportTypeLabel(item.productImportType),
-            quantity,
-            sku: `${item.sku || "-"} · จัดล็อตอัตโนมัติ`,
-            unit: item.unit,
-          })),
-          note: issueNote.trim(),
-          requester: issueRequester.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { error?: string } | null;
-        window.alert(
-          `บันทึกคำขอเบิกแล้ว แต่ส่งอีเมลไม่สำเร็จ${data?.error ? `: ${data.error}` : ""}`
-        );
-      }
     } catch (error) {
       window.alert("ไม่สามารถบันทึกข้อมูลใบเบิกสินค้าลงฐานข้อมูลได้ กรุณาลองใหม่อีกครั้ง");
       setIsSendingIssueEmail(false);
@@ -681,9 +692,21 @@ export default function IssuePage() {
       id="issue"
       className={`issue-page ${isIssuePanelOpen ? "issue-page-panel-open" : ""}`}
     >
-      <div className="issue-table-card">
-        <div className="issue-toolbar">
-          <label className="overview-search">
+      <div className="issue-marketplace">
+        <div className="issue-shop-hero">
+          <div>
+            <span className="issue-shop-kicker">STOCK FLOW SHOP</span>
+            <h2>เลือกสินค้าเพื่อสร้างใบเบิก</h2>
+          </div>
+          <button type="button" className="issue-cart-button" onClick={() => setIsIssuePanelOpen(true)}>
+            <ShoppingCart size={22} />
+            <span>ตะกร้าเบิก</span>
+            <b>{selectedIssueEntries.length}</b>
+          </button>
+        </div>
+
+        <div className="issue-shop-toolbar">
+          <label className="issue-shop-search">
             <Search size={17} />
             <input
               type="search"
@@ -692,134 +715,36 @@ export default function IssuePage() {
               placeholder="ค้นหาสินค้า, รหัส, หมวดหมู่..."
             />
           </label>
-          <div className="issue-toolbar-actions">
-            <IssueTypeCombobox
-              label="ประเภทการขาย"
-              open={isIssueTypeFilterOpen}
-              setOpen={setIsIssueTypeFilterOpen}
-              value={issueImportTypeFilter}
-              options={filterOptions}
-              placeholder="ประเภทสินค้า"
-              searchPlaceholder="ค้นหาประเภทสินค้า..."
-              onValueChange={(value) => {
-                const nextValue = value as OverviewFilter;
-                setIssueImportTypeFilter(nextValue);
-                setIssueSelections({});
-              }}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setIssueImportTypeFilter("all");
-                setSearchTerm("");
-                setIssueSelections({});
-              }}
-            >
-              <Filter size={15} />
-              ล้างตัวกรอง
-            </Button>
-            <Button type="button" size="sm" onClick={() => openIssuePanelForItem()}>
-              <PackageMinus size={16} />
-              เบิกจ่ายสินค้า
-            </Button>
-          </div>
+        </div>
+        <div className="issue-category-chips">
+          {filterOptions.map((option) => (
+            <button key={option.value} type="button" className={issueImportTypeFilter === option.value ? "active" : ""}
+              onClick={() => setIssueImportTypeFilter(option.value)}>{option.label}</button>
+          ))}
+          {(searchTerm || issueImportTypeFilter !== "all") && <button type="button" onClick={() => { setSearchTerm(""); setIssueImportTypeFilter("all"); }}><Filter size={14} /> ล้างตัวกรอง</button>}
         </div>
 
-        <div className="overview-table-wrap">
-          <table className="overview-table issue-table">
-            <thead>
-              <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    aria-label="เลือกทั้งหมด"
-                    checked={
-                      issueListItems.length > 0 &&
-                      issueListItems.every((item) => issueSelections[item.key])
-                    }
-                    onChange={(event) => {
-                      if (event.target.checked) {
-                        setIssueSelections((current) => {
-                          const next = { ...current };
-                          issueListItems.forEach((item) => {
-                            next[item.key] = next[item.key] || {
-                              quantity: "1",
-                            };
-                          });
-                          return next;
-                        });
-                        setIsIssuePanelOpen(true);
-                      } else {
-                        setIssueSelections({});
-                      }
-                    }}
-                  />
-                </th>
-                <th>รหัสสินค้า</th>
-                <th>รายการสินค้า</th>
-                <th>ประเภทสินค้า</th>
-                <th>คงเหลือ</th>
-                <th>หน่วย</th>
-              </tr>
-            </thead>
-            <tbody>
-              {issueListItems.length > 0 ? (
-                issueListItems.map((item) => {
-                  return (
-                    <tr key={`issue-list-${item.key}`}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          aria-label={`เลือก ${item.name}`}
-                          checked={Boolean(issueSelections[item.key])}
-                          onChange={(event) => {
-                            toggleIssueSelection(item.key, event.target.checked);
-                            if (event.target.checked) {
-                              setIsIssuePanelOpen(true);
-                            }
-                          }}
-                        />
-                      </td>
-                      <td className="sku-cell">{item.sku || "-"}</td>
-                      <td>
-                        <strong>{item.name}</strong>
-                        <span>
-                          ระบบจะเลือกล็อตให้อัตโนมัติตามวันหมดอายุหรือวันรับเข้า
-                        </span>
-                      </td>
-                      <td>{getProductImportTypeLabel(item.productImportType)}</td>
-                      <td className="text-right font-semibold">{formatNumber(item.totalBalance)}</td>
-                      <td>{item.unit}</td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={6}>
-                    <div className="empty-state">ยังไม่มีสินค้าพร้อมเบิกจ่าย</div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="overview-pagination">
-          <span>
-            แสดง 1 - {Math.min(issueListItems.length, 8)} จาก {formatNumber(issueListItems.length)}{" "}
-            รายการ
-          </span>
-          <div>
-            <button type="button">‹</button>
-            <button type="button" className="active">
-              1
-            </button>
-            <button type="button">2</button>
-            <button type="button">3</button>
-            <button type="button">›</button>
-          </div>
+        <div className="issue-product-grid">
+          {issueListItems.map((item) => {
+            const selected = issueSelections[item.key];
+            return <article key={item.key} className={`issue-product-card ${selected ? "selected" : ""}`}>
+              <div className="issue-product-image">
+                {item.lots.find((lot) => lot.imageDataUrl)?.imageDataUrl ? <img src={item.lots.find((lot) => lot.imageDataUrl)?.imageDataUrl} alt={item.name} /> : <Package size={42} />}
+                <span>{getProductImportTypeLabel(item.productImportType)}</span>
+              </div>
+              <div className="issue-product-body">
+                <small>{item.sku || "ไม่มีรหัสสินค้า"}</small>
+                <h3>{item.name}</h3>
+                <p>พร้อมเบิก <b>{formatNumber(item.totalBalance)}</b> {item.unit}</p>
+                {selected ? <div className="issue-card-stepper">
+                  <button type="button" aria-label="ลดจำนวน" onClick={() => { const next = Math.max(1, Number(selected.quantity || 1) - 1); updateIssueSelection(item.key, { quantity: String(next) }); }}><Minus size={16} /></button>
+                  <strong>{selected.quantity}</strong>
+                  <button type="button" aria-label="เพิ่มจำนวน" onClick={() => { const next = Math.min(item.totalBalance, Number(selected.quantity || 1) + 1); updateIssueSelection(item.key, { quantity: String(next) }); }}><Plus size={16} /></button>
+                </div> : <button type="button" className="issue-add-cart" onClick={() => openIssuePanelForItem(item)}><ShoppingCart size={16} /> เพิ่มลงตะกร้า</button>}
+              </div>
+            </article>;
+          })}
+          {issueListItems.length === 0 ? <div className="issue-shop-empty"><Package size={44} /><h3>ไม่พบสินค้าที่พร้อมเบิก</h3><p>ลองเปลี่ยนคำค้นหาหรือประเภทสินค้า</p></div> : null}
         </div>
       </div>
 
@@ -842,6 +767,10 @@ export default function IssuePage() {
           </div>
 
           <div className="issue-quick-form issue-quick-form-panel">
+            <label>
+              <span>คนคีย์ข้อมูล</span>
+              <input value={issueCreatedBy} readOnly />
+            </label>
             <label>
               <span>ผู้ขอเบิกสินค้า *</span>
               <ComboboxInput
@@ -913,13 +842,15 @@ export default function IssuePage() {
                       <span>จำนวน</span>
                       <input
                         type="number"
+                        inputMode="numeric"
                         min="1"
                         max={item.totalBalance}
                         step="1"
                         value={selection.quantity}
-                        onChange={(event) =>
-                          updateIssueSelection(item.key, { quantity: event.target.value })
-                        }
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          if (value === "" || /^\d+$/.test(value)) updateIssueSelection(item.key, { quantity: value });
+                        }}
                       />
                     </label>
                     <div className="text-[12px] text-[var(--text-muted)]">

@@ -3,8 +3,15 @@ import { ensureColumn, ensureColumnDefinition, sql } from "@/lib/db";
 import { createSampleTransactions } from "@/lib/stock-flow/sample-data";
 import { buildItemKey } from "@/lib/stock-flow/utils";
 import { getCurrentUser } from "@/lib/auth/users";
+import { sendRequisitionNotice } from "@/lib/requisition-email";
+import type { TransactionStatus } from "@/types/stock-flow";
 
 export const dynamic = "force-dynamic";
+
+function isSasitornTester(user: { name?: string; email?: string }) {
+  return user.name?.trim().toLowerCase() === "ศศิธร จรุงจรรยาพงศ์" ||
+    user.email?.trim().toLowerCase() === "sasitoja@scg.com";
+}
 
 let transactionTableSetup: Promise<void> | null = null;
 
@@ -39,7 +46,7 @@ async function ensureTableExists() {
           "productImportType" VARCHAR(50),
           unit VARCHAR(50),
           type VARCHAR(50),
-          quantity DECIMAL(15,4),
+          quantity BIGINT,
           price DECIMAL(15,4),
           "costPrice" DECIMAL(15,4),
           "costCurrency" VARCHAR(10),
@@ -47,6 +54,7 @@ async function ensureTableExists() {
           "expiryDate" VARCHAR(50),
           "issueKey" VARCHAR(100),
           requester VARCHAR(255),
+          "createdBy" VARCHAR(255),
           approver VARCHAR(255),
           note TEXT,
           "createdAt" BIGINT,
@@ -55,7 +63,10 @@ async function ensureTableExists() {
       `;
 
       await ensureColumn("transactions", "status", "VARCHAR(50) DEFAULT 'confirmed'");
+      await ensureColumn("transactions", "createdBy", "VARCHAR(255) DEFAULT ''");
       await ensureColumnDefinition("transactions", "imageDataUrl", "LONGTEXT");
+      await tx`UPDATE transactions SET quantity = FLOOR(quantity) WHERE quantity <> FLOOR(quantity);`;
+      await ensureColumnDefinition("transactions", "quantity", "BIGINT NOT NULL DEFAULT 0");
     });
   })().catch((error) => {
     transactionTableSetup = null;
@@ -69,8 +80,10 @@ async function ensureTableExists() {
 export async function GET() {
   try {
     await ensureTableExists();
+    const actor = await getCurrentUser();
+    if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const rows = await sql`
+    const rows = actor.role === "admin" ? await sql`
       SELECT 
         id, name, sku, category, 
         "imageDataUrl", "productImportType", unit, type,
@@ -78,12 +91,39 @@ export async function GET() {
         CAST(price AS FLOAT) as price, 
         CAST("costPrice" AS FLOAT) as "costPrice", 
         "costCurrency", date, "expiryDate", "issueKey", 
-        requester, approver, note, "createdAt", status
+        requester, "createdBy", approver, note, "createdAt", status
       FROM transactions 
       ORDER BY "createdAt" DESC;
+    ` : actor.role === "manager" ? await sql`
+      SELECT id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
+        CAST(quantity AS FLOAT) quantity, CAST(price AS FLOAT) price,
+        CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "expiryDate",
+        "issueKey", requester, "createdBy", approver, note, "createdAt", status
+      FROM transactions
+      ORDER BY "createdAt" DESC
+    ` : await sql`
+      SELECT id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
+        CAST(quantity AS FLOAT) quantity, CAST(price AS FLOAT) price,
+        CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "expiryDate",
+        "issueKey", requester, "createdBy", approver, note, "createdAt", status
+      FROM transactions
+      ORDER BY "createdAt" DESC
     `;
 
-    return NextResponse.json(rows);
+    const visibleRows = actor.role === "admin" ? rows : rows.map((row) => {
+      if (row.type === "in") return row;
+      const related = row.requester === actor.name || row.createdBy === actor.name ||
+        (actor.role === "manager" && row.approver === actor.name);
+      return related ? row : {
+        ...row,
+        issueKey: "",
+        requester: "",
+        createdBy: "",
+        approver: "",
+        note: "",
+      };
+    });
+    return NextResponse.json(visibleRows);
   } catch (error: any) {
     console.error("GET transactions error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -102,15 +142,24 @@ export async function POST(request: Request) {
 
     // Check if it is a batch of transactions (array)
     const items = Array.isArray(body) ? body : [body];
+    const hasStockIn = items.some((item) => (item.type || "in") === "in");
+    if (hasStockIn && actor.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     for (const item of items) {
       if (!item.name || !item.unit) {
         return NextResponse.json({ error: "Missing required fields: name or unit" }, { status: 400 });
+      }
+      const quantity = Number(item.quantity);
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        return NextResponse.json({ error: "Quantity must be a positive integer" }, { status: 400 });
       }
 
       await sql`
         INSERT INTO transactions (
           id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
-          quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, approver, note, "createdAt", status
+          quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, "createdBy", approver, note, "createdAt", status
         ) VALUES (
           ${item.id || `txn-${Date.now()}-${Math.random().toString(36).slice(2)}`},
           ${item.name},
@@ -120,20 +169,33 @@ export async function POST(request: Request) {
           ${item.productImportType || "resale"},
           ${item.unit},
           ${item.type || "in"},
-          ${item.quantity || 0},
+          ${quantity},
           ${item.price || 0},
           ${item.costPrice || 0},
           ${item.costCurrency || "THB"},
           ${item.date},
           ${item.expiryDate || ""},
           ${item.issueKey || ""},
-          ${item.requester || ""},
+          ${item.requester || actor.name || ""},
+          ${actor.name || ""},
           ${item.approver || ""},
           ${item.note || ""},
           ${item.createdAt || Date.now()},
           ${item.status || (item.type === 'out' ? 'pending' : 'confirmed')}
         )
       `;
+    }
+
+    const issue = items.find((item) => (item.type || "in") === "out");
+    if (issue?.issueKey) {
+      await sendRequisitionNotice({
+        issueKey: issue.issueKey,
+        status: "pending",
+        actorName: actor.name,
+        requester: issue.requester || actor.name,
+        createdBy: actor.name,
+        approver: issue.approver || "",
+      }).catch((error) => console.error("Requisition email failed", error));
     }
 
     return NextResponse.json({ success: true, count: items.length });
@@ -150,32 +212,30 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { action, itemKey, updatedData, id, issueKey, status } = body;
     const actor = await getCurrentUser();
-    const canApprove = actor?.role === "admin" || actor?.role === "manager";
-    const isSelfCancellation = action === "update_status" && status === "cancelled";
-    if (action === "update_status" ? !canApprove && !isSelfCancellation : actor?.role !== "admin") {
+    if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (action !== "update_status" && actor.role !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Action 3: Update status for an entire issueKey batch
     if (action === "update_status" && issueKey && status) {
-      if (!actor) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      // Employees may cancel only requisitions created under their own SSO name.
-      // Managers and admins retain permission to update any requisition status.
-      if (!canApprove) {
-        const ownedRows = await sql`
-          SELECT 1
-          FROM transactions
-          WHERE "issueKey" = ${issueKey}
-            AND TRIM(requester) = ${actor.name.trim()}
-          LIMIT 1
-        `;
-        if (ownedRows.length === 0) {
-          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
-      }
+      const requisitionRows = await sql`
+        SELECT requester, "createdBy", approver, status
+        FROM transactions WHERE "issueKey" = ${issueKey} LIMIT 1
+      `;
+      const requisition = requisitionRows[0];
+      if (!requisition) return NextResponse.json({ error: "Requisition not found" }, { status: 404 });
+      const currentStatus = requisition.status || "completed";
+      const isOwner = [requisition.requester, requisition.createdBy].some(
+        (name) => String(name || "").trim() === actor.name.trim()
+      );
+      const allowed =
+        (status === "approved" && currentStatus === "pending" && (actor.role === "manager" || (actor.role === "admin" && isSasitornTester(actor))) && (!requisition.approver || requisition.approver === actor.name)) ||
+        (status === "issued" && currentStatus === "approved" && actor.role === "admin") ||
+        (status === "received" && currentStatus === "issued" && String(requisition.requester || "").trim() === actor.name.trim()) ||
+        (status === "completed" && (currentStatus === "received" || currentStatus === "employee_confirmed") && actor.role === "admin") ||
+        (status === "cancelled" && currentStatus === "pending" && (isOwner || actor.role === "admin"));
+      if (!allowed) return NextResponse.json({ error: "ไม่สามารถเปลี่ยนสถานะในขั้นตอนนี้ได้" }, { status: 403 });
 
       if (body.approver) {
         await sql`
@@ -190,6 +250,14 @@ export async function PUT(request: Request) {
           WHERE "issueKey" = ${issueKey}
         `;
       }
+      await sendRequisitionNotice({
+        issueKey,
+        status: status as TransactionStatus,
+        actorName: actor.name,
+        requester: requisition.requester,
+        createdBy: requisition.createdBy,
+        approver: body.approver || requisition.approver,
+      }).catch((error) => console.error("Requisition email failed", error));
       return NextResponse.json({ success: true });
     }
 
@@ -244,6 +312,10 @@ export async function PUT(request: Request) {
 
     // Action 2: Update a single transaction
     if (id) {
+      const quantity = Number(body.quantity);
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        return NextResponse.json({ error: "Quantity must be a positive integer" }, { status: 400 });
+      }
       await sql`
         UPDATE transactions
         SET 
@@ -254,7 +326,7 @@ export async function PUT(request: Request) {
           "productImportType" = ${body.productImportType || "resale"},
           unit = ${body.unit},
           type = ${body.type || "in"},
-          quantity = ${body.quantity || 0},
+          quantity = ${quantity},
           price = ${body.price || 0},
           "costPrice" = ${body.costPrice || 0},
           "costCurrency" = ${body.costCurrency || "THB"},
@@ -262,6 +334,7 @@ export async function PUT(request: Request) {
           "expiryDate" = ${body.expiryDate || ""},
           "issueKey" = ${body.issueKey || ""},
           requester = ${body.requester || ""},
+          "createdBy" = ${body.createdBy || ""},
           approver = ${body.approver || ""},
           note = ${body.note || ""},
           status = ${body.status || "confirmed"}

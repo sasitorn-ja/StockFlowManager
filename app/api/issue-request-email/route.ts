@@ -17,6 +17,7 @@ type IssueEmailPayload = {
   items?: IssueEmailRow[];
   note?: string;
   requester?: string;
+  createdBy?: string;
 };
 
 function escapeHtml(value: string) {
@@ -46,6 +47,7 @@ function buildEmailHtml(input: {
   items: IssueEmailRow[];
   note: string;
   requester: string;
+  createdBy: string;
 }) {
   const rows = input.items
     .map(
@@ -72,11 +74,12 @@ function buildEmailHtml(input: {
           <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">เรียน คุณ${escapeHtml(
             input.approverName
           )}</p>
-          <p style="margin:0 0 20px;font-size:15px;line-height:1.7;">คุณ${escapeHtml(input.requester)} ได้ส่งใบเบิกสินค้าเพื่อขออนุมัติ กรุณาตรวจสอบรายการและจำนวนสินค้าด้านล่างก่อนดำเนินการ</p>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.7;">คุณ${escapeHtml(input.createdBy)} ได้คีย์ใบเบิกสินค้าเพื่อขออนุมัติ กรุณาตรวจสอบรายการและจำนวนสินค้าด้านล่างก่อนดำเนินการ</p>
           <div style="margin-bottom:20px;padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
             <p style="margin:0 0 8px;"><strong>เลขที่ใบเบิก:</strong> ${escapeHtml(input.issueKey)}</p>
             <p style="margin:0 0 8px;"><strong>วันที่ยื่นคำขอ:</strong> ${escapeHtml(formatThaiDate(input.issueDate))}</p>
-            <p style="margin:0;"><strong>ผู้ขอเบิก:</strong> ${escapeHtml(input.requester)}</p>
+            <p style="margin:0 0 8px;"><strong>ผู้ขอเบิก:</strong> ${escapeHtml(input.requester)}</p>
+            <p style="margin:0;"><strong>คนคีย์ข้อมูล:</strong> ${escapeHtml(input.createdBy)}</p>
           </div>
           <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
             <thead>
@@ -132,6 +135,7 @@ export async function POST(request: Request) {
   const approverEmail = payload.approverEmail?.trim() || "";
   const approverName = payload.approverName?.trim() || "";
   const requester = payload.requester?.trim() || "";
+  const createdBy = payload.createdBy?.trim() || requester;
   const issueKey = payload.issueKey?.trim() || "";
   const issueDate = payload.issueDate?.trim() || "";
   const note = payload.note?.trim() || "";
@@ -170,8 +174,9 @@ export async function POST(request: Request) {
         items,
         note,
         requester,
+        createdBy,
       }),
-      text: `เรียน คุณ${approverName}\n\nคุณ${requester} ได้ส่งใบเบิกสินค้า ${issueKey} เมื่อวันที่ ${formatThaiDate(issueDate)} เพื่อขออนุมัติ กรุณาตรวจสอบรายการและจำนวนสินค้าที่ ${appUrl}/approve\n\nอีเมลฉบับนี้ส่งโดยอัตโนมัติจากระบบ กรุณาไม่ตอบกลับอีเมลนี้`,
+      text: `เรียน คุณ${approverName}\n\nคุณ${createdBy} ได้คีย์ใบเบิกสินค้า ${issueKey} ให้ผู้ขอเบิก ${requester} เมื่อวันที่ ${formatThaiDate(issueDate)} เพื่อขออนุมัติ กรุณาตรวจสอบรายการและจำนวนสินค้าที่ ${appUrl}/approve\n\nอีเมลฉบับนี้ส่งโดยอัตโนมัติจากระบบ กรุณาไม่ตอบกลับอีเมลนี้`,
     });
 
     return NextResponse.json({ ok: true, id: result.messageId });

@@ -17,6 +17,8 @@ const costCurrencies = new Set<CostCurrency>(["THB", "JPY", "CNY", "USD"]);
 const transactionStatuses = new Set<TransactionStatus>([
   "pending",
   "approved",
+  "issued",
+  "received",
   "employee_confirmed",
   "completed",
   "cancelled",
@@ -110,7 +112,7 @@ export function normalizeTransactions(value: unknown): Transaction[] {
   return value
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
     .map((item) => {
-      const quantity = Math.max(0, toNumberValue(item.quantity));
+      const quantity = Math.max(0, Math.floor(toNumberValue(item.quantity)));
       const createdAt = toNumberValue(item.createdAt, Date.now());
 
       return {
@@ -130,6 +132,7 @@ export function normalizeTransactions(value: unknown): Transaction[] {
         expiryDate: toStringValue(item.expiryDate),
         issueKey: toStringValue(item.issueKey).trim(),
         requester: toStringValue(item.requester).trim(),
+        createdBy: toStringValue(item.createdBy).trim(),
         approver: toStringValue(item.approver).trim(),
         note: toStringValue(item.note).trim(),
         createdAt,

@@ -72,11 +72,6 @@ function HistorySection({
         <div className="history-header-left">
           <div>
             <h3 className="dashboard-section-title">ประวัติรับเข้า-เบิกจ่ายสินค้า</h3>
-            <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              {isGlobalView
-                ? "รวมความเคลื่อนไหวสินค้าเข้าและออก เรียงตามเวลาที่บันทึกล่าสุด"
-                : "แสดงประวัติใบเบิกของคุณ เรียงตามเวลาที่บันทึกล่าสุด"}
-            </p>
           </div>
           <div className="history-filter-row">
             <div className="dashboard-category-switch history-type-switch">
@@ -166,6 +161,8 @@ function HistorySection({
               issueKey !== "-" &&
               (!item.status ||
                 item.status === "approved" ||
+                item.status === "issued" ||
+                item.status === "received" ||
                 item.status === "employee_confirmed" ||
                 item.status === "completed");
 
@@ -425,6 +422,24 @@ export default function HistoryPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-[var(--text-muted)]">
         กำลังตรวจสอบสิทธิ์...
+      </div>
+    );
+  }
+
+  if (!isGlobalView) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-4">
+        <div className="dashboard-card max-w-[480px] p-8 text-center shadow-xl backdrop-blur-xl">
+          <h3 className="text-lg font-bold text-[var(--text-strong)]">ปฏิเสธการเข้าถึง</h3>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            พนักงานสามารถติดตามใบเบิกของตัวเองได้ที่หน้าติดตามสถานะการเบิก
+          </p>
+          <div className="mt-6">
+            <Button type="button" onClick={() => router.push("/approve")}>
+              กลับไปหน้าติดตามสถานะ
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }

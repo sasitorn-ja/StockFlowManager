@@ -1,7 +1,14 @@
 export type TransactionType = "in" | "out";
 export type ProductImportType = "resale" | "stable";
 export type CostCurrency = "THB" | "JPY" | "CNY" | "USD";
-export type TransactionStatus = "pending" | "approved" | "employee_confirmed" | "completed" | "cancelled";
+export type TransactionStatus =
+  | "pending"
+  | "approved"
+  | "issued"
+  | "received"
+  | "employee_confirmed"
+  | "completed"
+  | "cancelled";
 
 export type Transaction = {
   id: string;
@@ -20,6 +27,7 @@ export type Transaction = {
   expiryDate: string;
   issueKey: string;
   requester?: string;
+  createdBy?: string;
   approver?: string;
   note: string;
   createdAt: number;

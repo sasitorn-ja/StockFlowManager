@@ -1,13 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { DataPanel } from "@/components/stock-flow/DataPanel";
-import { Table } from "@/components/stock-flow/Table";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, Search, Package, Boxes } from "lucide-react";
+import { withBasePath } from "@/lib/base-path";
+import { Button } from "@/components/ui/button";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock-flow/constants";
 import {
   buildInventoryLotMap,
-  formatCurrency,
   formatCurrencyWithLabel,
   formatDate,
   formatNumber,
@@ -27,10 +26,12 @@ type GroupedInventoryItem = {
   name: string;
   sku: string;
   category: string;
+  imageDataUrl?: string;
   productImportType: InventoryLotItem["productImportType"];
   unit: string;
   balance: number;
-  totalBalanceValue: number;
+  totalCostValue: number;
+  costCurrency: InventoryLotItem["costCurrency"];
   firstReceivedDate: string;
   nearestExpiryDate: string;
   lots: InventoryLotWithLabel[];
@@ -42,6 +43,8 @@ type ItemsSectionProps = {
 
 function ItemsSection({ inventory }: ItemsSectionProps) {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "resale" | "stable">("all");
 
   function toggleRow(itemKey: string) {
     setExpandedRows((current) => ({
@@ -50,26 +53,10 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
     }));
   }
 
-  return (
-    <section id="items" className="grid gap-3 items-clean-table">
-      <DataPanel
-        title="รายการสินค้าทั้งหมด"
-        description="แสดงสรุปสินค้าแบบสั้นก่อน แล้วกดเปิดดูรายละเอียดล็อตของสินค้าแต่ละรายการได้"
-      >
-        <Table
-          headers={[
-            "สินค้า",
-            "หมวด",
-            "รายละเอียดล็อต",
-            "คงเหลือรวม",
-            "วันหมดอายุใกล้สุด",
-            "มูลค่าขายรวม",
-          ]}
-          emptyMessage="ยังไม่มีรายการสินค้า"
-          columnCount={6}
-        >
-          {inventory
-            .slice()
+  const filteredInventory = inventory
+    .filter((item) => typeFilter === "all" || item.productImportType === typeFilter)
+    .filter((item) => `${item.name} ${item.sku} ${item.category}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .slice()
             .sort((a, b) => {
               const typeCompare = getProductImportTypeLabel(a.productImportType).localeCompare(
                 getProductImportTypeLabel(b.productImportType),
@@ -82,140 +69,49 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
                 a.firstReceivedDate.localeCompare(b.firstReceivedDate) ||
                 a.nearestExpiryDate.localeCompare(b.nearestExpiryDate)
               );
-            })
-            .flatMap((item) => {
-              const isExpanded = Boolean(expandedRows[item.key]);
+            });
 
-              const summaryRow = (
-                <tr key={`${item.key}-summary`}>
-                  <td className="align-top">
-                    <div className="grid gap-1.5 min-w-[120px]">
-                      <strong className="font-semibold text-[var(--text-strong)]">{item.name}</strong>
-                      <span className="text-[12px] text-[var(--text-muted)] break-words">{item.sku || "-"}</span>
-                    </div>
-                  </td>
-                  <td className="align-top">
-                    <div className="grid gap-1.5 min-w-[110px]">
-                      <span className="items-clean-primary-text">{getProductImportTypeLabel(item.productImportType)}</span>
-                      <span className="text-[12px] text-[var(--text-muted)] break-words">{item.category}</span>
-                    </div>
-                  </td>
-                  <td className="align-top">
-                    <div className="grid gap-2 min-w-[220px]">
-                      <button
-                        type="button"
-                        onClick={() => toggleRow(item.key)}
-                        className="inline-flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-white px-3 py-2.5 text-left text-sm font-semibold text-sky-800 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
-                      >
-                        <span className="whitespace-nowrap">{`เปิดดู ${formatNumber(item.lots.length)} ล็อต`}</span>
-                        {isExpanded ? <ChevronUp size={16} className="shrink-0" /> : <ChevronDown size={16} className="shrink-0" />}
-                      </button>
-                      <div className="text-[12px] text-[var(--text-muted)] whitespace-nowrap">
-                        รับเข้าครั้งแรก {item.firstReceivedDate ? formatDate(item.firstReceivedDate) : "-"}
-                      </div>
-                    </div>
-                  </td>
-                  <td
-                    className={`align-top text-right whitespace-nowrap ${
-                      item.balance <= LOW_STOCK_THRESHOLD ? "font-semibold text-amber-700" : ""
-                    }`}
-                  >
-                    <strong className="text-base">{formatNumber(item.balance)}</strong>
-                    <div className="text-[12px] text-[var(--text-subtle)] whitespace-nowrap">{item.unit}</div>
-                  </td>
-                  <td className="align-top whitespace-nowrap">
-                    <span className="items-clean-primary-text">
-                      {item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}
-                    </span>
-                  </td>
-                  <td className="align-top text-right whitespace-nowrap">
-                    <div className="grid gap-1.5 min-w-[150px]">
-                      <strong>{formatCurrency(item.totalBalanceValue)}</strong>
-                      <span className="text-[12px] text-[var(--text-muted)] whitespace-nowrap">
-                        ต้นทุนดูในรายละเอียดล็อต
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              );
-
-              const detailRow = isExpanded ? (
-                <tr key={`${item.key}-detail`}>
-                  <td colSpan={6} className="bg-slate-50/70">
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <strong className="text-sm text-[var(--text-strong)]">
-                            รายละเอียดล็อตของ {item.name}
-                          </strong>
-                          <div className="text-[12px] text-[var(--text-muted)]">
-                            ดูวันรับเข้า วันหมดอายุ คงเหลือ และต้นทุนของแต่ละล็อต
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[900px] text-sm">
-                          <thead>
-                            <tr className="border-b border-slate-200 text-left text-[12px] font-semibold text-[var(--text-muted)]">
-                              <th className="px-3 py-2">ล็อต</th>
-                              <th className="px-3 py-2">วันรับเข้า</th>
-                              <th className="px-3 py-2">วันหมดอายุ</th>
-                              <th className="px-3 py-2 text-right">คงเหลือ</th>
-                              <th className="px-3 py-2 text-right">ต้นทุน/หน่วย</th>
-                              <th className="px-3 py-2 text-right">ต้นทุนคงเหลือ</th>
-                              <th className="px-3 py-2 text-right">มูลค่าขายคงเหลือ</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {item.lots.map((lot) => (
-                              <tr key={lot.key} className="border-b border-slate-100 last:border-b-0">
-                                <td className="px-3 py-3 font-semibold text-[var(--text-strong)] whitespace-nowrap">
-                                  {lot.lotLabel}
-                                </td>
-                                <td className="px-3 py-3 whitespace-nowrap">
-                                  {lot.receivedDate ? formatDate(lot.receivedDate) : "-"}
-                                </td>
-                                <td className="px-3 py-3 whitespace-nowrap">
-                                  {lot.expiryDate ? formatDate(lot.expiryDate) : "-"}
-                                </td>
-                                <td
-                                  className={`px-3 py-3 text-right whitespace-nowrap ${
-                                    lot.balance <= LOW_STOCK_THRESHOLD ? "font-semibold text-amber-700" : ""
-                                  }`}
-                                >
-                                  {formatNumber(lot.balance)}{" "}
-                                  <span className="text-[12px] text-[var(--text-subtle)]">{lot.unit}</span>
-                                </td>
-                                <td className="px-3 py-3 text-right whitespace-nowrap">
-                                  {formatCurrencyWithLabel(lot.costPrice ?? 0, lot.costCurrency)}
-                                </td>
-                                <td className="px-3 py-3 text-right whitespace-nowrap">
-                                  {formatCurrencyWithLabel(lot.balance * (lot.costPrice ?? 0), lot.costCurrency)}
-                                </td>
-                                <td className="px-3 py-3 text-right whitespace-nowrap">
-                                  {formatCurrency(lot.balance * lot.price)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ) : null;
-
-              return detailRow ? [summaryRow, detailRow] : [summaryRow];
-            })}
-        </Table>
-      </DataPanel>
-    </section>
-  );
+  return <section id="items" className="inventory-shop-page">
+    <div className="inventory-shop-hero">
+      <div><span>INVENTORY CATALOG</span><h2>รายการสินค้าในคลัง</h2></div>
+      <div className="inventory-shop-total"><Boxes size={22} /><b>{formatNumber(filteredInventory.length)}</b><small>รายการสินค้า</small></div>
+    </div>
+    <div className="inventory-shop-controls">
+      <label><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาชื่อสินค้า รหัส หรือหมวดหมู่..." /></label>
+      <div>{([['all','ทั้งหมด'],['resale','สินค้าซื้อมาขายไป'],['stable','สินค้าเข้าสต็อก']] as const).map(([value,label]) => <button key={value} type="button" className={typeFilter === value ? "active" : ""} onClick={() => setTypeFilter(value)}>{label}</button>)}</div>
+    </div>
+    <div className="inventory-card-grid">
+      {filteredInventory.map((item) => {
+        const expanded = Boolean(expandedRows[item.key]);
+        return <article key={item.key} className={`inventory-product-card ${expanded ? "expanded" : ""}`}>
+          <div className="inventory-product-image">{item.imageDataUrl ? <img src={item.imageDataUrl} alt={item.name} /> : <Package size={42} />}<span>{getProductImportTypeLabel(item.productImportType)}</span></div>
+          <div className="inventory-product-content"><small>{item.sku || "ไม่มีรหัสสินค้า"}</small><h3>{item.name}</h3><p>{item.category}</p>
+            <div className="inventory-balance"><span>คงเหลือ</span><strong className={item.balance <= LOW_STOCK_THRESHOLD ? "low" : ""}>{formatNumber(item.balance)} <small>{item.unit}</small></strong></div>
+            <dl><div><dt>ล็อต</dt><dd>{formatNumber(item.lots.length)}</dd></div><div><dt>หมดอายุใกล้สุด</dt><dd>{item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}</dd></div><div><dt>ต้นทุนรวม</dt><dd>{formatCurrencyWithLabel(item.totalCostValue, item.costCurrency)}</dd></div></dl>
+            <button type="button" className="inventory-lot-toggle" onClick={() => toggleRow(item.key)}><span>{expanded ? "ซ่อนรายละเอียดล็อต" : `ดูรายละเอียด ${formatNumber(item.lots.length)} ล็อต`}</span>{expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
+          </div>
+          {expanded ? <div className="inventory-lot-list">{item.lots.map((lot) => <div key={lot.key}><span><b>{lot.lotLabel}</b><small>รับเข้า {formatDate(lot.receivedDate)} · หมดอายุ {lot.expiryDate ? formatDate(lot.expiryDate) : "-"}</small></span><strong>{formatNumber(lot.balance)} {lot.unit}</strong></div>)}</div> : null}
+        </article>;
+      })}
+      {filteredInventory.length === 0 ? <div className="issue-shop-empty"><Package size={44} /><h3>ไม่พบสินค้า</h3><p>ลองเปลี่ยนคำค้นหาหรือประเภทสินค้า</p></div> : null}
+    </div>
+  </section>;
 }
 
 export default function ItemsPage() {
   const { transactions } = useTransactions();
+  const [canViewInventory, setCanViewInventory] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const role = data?.user?.role;
+        setCanViewInventory(role === "admin");
+      })
+      .catch(() => setCanViewInventory(false));
+  }, []);
+
   const inventory = useMemo(() => {
     const lots = [...buildInventoryLotMap(transactions).values()]
       .filter((item) => item.totalIn > 0)
@@ -264,10 +160,12 @@ export default function ItemsPage() {
           name: item.name,
           sku: item.sku,
           category: item.category,
+          imageDataUrl: item.imageDataUrl,
           productImportType: item.productImportType,
           unit: item.unit,
           balance: item.balance,
-          totalBalanceValue: item.balance * item.price,
+          totalCostValue: item.balance * (item.costPrice ?? 0),
+          costCurrency: item.costCurrency,
           firstReceivedDate: item.receivedDate,
           nearestExpiryDate: item.expiryDate,
           lots: [item],
@@ -276,7 +174,7 @@ export default function ItemsPage() {
       }
 
       existing.balance += item.balance;
-      existing.totalBalanceValue += item.balance * item.price;
+      existing.totalCostValue += item.balance * (item.costPrice ?? 0);
       existing.lots.push(item);
 
       if (
@@ -304,6 +202,32 @@ export default function ItemsPage() {
       ),
     }));
   }, [transactions]);
+
+  if (canViewInventory === null) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-[var(--text-muted)]">
+        กำลังตรวจสอบสิทธิ์...
+      </div>
+    );
+  }
+
+  if (!canViewInventory) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-4">
+        <div className="dashboard-card max-w-[480px] p-8 text-center shadow-xl backdrop-blur-xl">
+          <h3 className="text-lg font-bold text-[var(--text-strong)]">ปฏิเสธการเข้าถึง</h3>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            พนักงานมีหน้าที่เบิกสินค้าและติดตามใบเบิกของตัวเองเท่านั้น
+          </p>
+          <div className="mt-6">
+            <Button type="button" onClick={() => window.location.assign(withBasePath("/issue"))}>
+              ไปหน้าเบิกจ่ายสินค้า
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return <ItemsSection inventory={inventory} />;
 }

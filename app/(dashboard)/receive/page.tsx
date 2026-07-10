@@ -81,7 +81,9 @@ function normalizeCategoryValue(value: string) {
 export default function ReceivePage() {
   const { transactions, refresh } = useTransactions();
   const [currentRole, setCurrentRole] = useState<UserRole>("employee");
+  const [isRoleLoaded, setIsRoleLoaded] = useState(false);
   const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
+  const [categoryCatalog, setCategoryCatalog] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [receiveFilter, setReceiveFilter] = useState<OverviewFilter>("all");
   const [form, setForm] = useState<FormState>(createEmptyForm);
@@ -207,6 +209,13 @@ export default function ReceivePage() {
         });
       });
 
+    categoryCatalog.forEach((category) => {
+      const normalizedCategory = normalizeCategoryValue(category);
+      if (category.trim() && normalizedCategory && !groupedCategories.has(normalizedCategory)) {
+        groupedCategories.set(normalizedCategory, { category: category.trim(), productKeys: new Set() });
+      }
+    });
+
     return Array.from(groupedCategories.entries())
       .map(([normalizedCategory, entry]) => ({
         category: entry.category,
@@ -214,7 +223,7 @@ export default function ReceivePage() {
         productCount: entry.productKeys.size,
       }))
       .sort((a, b) => a.category.localeCompare(b.category, "th"));
-  }, [form.productImportType, receiveProductSuggestions]);
+  }, [categoryCatalog, form.productImportType, receiveProductSuggestions]);
 
   const receiveStorageLocationSuggestions = useMemo(() => {
     return Array.from(
@@ -295,6 +304,14 @@ export default function ReceivePage() {
     };
 
     loadCurrentRole();
+    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const role = data?.user?.role;
+        setCurrentRole(role === "admin" || role === "manager" ? role : "employee");
+      })
+      .catch(() => setCurrentRole("employee"))
+      .finally(() => setIsRoleLoaded(true));
     window.addEventListener("current-user-changed", loadCurrentRole);
 
     return () => window.removeEventListener("current-user-changed", loadCurrentRole);
@@ -318,6 +335,10 @@ export default function ReceivePage() {
     }
 
     fetchMasterProducts();
+    fetch(withBasePath("/api/categories"), { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : [])
+      .then((data) => setCategoryCatalog(Array.isArray(data) ? data : []))
+      .catch(() => setCategoryCatalog([]));
   }, []);
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -641,7 +662,7 @@ export default function ReceivePage() {
     URL.revokeObjectURL(url);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (isSubmitting) {
@@ -654,6 +675,11 @@ export default function ReceivePage() {
 
     if (!Number.isFinite(quantity) || !Number.isFinite(price) || !Number.isFinite(costPrice)) {
       window.alert("กรอกจำนวน ราคา และราคาต้นทุนเป็นตัวเลขที่ถูกต้องก่อนบันทึก");
+      return;
+    }
+
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      window.alert("จำนวนสินค้าต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป");
       return;
     }
 
@@ -706,32 +732,82 @@ export default function ReceivePage() {
     }
 
     setIsSubmitting(true);
+    try {
+      const categoryExists = categoryCatalog.some(
+        (category) => normalizeCategoryValue(category) === normalizeCategoryValue(transaction.category)
+      );
+      if (!categoryExists && transaction.category !== "-") {
+        const categoryResponse = await fetch(withBasePath("/api/categories"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: transaction.category }),
+        });
+        if (!categoryResponse.ok) throw new Error("Unable to save category");
+        setCategoryCatalog((current) => [...new Set([...current, transaction.category])]);
+      }
 
-    // Update UI after the database write
-    fetch(withBasePath("/api/transactions"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(transaction),
-    })
-      .then((res) => {
-        if (res.ok) {
-          refresh();
-          closeReceiveDialog();
-        } else {
-          window.alert("ไม่สามารถบันทึกรายการสินค้าเข้าฐานข้อมูลได้");
+      const masterExists = masterProducts.some((product) => matchesMasterProduct(transaction, product));
+      if (!masterExists) {
+        const productResponse = await fetch(withBasePath("/api/master-products"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...transaction,
+            defaultStorageLocation: transaction.requester,
+            defaultExpiryDate: transaction.expiryDate,
+            isActive: true,
+          }),
+        });
+        if (!productResponse.ok) {
+          const detail = await productResponse.json().catch(() => null);
+          throw new Error(detail?.error || "Unable to save product master");
         }
-      })
-      .catch((err) => {
-        console.error("Submit error:", err);
-        window.alert("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล");
-      })
-      .finally(() => {
-        setIsSubmitting(false);
+      }
+
+      const response = await fetch(withBasePath("/api/transactions"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(transaction),
       });
+      if (!response.ok) throw new Error("Unable to save stock receipt");
+      await refresh();
+      closeReceiveDialog();
+    } catch (error) {
+      console.error("Submit error:", error);
+      window.alert(error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการบันทึกรับเข้า");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   const currentReceiveFilterLabel =
     filterOptions.find((item) => item.value === receiveFilter)?.label ?? "ทั้งหมด";
+
+  if (!isRoleLoaded) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-[var(--text-muted)]">
+        กำลังตรวจสอบสิทธิ์...
+      </div>
+    );
+  }
+
+  if (currentRole !== "admin") {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-4">
+        <div className="dashboard-card max-w-[480px] p-8 text-center shadow-xl backdrop-blur-xl">
+          <h3 className="text-lg font-bold text-[var(--text-strong)]">ปฏิเสธการเข้าถึง</h3>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            การรับสินค้าเข้าคลังเป็นหน้าที่ของแอดมินเท่านั้น
+          </p>
+          <div className="mt-6">
+            <Button type="button" onClick={() => window.location.assign(withBasePath("/issue"))}>
+              ไปหน้าเบิกจ่ายสินค้า
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -740,7 +816,6 @@ export default function ReceivePage() {
           <div className="receive-header">
             <div>
               <h2>รับเข้าสินค้า</h2>
-              <p>บันทึกรายการรับเข้าและอัปเดตสต๊อกคงเหลือ</p>
             </div>
             <div className="receive-header-actions">
               <Button type="button" onClick={openReceiveDialog}>
@@ -998,10 +1073,14 @@ export default function ReceivePage() {
                 <span>จำนวน *</span>
                 <input
                   type="number"
+                  inputMode="numeric"
                   min="1"
                   step="1"
                   value={form.quantity}
-                  onChange={(event) => updateForm("quantity", event.target.value)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === "" || /^\d+$/.test(value)) updateForm("quantity", value);
+                  }}
                   disabled={!isCategoryReady}
                   required
                 />

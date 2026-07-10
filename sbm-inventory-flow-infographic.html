@@ -8,402 +8,450 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      background: #eaf4ff;
+      background: #edf4fb;
       font-family: "Noto Sans Thai", "Tahoma", "Arial", sans-serif;
-      color: #0c2b5b;
+      color: #0f2747;
     }
     .slide {
       position: relative;
       width: 2048px;
       height: 1152px;
       overflow: hidden;
+      padding: 36px 74px 34px;
       background:
-        linear-gradient(120deg, rgba(255,255,255,.9) 0%, rgba(240,248,255,.96) 42%, rgba(229,242,255,.98) 100%),
-        radial-gradient(circle at 94% 8%, rgba(14, 92, 235, .16), transparent 26%),
-        radial-gradient(circle at 8% 90%, rgba(0, 165, 255, .18), transparent 30%);
+        linear-gradient(125deg, rgba(255,255,255,.96) 0%, rgba(241,248,255,.98) 48%, rgba(226,241,255,.98) 100%),
+        radial-gradient(circle at 94% 9%, rgba(22, 113, 238, .22), transparent 25%),
+        radial-gradient(circle at 6% 92%, rgba(36, 171, 221, .18), transparent 30%);
+      border: 6px solid #7a3cff;
     }
-    .slide:before {
+    .slide:before,
+    .slide:after {
       content: "";
       position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(16, 109, 235, .055) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(16, 109, 235, .055) 1px, transparent 1px);
-      background-size: 42px 42px;
-      mask-image: linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.2), rgba(0,0,0,.5));
+      pointer-events: none;
     }
-    .left {
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 520px;
-      height: 1152px;
-      padding: 58px 42px;
-      background:
-        linear-gradient(172deg, rgba(255,255,255,.92) 0 45%, rgba(219,239,255,.98) 46% 70%, rgba(0,104,255,.94) 71% 100%);
-      border-right: 1px solid rgba(0, 89, 210, .18);
+    .slide:before {
+      right: 46px;
+      top: 42px;
+      width: 220px;
+      height: 112px;
+      background-image: radial-gradient(circle, rgba(15, 93, 211, .22) 5px, transparent 6px);
+      background-size: 26px 26px;
     }
-    .brand {
-      display: inline-flex;
+    .slide:after {
+      left: -220px;
+      bottom: -260px;
+      width: 740px;
+      height: 470px;
+      border-radius: 50%;
+      background: rgba(16, 119, 234, .13);
+    }
+    .hero {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 160px 1fr 388px;
       align-items: center;
-      gap: 14px;
-      padding: 10px 16px;
-      border-radius: 20px;
-      background: #061a36;
-      color: white;
-      font-weight: 900;
-      font-size: 34px;
-      letter-spacing: 0;
-      box-shadow: 0 18px 38px rgba(8, 53, 135, .18);
+      gap: 30px;
+      height: 174px;
+      margin-bottom: 8px;
     }
-    .brand-mark {
+    .logo {
+      display: grid;
+      justify-items: center;
+      gap: 10px;
+      color: #1068df;
+      font-weight: 900;
+      font-size: 27px;
+    }
+    .logo-mark {
       display: grid;
       place-items: center;
-      width: 56px;
-      height: 56px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, #0cc6ff, #0065ff);
-      font-size: 28px;
+      width: 76px;
+      height: 76px;
+      border-radius: 28px;
+      color: white;
+      background: linear-gradient(145deg, #16b8ff, #0757df);
+      box-shadow: 0 18px 34px rgba(8, 83, 190, .24);
+      font-size: 32px;
+      letter-spacing: 0;
     }
     h1 {
-      margin: 70px 0 0;
-      font-size: 64px;
-      line-height: 1.15;
-      color: #063aa0;
+      margin: 0;
+      color: #07156e;
+      font-size: 61px;
+      line-height: 1.08;
       font-weight: 900;
       letter-spacing: 0;
     }
     .subtitle {
-      margin-top: 24px;
-      font-size: 27px;
-      line-height: 1.7;
-      color: #174aa6;
-      font-weight: 700;
+      margin-top: 6px;
+      color: #123c95;
+      font-size: 22px;
+      line-height: 1.42;
+      font-weight: 800;
     }
-    .system-name {
-      margin-top: 8px;
-      color: #0057df;
-      font-weight: 900;
-      font-size: 30px;
-    }
-    .laptop {
-      position: absolute;
-      left: 44px;
-      bottom: 88px;
-      width: 430px;
-      padding: 18px;
-      border-radius: 28px;
-      background: linear-gradient(180deg, #142947, #07172d);
-      box-shadow: 0 28px 70px rgba(0, 47, 130, .34);
-    }
-    .laptop img {
-      display: block;
-      width: 100%;
-      height: 238px;
-      object-fit: cover;
-      object-position: left top;
-      border-radius: 16px;
-      border: 2px solid rgba(255,255,255,.18);
-    }
-    .laptop:after {
-      content: "";
-      position: absolute;
-      left: 92px;
-      right: 92px;
-      bottom: -20px;
-      height: 20px;
-      border-radius: 0 0 28px 28px;
-      background: #07172d;
-    }
-    .main {
-      position: absolute;
-      left: 560px;
-      top: 42px;
-      width: 1440px;
-      height: 1068px;
-    }
-    .top-title {
-      position: absolute;
-      left: 500px;
-      top: 0;
-      width: 520px;
-      height: 64px;
-      display: grid;
-      place-items: center;
-      border-radius: 32px;
-      background: linear-gradient(180deg, #0b6dff, #034ee7);
-      color: white;
-      font-size: 34px;
-      font-weight: 900;
-      box-shadow: 0 18px 40px rgba(0, 74, 210, .26);
-      z-index: 2;
-    }
-    .flow-strip {
-      position: absolute;
-      left: 0;
-      top: 38px;
-      width: 1440px;
-      height: 230px;
-      border-radius: 34px;
-      background: rgba(255,255,255,.8);
-      border: 3px solid rgba(5, 99, 255, .48);
-      box-shadow: 0 20px 50px rgba(28, 91, 180, .11);
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      align-items: center;
-      padding: 30px 36px 20px;
-      gap: 18px;
-    }
-    .mini-step {
-      position: relative;
-      text-align: center;
-      color: #084ed0;
-      font-weight: 900;
-      font-size: 20px;
-      line-height: 1.25;
-    }
-    .mini-step:not(:last-child):after {
-      content: "";
-      position: absolute;
-      right: -32px;
-      top: 60px;
-      width: 0;
-      height: 0;
-      border-top: 22px solid transparent;
-      border-bottom: 22px solid transparent;
-      border-left: 32px solid #0961ee;
-      filter: drop-shadow(0 6px 8px rgba(0, 88, 210, .2));
-    }
-    .num {
-      position: absolute;
-      top: -10px;
-      left: calc(50% - 24px);
-      width: 48px;
-      height: 48px;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      background: #0a5df2;
-      color: white;
-      font-size: 27px;
-      box-shadow: 0 8px 16px rgba(0, 88, 220, .24);
-    }
-    .mini-icon {
-      width: 74px;
-      height: 74px;
-      margin: 46px auto 12px;
-      display: grid;
-      place-items: center;
-      border-radius: 22px;
-      background: #eaf3ff;
-      border: 3px solid rgba(8, 93, 235, .22);
-      color: #075cf0;
-    }
-    .mini-icon svg { width: 44px; height: 44px; stroke-width: 3; }
-    .cards {
-      position: absolute;
-      top: 292px;
-      left: 0;
-      width: 1440px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 18px 24px;
-    }
-    .card {
-      height: 276px;
+    .status-map {
+      padding: 15px 18px;
       border-radius: 24px;
-      padding: 21px 24px 18px;
-      background: rgba(255,255,255,.92);
-      border: 2px solid rgba(17, 105, 232, .16);
-      box-shadow: 0 18px 44px rgba(13, 80, 170, .11);
+      background: rgba(255,255,255,.86);
+      border: 2px solid rgba(39, 111, 222, .22);
+      box-shadow: 0 18px 44px rgba(22, 87, 172, .1);
     }
-    .card-head {
+    .status-map strong {
+      display: block;
+      color: #063aa0;
+      font-size: 19px;
+      margin-bottom: 8px;
+    }
+    .status-chain {
+      display: grid;
+      gap: 6px;
+      color: #1c467c;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      width: max-content;
+      max-width: 100%;
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: #eef6ff;
+      border: 1px solid #cae2ff;
+      color: #0956c9;
+    }
+    .lane {
+      position: relative;
+      z-index: 1;
+      margin-top: 12px;
+      border-radius: 28px;
+      background: rgba(255,255,255,.88);
+      border: 2px solid rgba(20, 102, 224, .18);
+      box-shadow: 0 18px 44px rgba(19, 83, 161, .11);
+      overflow: hidden;
+    }
+    .lane-head {
       display: flex;
       align-items: center;
       gap: 16px;
-      color: #064bc5;
-      font-size: 28px;
+      min-height: 60px;
+      padding: 12px 28px 6px 28px;
+      color: #075bea;
+      font-size: 29px;
       font-weight: 900;
     }
-    .card-num {
-      flex: 0 0 auto;
-      width: 58px;
-      height: 58px;
+    .lane-icon {
       display: grid;
       place-items: center;
-      border-radius: 50%;
-      background: #0a5df2;
-      color: white;
-      font-size: 32px;
-      box-shadow: 0 8px 18px rgba(0, 84, 220, .22);
-    }
-    .role {
-      display: inline-flex;
-      align-items: center;
-      margin-top: 18px;
-      padding: 8px 14px;
+      width: 50px;
+      height: 50px;
       border-radius: 16px;
-      background: #e8f2ff;
-      color: #0050cc;
-      font-size: 18px;
-      font-weight: 900;
-      border: 1px solid rgba(0, 92, 220, .18);
-    }
-    .desc {
-      margin-top: 13px;
-      font-size: 20px;
-      line-height: 1.45;
-      color: #113a76;
-      font-weight: 700;
-    }
-    .output {
-      margin-top: 12px;
-      padding: 10px 14px;
-      border-radius: 14px;
-      background: #f5f9ff;
-      color: #526579;
-      font-size: 16px;
-      font-weight: 700;
-    }
-    .roles-panel {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      height: 150px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 18px;
-      padding: 16px 20px;
-      border-radius: 28px;
-      background: rgba(3, 53, 130, .92);
-      box-shadow: 0 18px 48px rgba(5, 48, 116, .24);
-    }
-    .role-box {
-      border-radius: 20px;
-      background: rgba(255,255,255,.1);
-      border: 1px solid rgba(255,255,255,.18);
       color: white;
-      padding: 18px 20px;
+      background: linear-gradient(180deg, #1684ff, #0456e9);
+      box-shadow: 0 12px 24px rgba(0, 86, 220, .22);
     }
-    .role-box strong {
-      display: block;
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 16px;
+      padding: 4px 28px 20px;
+    }
+    .steps.employee { grid-template-columns: repeat(5, 1fr) 322px; }
+    .card {
+      position: relative;
+      min-height: 217px;
+      padding: 16px 16px 14px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #ffffff, #f8fbff);
+      border: 2px solid #d7e7ff;
+      box-shadow: 0 12px 24px rgba(29, 93, 167, .08);
+    }
+    .card:not(:last-child):after {
+      content: "";
+      position: absolute;
+      top: 88px;
+      right: -29px;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #0b6bfa;
+      box-shadow: 0 8px 16px rgba(0, 92, 220, .2);
+      z-index: 2;
+    }
+    .card:not(:last-child):before {
+      content: "›";
+      position: absolute;
+      top: 84px;
+      right: -16px;
+      z-index: 3;
+      color: white;
+      font-size: 38px;
+      line-height: 42px;
+      font-weight: 900;
+    }
+    .step-num {
+      display: inline-grid;
+      place-items: center;
+      width: 46px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #1684ff, #0058e7);
+      color: white;
       font-size: 23px;
-      margin-bottom: 6px;
+      font-weight: 900;
+      box-shadow: 0 8px 16px rgba(0, 90, 220, .22);
     }
-    .role-box span {
-      display: block;
-      font-size: 17px;
+    .card-title {
+      margin: 10px 0 6px;
+      color: #092b82;
+      font-size: 20px;
+      line-height: 1.18;
+      font-weight: 900;
+    }
+    .card-text {
+      margin: 0;
+      color: #25446f;
+      font-size: 15.5px;
+      line-height: 1.32;
+      font-weight: 750;
+    }
+    .visual {
+      height: 58px;
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #0964ee;
+    }
+    .visual svg {
+      width: 58px;
+      height: 58px;
+      stroke: currentColor;
+      stroke-width: 2.7;
+      fill: none;
+    }
+    .mini-panel {
+      min-width: 82px;
+      padding: 7px 10px;
+      border-radius: 14px;
+      background: #eff6ff;
+      border: 2px solid #cfe3ff;
+      color: #074cb4;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .note-card {
+      background: linear-gradient(180deg, #fff8f1, #fffdf9);
+      border-color: #ffc99e;
+      box-shadow: none;
+    }
+    .note-card:before,
+    .note-card:after { display: none; }
+    .note-card .card-title { color: #db570c; }
+    .summary {
+      position: relative;
+      z-index: 1;
+      margin-top: 14px;
+      height: 76px;
+      display: grid;
+      grid-template-columns: 270px 1fr;
+      align-items: center;
+      border-radius: 24px;
+      overflow: hidden;
+      background: rgba(255,255,255,.92);
+      border: 2px solid rgba(12, 94, 224, .18);
+      box-shadow: 0 16px 38px rgba(20, 86, 168, .11);
+    }
+    .summary-title {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 28px;
+      background: linear-gradient(180deg, #1784ff, #0558e9);
+      color: white;
+      font-size: 25px;
+      font-weight: 900;
+    }
+    .summary-flow {
+      padding: 0 28px;
+      color: #0754ce;
+      font-size: 18px;
       line-height: 1.35;
-      color: rgba(255,255,255,.82);
-      font-weight: 700;
+      font-weight: 900;
+    }
+    .divider {
+      color: #a8c7f4;
+      padding: 0 16px;
+    }
+    .small {
+      color: #375d8e;
+      font-size: 13px;
+      font-weight: 800;
     }
   </style>
 </head>
 <body>
   <div class="slide">
-    <aside class="left">
-      <div class="brand"><span class="brand-mark">SB</span> CPAC</div>
-      <h1>ภาพรวม<br />Flow ระบบ</h1>
-      <div class="subtitle">ระบบบริหารจัดการสต็อกสินค้า<br />รับเข้า เบิกจ่าย อนุมัติ<br />และติดตามประวัติในที่เดียว</div>
-      <div class="system-name">SB&M Inventory Management</div>
-      <div class="laptop">
-        <img src="sbm-dashboard-screenshot.png" alt="Dashboard screenshot" />
+    <header class="hero">
+      <div class="logo">
+        <div class="logo-mark">SB</div>
+        <div>CPAC SB&amp;M</div>
       </div>
-    </aside>
+      <div>
+        <h1>Flow รวม Inventory</h1>
+        <div class="subtitle">
+          สรุปภาพรวมการทำงานของระบบ CPAC SB&amp;M Inventory Management<br />
+          ตั้งแต่ผู้ดูแลระบบเตรียมข้อมูล จนถึงพนักงานรับเข้า เบิกสินค้า และปิดงาน
+        </div>
+      </div>
+      <aside class="status-map">
+        <strong>สถานะใบเบิกในระบบ</strong>
+        <div class="status-chain">
+          <span class="pill">pending: รอผู้จัดการอนุมัติ</span>
+          <span class="pill">approved: อนุมัติแล้ว / รอจ่ายสินค้า</span>
+          <span class="pill">completed: จ่ายสินค้าแล้ว</span>
+          <span class="pill">cancelled: ยกเลิกและคืนยอดจอง</span>
+        </div>
+      </aside>
+    </header>
 
-    <main class="main">
-      <div class="top-title">6 ขั้นตอนการจัดการสต็อก</div>
-      <section class="flow-strip">
-        <div class="mini-step">
-          <div class="num">1</div>
-          <div class="mini-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
-          </div>
-          เข้าสู่ระบบ
+    <section class="lane">
+      <div class="lane-head">
+        <div class="lane-icon">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
         </div>
-        <div class="mini-step">
-          <div class="num">2</div>
-          <div class="mini-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+        ฝั่ง Admin / Manager / พนักงานคลัง
+      </div>
+      <div class="steps">
+        <article class="card">
+          <span class="step-num">01</span>
+          <h2 class="card-title">Login SSO</h2>
+          <p class="card-text">เข้าสู่ระบบผ่าน RMC SSO และโหลดสิทธิ์ employee, manager หรือ admin</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 18v3"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>
           </div>
-          Dashboard
-        </div>
-        <div class="mini-step">
-          <div class="num">3</div>
-          <div class="mini-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+        </article>
+        <article class="card">
+          <span class="step-num">02</span>
+          <h2 class="card-title">ตั้งค่า Master Data</h2>
+          <p class="card-text">Admin ดูแลข้อมูลสินค้า SKU หมวดหมู่ หน่วยนับ ราคา ต้นทุน สถานะใช้งาน และตำแหน่งจัดเก็บ</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/><path d="M7 4v16"/><path d="M17 4v16"/></svg>
           </div>
-          ตรวจสต็อก
-        </div>
-        <div class="mini-step">
-          <div class="num">4</div>
-          <div class="mini-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14"/><path d="M5 12h14"/><path d="M4 4h16v16H4z"/></svg>
+        </article>
+        <article class="card">
+          <span class="step-num">03</span>
+          <h2 class="card-title">รับเข้าสินค้า</h2>
+          <p class="card-text">พนักงานคลัง/Manager/Admin เลือกสินค้าจาก master หรือสร้างใหม่ แล้วบันทึกรับเข้า พร้อม lot และวันหมดอายุ</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><path d="M21 8v8a2 2 0 0 1-1 1.73l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/><path d="M12 2v6"/><path d="m9 5 3 3 3-3"/></svg>
           </div>
-          รับเข้า / ใบเบิก
-        </div>
-        <div class="mini-step">
-          <div class="num">5</div>
-          <div class="mini-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/><path d="M21 12a9 9 0 1 1-5.3-8.2"/></svg>
+        </article>
+        <article class="card">
+          <span class="step-num">04</span>
+          <h2 class="card-title">ตรวจภาพรวมสต็อก</h2>
+          <p class="card-text">ดูยอดคงเหลือ รายการใกล้หมดสต็อก สินค้าใกล้หมดอายุ และประวัติรับเข้า/เบิกจ่าย</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 15 3-3 4 4 5-7"/><path d="M8 21V9"/><path d="M14 21v-5"/><path d="M20 21V7"/></svg>
           </div>
-          อนุมัติ
-        </div>
-        <div class="mini-step">
-          <div class="num">6</div>
-          <div class="mini-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        </article>
+        <article class="card">
+          <span class="step-num">05</span>
+          <h2 class="card-title">อนุมัติใบเบิก</h2>
+          <p class="card-text">Manager ตรวจผู้ขอ รายการสินค้า จำนวน และต้นทุนรวม ก่อนเปลี่ยนสถานะเป็น approved</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-5"/><path d="M21 12a9 9 0 1 1-5.3-8.2"/><path d="M17 3h4v4"/></svg>
           </div>
-          ประวัติ / รายงาน
-        </div>
-      </section>
+        </article>
+        <article class="card">
+          <span class="step-num">06</span>
+          <h2 class="card-title">จ่ายของ / ปิดงาน</h2>
+          <p class="card-text">Admin ยืนยันจ่ายของจริง ดูใบเบิกสินค้า และปิดงานเป็น completed เพื่อเก็บประวัติย้อนหลัง</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+          </div>
+        </article>
+      </div>
+    </section>
 
-      <section class="cards">
+    <section class="lane">
+      <div class="lane-head">
+        <div class="lane-icon">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M16 18h6"/><path d="M19 15v6"/><path d="M3 9h18"/><path d="M4 5h16v14H4z"/></svg>
+        </div>
+        ฝั่งพนักงาน / ผู้ขอเบิก
+      </div>
+      <div class="steps employee">
         <article class="card">
-          <div class="card-head"><span class="card-num">1</span>เข้าสู่ระบบ</div>
-          <div class="role">Role: ทุกผู้ใช้งาน</div>
-          <div class="desc">ผู้ใช้งาน Login เพื่อเข้าใช้งานระบบตามสิทธิ์ของตนเอง</div>
-          <div class="output">ผลลัพธ์: เข้าสู่หน้าหลักของระบบ</div>
+          <span class="step-num">01</span>
+          <h2 class="card-title">ค้นหาสินค้า</h2>
+          <p class="card-text">เปิดหน้าเบิกจ่าย ค้นหาจากชื่อ SKU หมวดหมู่ หรือกรองประเภทสินค้า</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/><path d="M8 11h6"/></svg>
+          </div>
         </article>
         <article class="card">
-          <div class="card-head"><span class="card-num">2</span>ดูภาพรวมสต็อก</div>
-          <div class="role">Role: ผู้จัดการ / Admin</div>
-          <div class="desc">ดูจำนวนสินค้าทั้งหมด รับเข้า เบิกจ่าย และสินค้าใกล้หมดจาก Dashboard</div>
-          <div class="output">ผลลัพธ์: เห็นสถานะคลังแบบรวดเร็ว</div>
+          <span class="step-num">02</span>
+          <h2 class="card-title">เลือกจำนวนเบิก</h2>
+          <p class="card-text">เลือกสินค้าและจำนวน ระบบตรวจคงเหลือไม่ให้เกินยอดที่มีอยู่</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
+          </div>
         </article>
         <article class="card">
-          <div class="card-head"><span class="card-num">3</span>ตรวจสินค้าในคลัง</div>
-          <div class="role">Role: พนักงานทั่วไป / Admin</div>
-          <div class="desc">ตรวจรายการสินค้า จำนวนคงเหลือ หน่วยนับ และสถานะต่ำกว่ากำหนด</div>
-          <div class="output">ผลลัพธ์: รู้ว่าสินค้าใดต้องเติมหรือควบคุม</div>
+          <span class="step-num">03</span>
+          <h2 class="card-title">ระบบจัดล็อตอัตโนมัติ</h2>
+          <p class="card-text">เลือกล็อตจากวันหมดอายุใกล้สุดก่อน และสร้างรายการ out แบบ pending เพื่อจองสต็อก</p>
+          <div class="visual">
+            <div class="mini-panel">LOT 1<br />EXP</div>
+            <div class="mini-panel">LOT 2<br />FIFO</div>
+          </div>
         </article>
         <article class="card">
-          <div class="card-head"><span class="card-num">4</span>รับเข้า / สร้างใบเบิก</div>
-          <div class="role">Role: พนักงานทั่วไป</div>
-          <div class="desc">ทีมคลังบันทึกรับเข้า ส่วนผู้ขอเบิกสร้างใบเบิกพร้อมระบุรายการและจำนวน</div>
-          <div class="output">ผลลัพธ์: เกิดรายการเคลื่อนไหวหรือใบเบิกรออนุมัติ</div>
+          <span class="step-num">04</span>
+          <h2 class="card-title">ส่งคำขออนุมัติ</h2>
+          <p class="card-text">กรอกผู้ขอ ผู้อนุมัติ หมายเหตุ และระบบส่งอีเมลแจ้งผู้จัดการ</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="m4 7 8 6 8-6"/><path d="M17 21l4-4"/><path d="M21 21l-4-4"/></svg>
+          </div>
         </article>
         <article class="card">
-          <div class="card-head"><span class="card-num">5</span>อนุมัติใบเบิก</div>
-          <div class="role">Role: ผู้จัดการ</div>
-          <div class="desc">ตรวจสอบใบเบิก รายการสินค้า และจำนวนที่ขอ ก่อนอนุมัติหรือปฏิเสธ</div>
-          <div class="output">ผลลัพธ์: ใบเบิกผ่านการควบคุมก่อนตัดสต็อก</div>
+          <span class="step-num">05</span>
+          <h2 class="card-title">ติดตามสถานะ</h2>
+          <p class="card-text">ดูใบเบิกของตนเอง รออนุมัติ ดูใบเบิกหลังอนุมัติ หรือยกเลิกก่อนปิดงาน</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/><path d="m17 18 2 2 4-5"/></svg>
+          </div>
         </article>
-        <article class="card">
-          <div class="card-head"><span class="card-num">6</span>ตัดสต็อกและติดตาม</div>
-          <div class="role">Role: Admin / ผู้จัดการ</div>
-          <div class="desc">หลังอนุมัติ ระบบปรับยอดคงเหลือ และเก็บประวัติรับเข้า-เบิกจ่ายย้อนหลัง</div>
-          <div class="output">ผลลัพธ์: ตรวจสอบย้อนหลังและทำรายงานได้</div>
+        <article class="card note-card">
+          <span class="step-num">!</span>
+          <h2 class="card-title">การแจ้งเตือน / ควบคุม</h2>
+          <p class="card-text">ระบบแจ้งเตือนสินค้าใกล้หมดที่ต่ำกว่า 5 หน่วย และสินค้าใกล้หมดอายุภายใน 90 วัน เพื่อให้คลังวางแผนเติมสต็อก</p>
+          <div class="visual">
+            <svg viewBox="0 0 24 24"><path d="M10 21h4"/><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M12 11v3"/><path d="M12 17h.01"/></svg>
+          </div>
         </article>
-      </section>
+      </div>
+    </section>
 
-      <section class="roles-panel">
-        <div class="role-box"><strong>พนักงานทั่วไป</strong><span>ตรวจสอบสินค้า สร้างใบเบิก และติดตามสถานะคำขอของตนเอง</span></div>
-        <div class="role-box"><strong>ผู้จัดการ</strong><span>ดูภาพรวมสต็อก ตรวจสอบข้อมูล และอนุมัติใบเบิกก่อนตัดสต็อก</span></div>
-        <div class="role-box"><strong>Admin</strong><span>ดูแลข้อมูลพื้นฐาน ผู้ใช้งาน สิทธิ์ รายการสินค้า และความถูกต้องของระบบ</span></div>
-      </section>
-    </main>
+    <footer class="summary">
+      <div class="summary-title">
+        <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        สรุปภาพรวม
+      </div>
+      <div class="summary-flow">
+        Admin/Manager: SSO → Master Data → Dashboard → อนุมัติ/จ่ายของ → รายงาน
+        <span class="divider">|</span>
+        พนักงาน: รับเข้าสินค้า → ค้นหาสินค้า → เลือกจำนวน → ระบบจองล็อต → ส่งคำขอ → ติดตามสถานะ
+        <div class="small">ข้อมูลอ้างอิงจากหน้าจอจริงในระบบ: Overview, Items, Receive, Issue, Requisition Tracker, History, Master Data, Admin Rights และ Settings</div>
+      </div>
+    </footer>
   </div>
 </body>
 </html>

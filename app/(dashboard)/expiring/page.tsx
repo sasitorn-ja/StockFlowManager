@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { withBasePath } from "@/lib/base-path";
+import { Button } from "@/components/ui/button";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { StatusBadge } from "@/components/stock-flow/StatusBadge";
 import { Table } from "@/components/stock-flow/Table";
@@ -19,6 +21,17 @@ import { useTransactions } from "../TransactionContext";
 export default function ExpiringPage() {
   const { transactions } = useTransactions();
   const [selectedImportType, setSelectedImportType] = useState<ProductImportType>("resale");
+  const [canViewExpiring, setCanViewExpiring] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const role = data?.user?.role;
+        setCanViewExpiring(role === "admin");
+      })
+      .catch(() => setCanViewExpiring(false));
+  }, []);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
@@ -36,6 +49,32 @@ export default function ExpiringPage() {
       priorityItems,
     };
   }, [inventory, selectedImportType]);
+
+  if (canViewExpiring === null) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-[var(--text-muted)]">
+        กำลังตรวจสอบสิทธิ์...
+      </div>
+    );
+  }
+
+  if (!canViewExpiring) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-4">
+        <div className="dashboard-card max-w-[480px] p-8 text-center shadow-xl backdrop-blur-xl">
+          <h3 className="text-lg font-bold text-[var(--text-strong)]">ปฏิเสธการเข้าถึง</h3>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            พนักงานมีหน้าที่เบิกสินค้าและติดตามใบเบิกของตัวเองเท่านั้น
+          </p>
+          <div className="mt-6">
+            <Button type="button" onClick={() => window.location.assign(withBasePath("/issue"))}>
+              ไปหน้าเบิกจ่ายสินค้า
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-4">

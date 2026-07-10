@@ -32,6 +32,7 @@ import { getRequisitionStatusLabel } from "@/lib/stock-flow/status";
 type GroupedRequisition = {
   issueKey: string;
   requester: string;
+  createdBy: string;
   approver?: string;
   note?: string;
   date: string;
@@ -44,7 +45,7 @@ type GroupedRequisition = {
 
 type TabType = "all" | TransactionStatus;
 
-type ConfirmActionType = "approve" | "complete-step-1" | "complete-step-2" | "cancel";
+type ConfirmActionType = "approve" | "issue" | "receive" | "close" | "cancel";
 
 type ConfirmDialogState = {
   action: ConfirmActionType;
@@ -132,6 +133,7 @@ export default function RequisitionTrackerPage() {
       const current = map.get(key) || {
         issueKey: key,
         requester: t.requester || "-",
+        createdBy: t.createdBy || "",
         approver: t.approver || "",
         note: t.note || "-",
         date: t.date,
@@ -180,7 +182,7 @@ export default function RequisitionTrackerPage() {
   const ownedRequisitions = useMemo(() => {
     return groupedRequisitions.filter((req) => {
       if (showOnlyMine) {
-        const isOwnName = req.requester === currentUsername;
+        const isOwnName = req.createdBy === currentUsername || req.requester === currentUsername;
         const isLegacyOwnKey = (!req.requester || req.requester === "-" || req.requester === "พนักงาน") && myCreatedIssueKeys.includes(req.issueKey);
         if (!isOwnName && !isLegacyOwnKey) {
           return false;
@@ -194,7 +196,7 @@ export default function RequisitionTrackerPage() {
   const filteredRequisitions = useMemo(() => {
     return ownedRequisitions.filter((req) => {
       // 1. Tab status filter
-      const matchesApprovedStage = activeTab === "approved" && req.status === "employee_confirmed";
+      const matchesApprovedStage = activeTab === "approved" && (req.status === "issued" || req.status === "received" || req.status === "employee_confirmed");
       if (activeTab !== "all" && req.status !== activeTab && !matchesApprovedStage) {
         return false;
       }
@@ -203,6 +205,7 @@ export default function RequisitionTrackerPage() {
       if (searchQuery.trim()) {
         const query = searchQuery.trim().toLowerCase();
         const matchesRequester = req.requester.toLowerCase().includes(query);
+        const matchesCreatedBy = req.createdBy.toLowerCase().includes(query);
         const matchesIssueKey = req.issueKey.toLowerCase().includes(query);
         const matchesApprover = (req.approver || "").toLowerCase().includes(query);
         const matchesNote = (req.note || "").toLowerCase().includes(query);
@@ -210,7 +213,7 @@ export default function RequisitionTrackerPage() {
           `${item.name} ${item.sku} ${item.category}`.toLowerCase().includes(query)
         );
 
-        if (!matchesRequester && !matchesIssueKey && !matchesApprover && !matchesNote && !matchesItem) {
+        if (!matchesRequester && !matchesCreatedBy && !matchesIssueKey && !matchesApprover && !matchesNote && !matchesItem) {
           return false;
         }
       }
@@ -224,7 +227,7 @@ export default function RequisitionTrackerPage() {
     const total = ownedRequisitions.length;
     const pending = ownedRequisitions.filter((r) => r.status === "pending").length;
     const reserved = ownedRequisitions.filter((r) => 
-      r.status === "pending" || r.status === "approved" || r.status === "employee_confirmed"
+      r.status === "pending" || r.status === "approved" || r.status === "issued" || r.status === "received" || r.status === "employee_confirmed"
     ).length;
     const completed = ownedRequisitions.filter((r) => r.status === "completed").length;
 
@@ -299,6 +302,7 @@ export default function RequisitionTrackerPage() {
 
   // Role Action Controls
   const isAdmin = currentRole === "admin";
+  const isManager = currentRole === "manager";
   const isManagerOrAdmin = currentRole === "admin" || currentRole === "manager";
   const pendingApprovalCount = useMemo(() => {
     if (!isManagerOrAdmin) {
@@ -321,18 +325,19 @@ export default function RequisitionTrackerPage() {
       return;
     }
 
-    if (confirmDialog.action === "complete-step-1") {
-      setConfirmDialog({
-        action: "complete-step-2",
-        confirmLabel: "ยืนยันจ่ายของจริง",
-        description: `เมื่อยืนยันแล้ว ระบบจะตัดสต๊อกถาวรของคำขอ ${confirmDialog.issueKey} ทันที`,
-        issueKey: confirmDialog.issueKey,
-        title: "ยืนยันอีกครั้งก่อนตัดสต๊อก",
-      });
+    if (confirmDialog.action === "issue") {
+      updateRequisitionStatus(confirmDialog.issueKey, "issued");
+      setConfirmDialog(null);
       return;
     }
 
-    if (confirmDialog.action === "complete-step-2") {
+    if (confirmDialog.action === "receive") {
+      updateRequisitionStatus(confirmDialog.issueKey, "received");
+      setConfirmDialog(null);
+      return;
+    }
+
+    if (confirmDialog.action === "close") {
       updateRequisitionStatus(confirmDialog.issueKey, "completed");
       setConfirmDialog(null);
       return;
@@ -363,6 +368,10 @@ export default function RequisitionTrackerPage() {
                 <div>
                   <dt>ผู้ขอเบิก</dt>
                   <dd>{confirmDialog.requisition.requester}</dd>
+                </div>
+                <div>
+                  <dt>คนคีย์ข้อมูล</dt>
+                  <dd>{confirmDialog.requisition.createdBy || "-"}</dd>
                 </div>
                 <div>
                   <dt>วันที่ขอเบิก</dt>
@@ -410,13 +419,7 @@ export default function RequisitionTrackerPage() {
       <section className="dashboard-card">
         <div className="dashboard-panel-header">
           <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
-              Requisition Tracker
-            </p>
             <h3 className="dashboard-section-title">ติดตามสถานะการเบิกสินค้า</h3>
-            <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              ขั้นตอน: รอผู้จัดการอนุมัติ → อนุมัติแล้วและรอคลังจ่าย → จ่ายสินค้าแล้ว
-            </p>
           </div>
           <div className="dashboard-header-actions flex flex-wrap items-center gap-3">
             {isManagerOrAdmin && (
@@ -451,7 +454,7 @@ export default function RequisitionTrackerPage() {
               { value: "all", label: "ทั้งหมด", icon: Layers, activeClass: "bg-slate-800 text-white shadow-md shadow-slate-200" },
               { value: "pending", label: "รอผู้จัดการอนุมัติ", icon: Clock, activeClass: "bg-amber-500 text-white shadow-md shadow-amber-100" },
               { value: "approved", label: "อนุมัติแล้ว · รอจ่ายสินค้า", icon: FileCheck, activeClass: "bg-sky-500 text-white shadow-md shadow-sky-100" },
-              { value: "completed", label: "จ่ายสินค้าแล้ว", icon: PackageCheck, activeClass: "bg-emerald-500 text-white shadow-md shadow-emerald-100" },
+              { value: "completed", label: "ปิดใบเบิกแล้ว", icon: PackageCheck, activeClass: "bg-emerald-500 text-white shadow-md shadow-emerald-100" },
               { value: "cancelled", label: "ยกเลิกแล้ว", icon: XCircle, activeClass: "bg-rose-500 text-white shadow-md shadow-rose-100" },
             ] as { value: TabType; label: string; icon: any; activeClass: string }[]
           ).map((tab) => {
@@ -491,7 +494,7 @@ export default function RequisitionTrackerPage() {
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ค้นหาผู้ขอ เลขใบเบิก หรือสินค้า..."
+              placeholder="ค้นหาผู้ขอ คนคีย์ เลขใบเบิก หรือสินค้า..."
               className="h-full w-full bg-transparent text-[12px] font-semibold text-slate-800 outline-none placeholder:text-slate-400"
             />
           </div>
@@ -524,24 +527,25 @@ export default function RequisitionTrackerPage() {
               "เลขใบเบิก",
               "วันที่ขอเบิก",
               "ผู้ขอเบิก",
+              "คนคีย์ข้อมูล",
               "สินค้า / จำนวน",
               "ผู้อนุมัติ",
               "สถานะ",
               "จัดการ",
             ]}
             emptyMessage="ไม่มีรายการที่สอดคล้องกับแท็บที่เลือก"
-            columnCount={8}
+            columnCount={9}
           >
             {filteredRequisitions.map((req) => {
               const isExpanded = expandedKeys[req.issueKey];
-              const isOwnRequisition = req.requester === currentUsername;
+              const isOwnRequisition = req.createdBy === currentUsername || req.requester === currentUsername;
 
               // Render human-friendly status badging
               let badgeTone: "warn" | "out" | "in" | "urgent" = "warn";
               let badgeText = getRequisitionStatusLabel(req.status);
               if (req.status === "approved") {
                 badgeTone = "out";
-              } else if (req.status === "employee_confirmed") {
+              } else if (req.status === "issued" || req.status === "received" || req.status === "employee_confirmed") {
                 badgeTone = "out";
               } else if (req.status === "completed") {
                 badgeTone = "in";
@@ -568,6 +572,9 @@ export default function RequisitionTrackerPage() {
                     <td className="w-[12%] min-w-[110px] text-slate-500">{formatDate(req.date)}</td>
                     <td className="w-[15%] min-w-[120px]">
                       <span className="font-medium text-slate-700">{req.requester}</span>
+                    </td>
+                    <td className="w-[15%] min-w-[120px]">
+                      <span className="font-medium text-slate-700">{req.createdBy || "-"}</span>
                       {isOwnRequisition && (
                         <span className="ml-1 text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded">คุณ</span>
                       )}
@@ -588,7 +595,7 @@ export default function RequisitionTrackerPage() {
                     <td className="w-[22%] min-w-[220px]">
                       <div className="flex flex-wrap items-center gap-1.5">
                         {/* ผู้จัดการอนุมัติใบเบิก */}
-                        {req.status === "pending" && isManagerOrAdmin && (
+                        {req.status === "pending" && isManager && (
                           <Button
                             type="button"
                             size="sm"
@@ -617,21 +624,37 @@ export default function RequisitionTrackerPage() {
                             disabled={isUpdating === req.issueKey}
                             onClick={() => {
                               setConfirmDialog({
-                                action: "complete-step-1",
-                                confirmLabel: "ดำเนินการต่อ",
-                                description: `ยืนยันจ่ายของจริงสำหรับคำขอ ${req.issueKey} ใช่หรือไม่?`,
+                                action: "issue",
+                                confirmLabel: "ยืนยันจ่ายสินค้า",
+                                description: `ยืนยันว่าแอดมินได้จ่ายสินค้าสำหรับใบเบิก ${req.issueKey} แล้ว`,
                                 issueKey: req.issueKey,
-                                title: "ยืนยันจ่ายของจริง",
+                                title: "ยืนยันการจ่ายสินค้า",
                               });
                             }}
                             className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded"
                           >
-                            ยืนยันจ่ายของจริง
+                            จ่ายสินค้า
+                          </Button>
+                        )}
+
+                        {req.status === "issued" && req.requester === currentUsername && (
+                          <Button type="button" size="sm" disabled={isUpdating === req.issueKey}
+                            onClick={() => setConfirmDialog({ action: "receive", confirmLabel: "ยืนยันรับสินค้า", description: `ยืนยันว่าได้รับสินค้าตามใบเบิก ${req.issueKey} ครบถ้วนแล้ว`, issueKey: req.issueKey, title: "ยืนยันการรับสินค้า" })}
+                            className="bg-violet-600 hover:bg-violet-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded">
+                            ยืนยันรับสินค้า
+                          </Button>
+                        )}
+
+                        {(req.status === "received" || req.status === "employee_confirmed") && isAdmin && (
+                          <Button type="button" size="sm" disabled={isUpdating === req.issueKey}
+                            onClick={() => setConfirmDialog({ action: "close", confirmLabel: "ยืนยันปิดใบเบิก", description: `ตรวจสอบการรับสินค้าแล้วและปิดใบเบิก ${req.issueKey}`, issueKey: req.issueKey, title: "ปิดใบเบิกขั้นสุดท้าย" })}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded">
+                            ปิดใบเบิก
                           </Button>
                         )}
 
                         {/* ดูเอกสารเบิกสินค้า */}
-                        {(req.status === "approved" || req.status === "completed") && (
+                        {req.status !== "pending" && req.status !== "cancelled" && isAdmin && (
                           <Button
                             type="button"
                             variant="secondary"
@@ -645,7 +668,7 @@ export default function RequisitionTrackerPage() {
                         )}
 
                         {/* 4. BUTTON: Cancel at any stage before completed */}
-                        {req.status !== "completed" && req.status !== "cancelled" && (isOwnRequisition || isAdmin) && (
+                        {req.status === "pending" && (isOwnRequisition || isAdmin) && (
                           <Button
                             type="button"
                             variant="danger"
@@ -672,7 +695,7 @@ export default function RequisitionTrackerPage() {
                   {/* Expanded detail panel */}
                   {isExpanded && (
                     <tr className="bg-slate-50/50">
-                      <td colSpan={8} className="p-4 border-l-4 border-sky-400">
+                      <td colSpan={9} className="p-4 border-l-4 border-sky-400">
                         <div className="grid gap-3">
                           <div className="flex flex-col gap-1">
                             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -758,6 +781,9 @@ export default function RequisitionTrackerPage() {
                                 <div>
                                   <p className="font-semibold text-slate-800">ส่งคำขอ & จองสต๊อก</p>
                                   <span className="block text-[10px] text-slate-400 font-normal">โดย: {req.requester}</span>
+                                  {req.createdBy ? (
+                                    <span className="block text-[10px] text-slate-400 font-normal">คนคีย์: {req.createdBy}</span>
+                                  ) : null}
                                 </div>
                                 <CheckCircle2 size={16} className="text-emerald-500 shrink-0 ml-auto md:ml-2" />
                               </div>
@@ -790,27 +816,34 @@ export default function RequisitionTrackerPage() {
 
                               <div className="hidden md:block h-0.5 bg-slate-200 grow mx-2" />
 
-                              {/* Step 3: Final delivery release */}
+                              {/* Step 3: Admin issues and requester receives */}
                               <div className="flex items-center gap-2">
                                 <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold ${
-                                  req.status === "completed"
+                                  req.status === "issued" || req.status === "received" || req.status === "employee_confirmed" || req.status === "completed"
                                     ? "bg-sky-100 text-sky-600"
                                     : "bg-slate-100 text-slate-400"
                                 }`}>
                                   3
                                 </div>
                                 <div>
-                                  <p className={req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>
-                                    คลังจ่ายของ/ตัดสต๊อกถาวร
+                                  <p className={req.status === "issued" || req.status === "received" || req.status === "employee_confirmed" || req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>
+                                    แอดมินจ่ายสินค้า / ผู้รับยืนยัน
                                   </p>
                                 </div>
-                                {req.status === "completed" ? (
+                                {req.status === "received" || req.status === "employee_confirmed" || req.status === "completed" ? (
                                   <CheckSquare size={16} className="text-emerald-500 shrink-0 ml-2" />
                                 ) : req.status === "cancelled" ? (
                                   <XCircle size={16} className="text-rose-500 shrink-0 ml-2" />
                                 ) : (
                                   <Clock size={16} className="text-slate-300 shrink-0 ml-2" />
                                 )}
+                              </div>
+
+                              <div className="hidden md:block h-0.5 bg-slate-200 grow mx-2" />
+                              <div className="flex items-center gap-2">
+                                <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold ${req.status === "completed" ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>4</div>
+                                <div><p className={req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>แอดมินปิดใบเบิก</p></div>
+                                {req.status === "completed" ? <CheckSquare size={16} className="text-emerald-500 shrink-0 ml-2" /> : <Clock size={16} className="text-slate-300 shrink-0 ml-2" />}
                               </div>
 
                             </div>

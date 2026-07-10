@@ -29,6 +29,7 @@ type SessionUser = {
 type RequisitionSummary = {
   issueKey: string;
   requester: string;
+  createdBy: string;
   date: string;
   createdAt: number;
   itemCount: number;
@@ -55,6 +56,7 @@ function groupRequisitions(transactions: Transaction[]) {
       const current = requisitionMap.get(transaction.issueKey) || {
         issueKey: transaction.issueKey,
         requester: transaction.requester || "-",
+        createdBy: transaction.createdBy || "",
         date: transaction.date,
         createdAt: transaction.createdAt,
         itemCount: 0,
@@ -135,7 +137,10 @@ export default function OverviewPage() {
   const ownTransactionsUntilOverviewDate = useMemo(
     () =>
       transactionsUntilOverviewDate.filter(
-        (item) => item.type === "out" && (item.requester || "").trim() === currentUserName
+        (item) =>
+          item.type === "out" &&
+          ((item.createdBy || "").trim() === currentUserName ||
+            (!(item.createdBy || "").trim() && (item.requester || "").trim() === currentUserName))
       ),
     [currentUserName, transactionsUntilOverviewDate]
   );
@@ -143,7 +148,10 @@ export default function OverviewPage() {
   const ownRangeTransactions = useMemo(
     () =>
       rangeTransactions.filter(
-        (item) => item.type === "out" && (item.requester || "").trim() === currentUserName
+        (item) =>
+          item.type === "out" &&
+          ((item.createdBy || "").trim() === currentUserName ||
+            (!(item.createdBy || "").trim() && (item.requester || "").trim() === currentUserName))
       ),
     [currentUserName, rangeTransactions]
   );
@@ -172,7 +180,7 @@ export default function OverviewPage() {
     if (!canViewStockOverview) {
       const pendingCount = ownRequisitions.filter((item) => item.status === "pending").length;
       const approvedCount = ownRequisitions.filter(
-        (item) => item.status === "approved" || item.status === "employee_confirmed"
+        (item) => item.status === "approved" || item.status === "issued" || item.status === "received" || item.status === "employee_confirmed"
       ).length;
       const completedCount = ownRequisitions.filter((item) => item.status === "completed").length;
       const ownStockOutToday = ownRangeTransactions
@@ -275,11 +283,9 @@ export default function OverviewPage() {
     }
 
     const rows = days.map((date) => {
-      const stockIn = canViewStockOverview
-        ? chartTransactions
-            .filter((item) => item.date === date && item.type === "in")
-            .reduce((sum, item) => sum + item.quantity, 0)
-        : 0;
+      const stockIn = rangeTransactions
+        .filter((item) => item.date === date && item.type === "in")
+        .reduce((sum, item) => sum + item.quantity, 0);
       const stockOut = chartTransactions
         .filter((item) => item.date === date && item.type === "out")
         .reduce((sum, item) => sum + item.quantity, 0);
@@ -296,7 +302,7 @@ export default function OverviewPage() {
     const maxValue = Math.max(1, ...rows.flatMap((row) => [row.stockIn, row.stockOut]));
 
     return { rows, maxValue };
-  }, [canViewStockOverview, chartTransactions, overviewDateFrom, overviewDateTo]);
+  }, [chartTransactions, overviewDateFrom, overviewDateTo, rangeTransactions]);
 
   const totalStockIn = stockFlowChart.rows.reduce((sum, item) => sum + item.stockIn, 0);
   const totalStockOut = stockFlowChart.rows.reduce((sum, item) => sum + item.stockOut, 0);
@@ -347,11 +353,6 @@ export default function OverviewPage() {
       <div className="overview-header">
         <div>
           <h2>{canViewStockOverview ? "ภาพรวมสต็อก" : "ภาพรวมการเบิกของฉัน"}</h2>
-          <p>
-            {canViewStockOverview
-              ? "สรุปสถานะคลังสินค้าแบบรวดเร็วสำหรับผู้จัดการและผู้ดูแลระบบ"
-              : "แสดงเฉพาะใบเบิกและปริมาณเบิกของคุณ ข้อมูลคลังรวมถูกซ่อนตามสิทธิ์"}
-          </p>
         </div>
         <div className="overview-date-range">
           <label className="overview-date-input">
@@ -404,17 +405,15 @@ export default function OverviewPage() {
       <section className="overview-chart-card">
         <div className="overview-chart-header">
           <div>
-            <h3>{canViewStockOverview ? "แนวโน้มรับเข้าและเบิกจ่าย" : "แนวโน้มการเบิกของฉัน"}</h3>
+            <h3>{canViewStockOverview ? "แนวโน้มรับเข้าและเบิกจ่าย" : "แนวโน้มรับเข้าและการเบิกของฉัน"}</h3>
             <p>
               {formatDate(overviewDateFrom)} - {formatDate(overviewDateTo)}
             </p>
           </div>
           <div className="overview-chart-summary">
-            {canViewStockOverview ? (
-              <span>
-                <strong>{formatNumber(totalStockIn)}</strong> รับเข้า
-              </span>
-            ) : null}
+            <span>
+              <strong>{formatNumber(totalStockIn)}</strong> รับเข้า
+            </span>
             <span>
               <strong>{formatNumber(totalStockOut)}</strong>{" "}
               {canViewStockOverview ? "เบิกจ่าย" : "เบิกของฉัน"}
@@ -423,11 +422,9 @@ export default function OverviewPage() {
         </div>
 
         <div className="overview-chart-legend">
-          {canViewStockOverview ? (
-            <span>
-              <i className="overview-legend-in" /> รับเข้า
-            </span>
-          ) : null}
+          <span>
+            <i className="overview-legend-in" /> รับเข้า
+          </span>
           <span>
             <i className="overview-legend-out" /> {canViewStockOverview ? "เบิกจ่าย" : "เบิกของฉัน"}
           </span>
@@ -444,23 +441,21 @@ export default function OverviewPage() {
             <div className="overview-bar-group" key={row.date}>
               <div className="overview-bar-tooltip" role="tooltip">
                 <strong>{row.label}</strong>
-                {canViewStockOverview ? <span>รับเข้า {formatNumber(row.stockIn)}</span> : null}
+                <span>รับเข้า {formatNumber(row.stockIn)}</span>
                 <span>{canViewStockOverview ? "เบิกจ่าย" : "เบิกของฉัน"} {formatNumber(row.stockOut)}</span>
               </div>
               <div className="overview-bars">
-                {canViewStockOverview ? (
-                  <div
-                    className="overview-bar overview-bar-in"
-                    style={{
-                      height:
-                        row.stockIn > 0
-                          ? `${Math.max(4, (row.stockIn / stockFlowChart.maxValue) * 100)}%`
-                          : "0%",
-                    }}
-                    aria-label={`${row.label} รับเข้า ${formatNumber(row.stockIn)}`}
-                    tabIndex={0}
-                  />
-                ) : null}
+                <div
+                  className="overview-bar overview-bar-in"
+                  style={{
+                    height:
+                      row.stockIn > 0
+                        ? `${Math.max(4, (row.stockIn / stockFlowChart.maxValue) * 100)}%`
+                        : "0%",
+                  }}
+                  aria-label={`${row.label} รับเข้า ${formatNumber(row.stockIn)}`}
+                  tabIndex={0}
+                />
                 <div
                   className="overview-bar overview-bar-out"
                   style={{
@@ -485,7 +480,7 @@ export default function OverviewPage() {
               <span>
                 {canViewStockOverview
                   ? "ยังไม่มีการรับเข้า/เบิกจ่ายในช่วงวันที่เลือก"
-                  : "ยังไม่มีใบเบิกของคุณในช่วงวันที่เลือก"}
+                  : "ยังไม่มีการรับเข้าหรือใบเบิกของคุณในช่วงวันที่เลือก"}
               </span>
             </>
           ) : null}

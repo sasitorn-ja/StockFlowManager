@@ -72,6 +72,8 @@ function DeliveryNoteSection({
     deliveryDocument.transactions?.length > 0
       ? deliveryDocument.transactions
       : [deliveryDocument.transaction];
+  const requesterName = deliveryDocument.transaction.requester || "-";
+  const createdByName = deliveryDocument.transaction.createdBy || deliveryDocument.transaction.requester || "-";
   return (
     <section id="delivery-note" className="grid gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -94,14 +96,15 @@ function DeliveryNoteSection({
 
       <article className="delivery-document">
         <header className="delivery-document-header">
-          <h2>ใบจัดของ</h2>
-          <p>เอกสารสำหรับจัดเตรียมสินค้าออกจากคลัง</p>
+          <h2>ใบเบิกสินค้า</h2>
+          <p>เอกสารฉบับเดียวสำหรับอนุมัติ จ่าย รับ และปิดใบเบิก</p>
         </header>
 
         <div className="delivery-document-meta">
           <div>
             <p>จาก คลังสินค้า</p>
-            <p>ถึง {deliveryDocument.transaction.requester || "-"}</p>
+            <p>ผู้ขอเบิกสินค้า {requesterName}</p>
+            <p>คนคีย์ใบเบิก {createdByName}</p>
           </div>
           <div className="text-right">
             <p>
@@ -148,91 +151,16 @@ function DeliveryNoteSection({
 
         <section className="delivery-summary-grid">
           <div>
-            <p>ผู้จัดของ ..............................................</p>
-            <p>ตรวจสอบสินค้า ........................................</p>
+            <p>ผู้จัดของ / แอดมิน ..............................................</p>
+            <p>ผู้อนุมัติ {deliveryDocument.transaction.approver || "................................"}</p>
           </div>
           <div>
-            <p>พื้นที่จัดเตรียม ......................................</p>
+            <p>ผู้รับสินค้า {requesterName}</p>
+            <p>ลายเซ็นผู้รับ ......................................</p>
           </div>
           <div>
-            <p>เวลาจัดของ ....../....../...... ............ น.</p>
-            <p>ผู้รับมอบจากคลัง ................................</p>
-          </div>
-        </section>
-      </article>
-
-      <article className="delivery-document delivery-document-break">
-        <header className="delivery-document-header">
-          <h2>ใบกำกับส่งของ</h2>
-          <p>เอกสารสำหรับส่งมอบสินค้าให้ผู้ขอเบิก</p>
-        </header>
-
-        <div className="delivery-document-meta">
-          <div>
-            <p>จาก คลังสินค้า</p>
-            <p>ถึง {deliveryDocument.transaction.requester || "-"}</p>
-          </div>
-          <div className="text-right">
-            <p>
-              หมายเลข <strong>{deliveryDocument.documentNo}</strong>
-            </p>
-            <p>วันที่ {formatDate(deliveryDocument.approvedDate)}</p>
-          </div>
-        </div>
-
-        <div className="delivery-table-wrap">
-          <table className="delivery-table">
-            <thead>
-              <tr>
-                <th>ลำดับ</th>
-                <th>GI/GT/PO</th>
-                <th>เลข GI/GT/PO</th>
-                <th>ชื่อสินค้า</th>
-                <th>หน่วยงาน</th>
-                <th>จำนวน</th>
-                <th>หน่วย</th>
-              </tr>
-            </thead>
-            <tbody>
-              {documentTransactions.map((transaction, index) => (
-                <tr key={`delivery-note-row-${transaction.id || index + 1}`}>
-                  <td>{index + 1}</td>
-                  <td>ISSUE</td>
-                  <td>{deliveryDocument.documentNo}</td>
-                  <td>{transaction.name}</td>
-                  <td>{transaction.requester || "-"}</td>
-                  <td className="text-right">{formatNumber(transaction.quantity)}</td>
-                  <td>{transaction.unit}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="delivery-print-spacer" aria-hidden="true" />
-
-        <section className="delivery-summary-grid delivery-summary-grid-single">
-          <div>
-            <p>ผู้ออกเอกสาร ................................</p>
-            <p>
-              ผู้อนุมัตินำส่ง {deliveryDocument.transaction.approver || ".............................."}
-            </p>
-          </div>
-        </section>
-
-        <section className="delivery-detail-footer delivery-detail-footer-compact">
-          <div className="delivery-footer-box">
-            <p>
-              ชื่อผู้รับของ {deliveryDocument.transaction.requester || "................................"}
-            </p>
-            <p>วันที่ถึง ....../....../...... เวลา ............ น.</p>
-            <p>ผู้รับโปรดเซ็นชื่อพร้อมประทับตรา</p>
-          </div>
-          <div className="delivery-footer-box">
-            <p>รายการตรวจรับของไม่ครบ</p>
-            <p>รายการที่ ........................ จำนวน ............</p>
-            <p>ผู้รับของ ........................................</p>
-            <p>ผู้รับจ้างขนส่ง ..................................</p>
+            <p>วันที่รับ ....../....../...... ............ น.</p>
+            <p>ผู้ปิดใบเบิก / แอดมิน ................................</p>
           </div>
         </section>
       </article>
@@ -292,6 +220,9 @@ function DeliveryNoteContent() {
     if (
       firstTransaction.status &&
       firstTransaction.status !== "approved" &&
+      firstTransaction.status !== "issued" &&
+      firstTransaction.status !== "received" &&
+      firstTransaction.status !== "employee_confirmed" &&
       firstTransaction.status !== "completed"
     ) {
       return null;

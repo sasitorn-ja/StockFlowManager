@@ -135,13 +135,7 @@ export default function AdminRightsPage() {
       <section className="dashboard-card">
         <div className="dashboard-panel-header">
           <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
-              Security &amp; Access Control
-            </p>
             <h3 className="dashboard-section-title">จัดการสิทธิ์แอดมิน</h3>
-            <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              กำหนดบทบาทให้บัญชีที่เคยเข้าสู่ระบบผ่าน SSO
-            </p>
           </div>
         </div>
       </section>

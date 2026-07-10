@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   `productImportType` VARCHAR(50),
   unit VARCHAR(50),
   type VARCHAR(50),
-  quantity DECIMAL(15,4),
+  quantity BIGINT,
   price DECIMAL(15,4),
   `costPrice` DECIMAL(15,4),
   `costCurrency` VARCHAR(10),
@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   `expiryDate` VARCHAR(50),
   `issueKey` VARCHAR(100),
   requester VARCHAR(255),
+  `createdBy` VARCHAR(255),
   approver VARCHAR(255),
   note TEXT,
   `createdAt` BIGINT,
@@ -132,10 +133,17 @@ CREATE TABLE IF NOT EXISTS roles (
   updated_at BIGINT
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS product_categories (
+  id VARCHAR(100) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE,
+  created_at BIGINT,
+  updated_at BIGINT
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 INSERT INTO roles (id, name, description, permissions, created_at, updated_at)
 VALUES
   ('employee', 'พนักงาน', 'สร้างใบเบิกและติดตามสถานะใบเบิกของตนเอง', JSON_ARRAY('request:create', 'request:cancel_own'), UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000, UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
-  ('manager', 'ผู้จัดการ', 'ใช้งานเหมือนพนักงาน ดูภาพรวมคลัง และอนุมัติใบเบิก', JSON_ARRAY('stock:view', 'request:approve', 'request:reject'), UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000, UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
+  ('manager', 'ผู้จัดการ', 'สร้างใบเบิก อนุมัติใบที่ได้รับมอบหมาย และติดตามใบเบิกที่เกี่ยวข้อง', JSON_ARRAY('request:create', 'request:approve', 'request:reject', 'request:track_related'), UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000, UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000),
   ('admin', 'แอดมิน', 'จัดการสินค้า ผู้ใช้ สิทธิ์ ระบบ และข้อมูลคลังทั้งหมด', JSON_ARRAY('admin:*'), UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000, UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000)
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
@@ -149,9 +157,9 @@ CREATE TABLE IF NOT EXISTS stock_lots (
   lot_no VARCHAR(100) DEFAULT '',
   expiry_date VARCHAR(50) DEFAULT '',
   storage_location VARCHAR(255) DEFAULT '',
-  received_quantity DECIMAL(15,4) DEFAULT 0,
-  issued_quantity DECIMAL(15,4) DEFAULT 0,
-  balance_quantity DECIMAL(15,4) DEFAULT 0,
+  received_quantity BIGINT DEFAULT 0,
+  issued_quantity BIGINT DEFAULT 0,
+  balance_quantity BIGINT DEFAULT 0,
   unit_cost DECIMAL(15,4) DEFAULT 0,
   currency VARCHAR(10) DEFAULT 'THB',
   source_transaction_id VARCHAR(100) NULL,
@@ -190,7 +198,7 @@ CREATE TABLE IF NOT EXISTS stock_movements (
   lot_id VARCHAR(100) NULL,
   transaction_id VARCHAR(100) NULL,
   movement_type VARCHAR(50) NOT NULL,
-  quantity DECIMAL(15,4) NOT NULL,
+  quantity BIGINT NOT NULL,
   unit VARCHAR(50) DEFAULT '',
   unit_cost DECIMAL(15,4) DEFAULT 0,
   currency VARCHAR(10) DEFAULT 'THB',
@@ -278,7 +286,7 @@ CREATE TABLE IF NOT EXISTS requisition_items (
   sku VARCHAR(100) DEFAULT '',
   category VARCHAR(255) DEFAULT '-',
   unit VARCHAR(50) NOT NULL,
-  quantity DECIMAL(15,4) NOT NULL,
+  quantity BIGINT NOT NULL,
   status VARCHAR(50) DEFAULT 'pending',
   note TEXT,
   created_at BIGINT,

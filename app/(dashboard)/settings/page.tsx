@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Boxes, Pencil, RotateCcw, SlidersHorizontal, Trash2, Workflow } from "lucide-react";
+import { Boxes, Pencil, Plus, RotateCcw, SlidersHorizontal, Trash2, Workflow } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
@@ -95,23 +95,45 @@ function SettingsSection({
   openEditProductDialog,
   handleDeleteProduct,
 }: SettingsSectionProps) {
+  const [categories, setCategories] = useState<string[]>([]);
+  const [newCategory, setNewCategory] = useState("");
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editingCategoryValue, setEditingCategoryValue] = useState("");
   const activeProducts = inventory.filter((item) => item.balance > 0).length;
   const lowStockProducts = inventory.filter(
     (item) => item.balance > 0 && item.balance <= Number(appSettings.lowStockThreshold || 0)
   ).length;
+
+  async function loadCategories() {
+    const response = await fetch(withBasePath("/api/categories"), { cache: "no-store" });
+    if (response.ok) setCategories(await response.json());
+  }
+
+  useEffect(() => { loadCategories().catch(console.error); }, []);
+
+  async function addCategory() {
+    if (!newCategory.trim()) return;
+    const response = await fetch(withBasePath("/api/categories"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newCategory }) });
+    if (!response.ok) return window.alert("ไม่สามารถเพิ่มหมวดหมู่ได้");
+    setNewCategory("");
+    await loadCategories();
+  }
+
+  async function saveCategory(oldName: string) {
+    if (!editingCategoryValue.trim()) return;
+    const response = await fetch(withBasePath("/api/categories"), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ oldName, newName: editingCategoryValue }) });
+    if (!response.ok) return window.alert("ไม่สามารถแก้ไขชื่อหมวดหมู่ได้");
+    setEditingCategory(null);
+    setEditingCategoryValue("");
+    await loadCategories();
+  }
 
   return (
     <section id="settings" className="grid gap-3">
       <section className="dashboard-card">
         <div className="dashboard-panel-header">
           <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
-              Product Settings
-            </p>
             <h3 className="dashboard-section-title">ตั้งค่ารายการสินค้า</h3>
-            <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              ควบคุมเกณฑ์แจ้งเตือน ขั้นตอนอนุมัติ การสำรองข้อมูล และข้อมูลระบบหลัก
-            </p>
           </div>
           <Button type="button" variant="secondary" size="sm" onClick={resetAppSettings}>
             <RotateCcw size={15} />
@@ -227,6 +249,23 @@ function SettingsSection({
         </DataPanel>
 
       </section>
+
+      <DataPanel title="จัดการหมวดหมู่สินค้า">
+        <div className="category-settings">
+          <div className="category-settings-add">
+            <input className={inputClassName} value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder="ชื่อหมวดหมู่ใหม่" />
+            <Button type="button" onClick={addCategory}><Plus size={16} />เพิ่มหมวดหมู่</Button>
+          </div>
+          <div className="category-settings-list">
+            {categories.map((category) => <div key={category}>
+              {editingCategory === category ? <input className={inputClassName} value={editingCategoryValue} onChange={(event) => setEditingCategoryValue(event.target.value)} autoFocus /> : <strong>{category}</strong>}
+              <div>
+                {editingCategory === category ? <Button type="button" size="sm" onClick={() => saveCategory(category)}>บันทึก</Button> : <Button type="button" size="sm" variant="secondary" onClick={() => { setEditingCategory(category); setEditingCategoryValue(category); }}><Pencil size={14} />แก้ไข</Button>}
+              </div>
+            </div>)}
+          </div>
+        </div>
+      </DataPanel>
 
       <DataPanel
         title="รายการสินค้าทั้งหมด"
