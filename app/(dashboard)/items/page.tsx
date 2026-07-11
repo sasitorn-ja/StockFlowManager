@@ -45,10 +45,8 @@ type ItemsSectionProps = {
 function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [lotSearchByItem, setLotSearchByItem] = useState<Record<string, string>>({});
-  const [lotPageByItem, setLotPageByItem] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "resale" | "stable">("all");
-  const lotsPerPage = 8;
 
   function toggleRow(itemKey: string) {
     setExpandedRows((current) => ({
@@ -59,11 +57,6 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
 
   function updateLotSearch(itemKey: string, value: string) {
     setLotSearchByItem((current) => ({ ...current, [itemKey]: value }));
-    setLotPageByItem((current) => ({ ...current, [itemKey]: 1 }));
-  }
-
-  function changeLotPage(itemKey: string, nextPage: number) {
-    setLotPageByItem((current) => ({ ...current, [itemKey]: nextPage }));
   }
 
   const filteredInventory = inventory
@@ -86,11 +79,11 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
 
   return <section id="items" className="inventory-shop-page">
     <div className="inventory-shop-hero">
-      <div><span>INVENTORY CATALOG</span><h2>รายการสินค้าในคลัง</h2></div>
+      <div className="inventory-shop-title"><span>INVENTORY CATALOG</span><h2>รายการสินค้าในคลัง</h2></div>
+      <label className="inventory-shop-search"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาชื่อสินค้า รหัส หรือหมวดหมู่..." /></label>
       <div className="inventory-shop-total"><Boxes size={22} /><b>{formatNumber(filteredInventory.length)}</b><small>รายการสินค้า</small></div>
     </div>
     <div className="inventory-shop-controls">
-      <label><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาชื่อสินค้า รหัส หรือหมวดหมู่..." /></label>
       <div>{([['all','ทั้งหมด'],['resale','สินค้าซื้อมาขายไป'],['stable','สินค้าเข้าสต็อก']] as const).map(([value,label]) => <button key={value} type="button" className={typeFilter === value ? "active" : ""} onClick={() => setTypeFilter(value)}>{label}</button>)}</div>
     </div>
     <div className="inventory-card-grid">
@@ -101,12 +94,6 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
           `${lot.lotLabel} ${lot.receivedDate} ${lot.expiryDate || ""} ${lot.balance}`
             .toLowerCase()
             .includes(lotSearch)
-        );
-        const totalLotPages = Math.max(1, Math.ceil(filteredLots.length / lotsPerPage));
-        const currentLotPage = Math.min(lotPageByItem[item.key] || 1, totalLotPages);
-        const visibleLots = filteredLots.slice(
-          (currentLotPage - 1) * lotsPerPage,
-          currentLotPage * lotsPerPage
         );
 
         return <article key={item.key} className={`inventory-product-card ${expanded ? "expanded" : ""}`}>
@@ -120,8 +107,8 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
             <div className="inventory-lot-panel">
               <div className="inventory-lot-toolbar">
                 <div>
-                  <b>{formatNumber(filteredLots.length)} ล็อตที่พบ</b>
-                  <span>แสดงครั้งละ {formatNumber(lotsPerPage)} ล็อต</span>
+                  <b>พบ {formatNumber(filteredLots.length)} ล็อต</b>
+                  <span>แสดงทุกล็อตที่ตรงกับคำค้นหา</span>
                 </div>
                 <label>
                   <Search size={14} />
@@ -133,7 +120,7 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
                 </label>
               </div>
               <div className="inventory-lot-list">
-                {visibleLots.map((lot) => (
+                {filteredLots.map((lot) => (
                   <div key={lot.key}>
                     <span>
                       <b>{lot.lotLabel}</b>
@@ -142,29 +129,10 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
                     <strong>{formatNumber(lot.balance)} {lot.unit}</strong>
                   </div>
                 ))}
-                {visibleLots.length === 0 ? (
+                {filteredLots.length === 0 ? (
                   <div className="inventory-lot-empty">ไม่พบล็อตที่ตรงกับคำค้นหา</div>
                 ) : null}
               </div>
-              {filteredLots.length > lotsPerPage ? (
-                <div className="inventory-lot-pagination">
-                  <button
-                    type="button"
-                    disabled={currentLotPage <= 1}
-                    onClick={() => changeLotPage(item.key, currentLotPage - 1)}
-                  >
-                    ก่อนหน้า
-                  </button>
-                  <span>หน้า {formatNumber(currentLotPage)} / {formatNumber(totalLotPages)}</span>
-                  <button
-                    type="button"
-                    disabled={currentLotPage >= totalLotPages}
-                    onClick={() => changeLotPage(item.key, currentLotPage + 1)}
-                  >
-                    ถัดไป
-                  </button>
-                </div>
-              ) : null}
             </div>
           ) : null}
         </article>;

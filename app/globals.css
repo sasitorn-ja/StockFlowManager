@@ -1654,16 +1654,17 @@ textarea {
   .issue-shop-empty p { @apply text-xs; }
 
   .inventory-shop-page { @apply min-w-0 bg-transparent; }
-  .inventory-shop-hero { border-bottom: 1px solid rgba(226, 232, 240, 0.72); @apply flex flex-col gap-3 bg-transparent px-0 py-3 sm:flex-row sm:items-center sm:justify-between; }
+  .inventory-shop-hero { border-bottom: 1px solid rgba(226, 232, 240, 0.72); @apply grid gap-3 bg-transparent px-0 py-3 lg:grid-cols-[minmax(220px,auto)_minmax(280px,1fr)_auto] lg:items-center; }
+  .inventory-shop-title { @apply min-w-0; }
   .inventory-shop-hero span { @apply text-[10px] font-extrabold tracking-[0.18em] text-blue-600; }
   .inventory-shop-hero h2 { @apply mt-0.5 text-xl font-black text-slate-900 md:text-2xl; }
   .inventory-shop-hero p { @apply mt-1 text-sm font-medium text-slate-500; }
+  .inventory-shop-search { @apply flex h-11 w-full min-w-0 items-center gap-3 rounded-xl border-2 border-[#0b63bd] bg-white/70 px-4 text-[#0b63bd] shadow-sm backdrop-blur; }
+  .inventory-shop-search input { @apply h-full min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none; }
   .inventory-shop-total { @apply grid min-w-36 grid-cols-[auto_1fr] items-center gap-x-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[#0b63bd]; }
   .inventory-shop-total b { @apply text-2xl font-black; }
   .inventory-shop-total small { @apply col-start-2 text-[10px] font-semibold text-blue-600; }
-  .inventory-shop-controls { @apply grid gap-3 bg-transparent px-0 py-3; }
-  .inventory-shop-controls > label { @apply mx-auto flex h-12 w-full max-w-3xl items-center gap-3 rounded-xl border-2 border-[#0b63bd] px-4 text-[#0b63bd]; }
-  .inventory-shop-controls input { @apply h-full min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none; }
+  .inventory-shop-controls { @apply grid gap-3 bg-transparent px-0 py-2; }
   .inventory-shop-controls > div { @apply flex justify-start gap-2 overflow-x-auto md:justify-center; }
   .inventory-shop-controls button { @apply shrink-0 rounded-full border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600; }
   .inventory-shop-controls button.active { @apply border-[#0b63bd] bg-blue-50 text-[#0b63bd]; }
@@ -1701,9 +1702,6 @@ textarea {
   .inventory-lot-list small { @apply mt-1 block truncate text-[10px] text-slate-500; }
   .inventory-lot-list strong { @apply shrink-0 text-[#0b63bd]; }
   .inventory-lot-empty { @apply justify-center py-6 text-center font-bold text-slate-400; }
-  .inventory-lot-pagination { @apply flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-500; }
-  .inventory-lot-pagination button { @apply h-8 rounded-md border border-slate-200 px-3 text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40; }
-  .inventory-lot-pagination span { @apply text-[11px] font-extrabold text-slate-500; }
 
   .issue-quick-form {
     border-top: 1px solid var(--border-soft);
