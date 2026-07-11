@@ -194,7 +194,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [actualRole, setActualRole] = useState<UserRole>("employee");
   const { transactions } = useTransactions();
   const pathname = usePathname();
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(
       navigationGroups.map((group) => [
@@ -204,24 +204,22 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     )
   );
   const [ssoUser, setSsoUser] = useState<{ name: string; email?: string; userId?: string; role: UserRole } | null>(null);
-  const todayLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat("th-TH", {
+  const todayLabel = useMemo(() => {
+    if (!now) return "กำลังโหลดวันที่";
+    return new Intl.DateTimeFormat("th-TH", {
         day: "2-digit",
         month: "short",
         year: "numeric",
-      }).format(now),
-    [now]
-  );
-  const timeLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat("th-TH", {
+      }).format(now);
+  }, [now]);
+  const timeLabel = useMemo(() => {
+    if (!now) return "--:--";
+    return new Intl.DateTimeFormat("th-TH", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
-      }).format(now),
-    [now]
-  );
+      }).format(now);
+  }, [now]);
   const pendingApprovalCount = useMemo(
     () =>
       new Set(
@@ -259,6 +257,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   }
 
   useEffect(() => {
+    setNow(new Date());
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
