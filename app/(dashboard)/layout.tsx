@@ -51,8 +51,8 @@ const navigationGroups = [
     items: [
       { label: "เลือกสินค้าเพื่อเบิก", href: "/issue", icon: PackageMinus },
       { label: "ใบเบิกของฉัน", href: "/approve", icon: PackageCheck, roles: ["employee"] },
-      { label: "อนุมัติและติดตาม", href: "/approve", icon: PackageCheck, roles: ["manager"] },
-      { label: "ติดตามใบเบิก", href: "/approve", icon: PackageCheck, roles: ["admin"] },
+      { label: "อนุมัติใบเบิก", href: "/approve", icon: PackageCheck, roles: ["manager"] },
+      { label: "จัดการใบเบิก", href: "/approve", icon: PackageCheck, roles: ["admin"] },
     ] satisfies NavigationItem[],
   },
   {
@@ -63,7 +63,7 @@ const navigationGroups = [
       { label: "สินค้าในคลัง", href: "/items", icon: Database, roles: ["admin"] },
       { label: "รับสินค้าเข้าคลัง", href: "/receive", icon: ClipboardPlus, roles: ["admin"] },
       { label: "สินค้าใกล้หมด/หมดอายุ", href: "/expiring", icon: Clock3, roles: ["admin"] },
-      { label: "ประวัติคลังสินค้า", href: "/history", icon: History, roles: ["admin"] },
+      { label: "บัญชีรับ-จ่ายสินค้า", href: "/history", icon: History, roles: ["admin"] },
     ] satisfies NavigationItem[],
   },
   {
@@ -92,7 +92,11 @@ const buddyUiStyles = `
     display: inline-flex; width: 58px; height: 58px; align-items: center; justify-content: center;
     border-radius: 18px; background: rgba(238,247,255,.92); overflow: hidden;
   }
-  .brand-mark img { width: 52px; height: 52px; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(7,71,161,.14)); }
+  .brand-mark img {
+    width: 52px; height: 52px; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(7,71,161,.14));
+    transform-origin: 50% 82%;
+    animation: buddy-brand-nod 7s ease-in-out infinite;
+  }
   .brand-title { font-size: 22px; line-height: 1.08; letter-spacing: 0; }
   .brand-subtitle { margin-top: 3px; color: #173b72; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; }
   .dashboard-nav { padding: 16px; }
@@ -103,7 +107,36 @@ const buddyUiStyles = `
   }
   .dashboard-nav-item-active::before { background: #3b82f6; }
   .dashboard-sidebar-buddy { margin: auto 16px 14px; display: grid; justify-items: center; padding-top: 12px; }
-  .dashboard-sidebar-buddy img { width: min(184px,76%); height: auto; filter: drop-shadow(0 16px 22px rgba(7,71,161,.14)); }
+  .dashboard-sidebar-buddy img {
+    width: min(184px,76%); height: auto; filter: drop-shadow(0 16px 22px rgba(7,71,161,.14));
+    transform-origin: 50% 88%;
+    animation: buddy-float 4.8s ease-in-out infinite;
+    will-change: transform;
+  }
+  .dashboard-sidebar-buddy:hover img { animation: buddy-wave 1.2s ease-in-out infinite; }
+  @keyframes buddy-float {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    28% { transform: translateY(-7px) rotate(-1.2deg); }
+    56% { transform: translateY(-2px) rotate(1deg); }
+    78% { transform: translateY(-5px) rotate(-0.5deg); }
+  }
+  @keyframes buddy-wave {
+    0%, 100% { transform: translateY(-4px) rotate(0deg) scale(1); }
+    25% { transform: translateY(-7px) rotate(-2deg) scale(1.015); }
+    50% { transform: translateY(-4px) rotate(2deg) scale(1.015); }
+    75% { transform: translateY(-6px) rotate(-1deg) scale(1.01); }
+  }
+  @keyframes buddy-brand-nod {
+    0%, 84%, 100% { transform: rotate(0deg); }
+    88% { transform: rotate(-3deg); }
+    92% { transform: rotate(3deg); }
+    96% { transform: rotate(-1deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .brand-mark img,
+    .dashboard-sidebar-buddy img,
+    .dashboard-sidebar-buddy:hover img { animation: none; }
+  }
   .dashboard-sidebar-logout { padding: 0 16px 16px; }
   .dashboard-logout-link {
     display: flex; min-height: 52px; align-items: center; gap: 12px; border-radius: 10px;
@@ -427,7 +460,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           <PackageMinus size={20} /><span>เลือกสินค้า</span>
         </Link>
         <Link href="/approve" className={pathname === "/approve" ? "active" : ""}>
-          <PackageCheck size={20} /><span>ใบเบิกของฉัน</span>
+          <PackageCheck size={20} /><span>{userRole === "admin" ? "จัดการใบเบิก" : userRole === "manager" ? "อนุมัติใบเบิก" : "ใบเบิกของฉัน"}</span>
         </Link>
         {userRole === "admin" ? (
           <Link href="/receive" className={pathname === "/receive" ? "active" : ""}>

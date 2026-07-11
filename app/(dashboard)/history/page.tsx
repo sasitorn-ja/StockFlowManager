@@ -74,7 +74,10 @@ function HistorySection({
       <div className="dashboard-category-header">
         <div className="history-header-left">
           <div>
-            <h3 className="dashboard-section-title">ประวัติรับเข้า-เบิกจ่ายสินค้า</h3>
+            <h3 className="dashboard-section-title">บัญชีรับ-จ่ายสินค้า</h3>
+            <p className="dashboard-subtitle">
+              ใช้ตรวจรายการย้อนหลังของคลังเท่านั้น ไม่ใช่หน้าดำเนินการกับใบเบิก
+            </p>
           </div>
           <div className="history-filter-row">
             <div className="dashboard-category-switch history-type-switch">
@@ -124,10 +127,10 @@ function HistorySection({
       <section className="history-table-section">
         <div className="history-table-header">
           <div>
-            <h2 className="dashboard-section-title">รายการเคลื่อนไหวทั้งหมด</h2>
+            <h2 className="dashboard-section-title">รายการรับ-จ่ายย้อนหลัง</h2>
             <p className="dashboard-subtitle">
               {isGlobalView
-                ? "ใช้ตรวจย้อนหลังได้ทั้งวันที่รับเข้า วันที่เบิก และเวลาที่ระบบบันทึก"
+                ? "ดูหลักฐานการเคลื่อนไหวของสินค้า ทั้งรับเข้าคลังและจ่ายออกจากใบเบิกที่ดำเนินการแล้ว"
                 : "ใช้ตรวจย้อนหลังใบเบิกของคุณ วันที่เบิก และเวลาที่ระบบบันทึก"}
             </p>
           </div>

@@ -44,14 +44,26 @@ type ItemsSectionProps = {
 
 function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [lotSearchByItem, setLotSearchByItem] = useState<Record<string, string>>({});
+  const [lotPageByItem, setLotPageByItem] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "resale" | "stable">("all");
+  const lotsPerPage = 8;
 
   function toggleRow(itemKey: string) {
     setExpandedRows((current) => ({
       ...current,
       [itemKey]: !current[itemKey],
     }));
+  }
+
+  function updateLotSearch(itemKey: string, value: string) {
+    setLotSearchByItem((current) => ({ ...current, [itemKey]: value }));
+    setLotPageByItem((current) => ({ ...current, [itemKey]: 1 }));
+  }
+
+  function changeLotPage(itemKey: string, nextPage: number) {
+    setLotPageByItem((current) => ({ ...current, [itemKey]: nextPage }));
   }
 
   const filteredInventory = inventory
@@ -84,6 +96,19 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
     <div className="inventory-card-grid">
       {filteredInventory.map((item) => {
         const expanded = Boolean(expandedRows[item.key]);
+        const lotSearch = lotSearchByItem[item.key]?.trim().toLowerCase() || "";
+        const filteredLots = item.lots.filter((lot) =>
+          `${lot.lotLabel} ${lot.receivedDate} ${lot.expiryDate || ""} ${lot.balance}`
+            .toLowerCase()
+            .includes(lotSearch)
+        );
+        const totalLotPages = Math.max(1, Math.ceil(filteredLots.length / lotsPerPage));
+        const currentLotPage = Math.min(lotPageByItem[item.key] || 1, totalLotPages);
+        const visibleLots = filteredLots.slice(
+          (currentLotPage - 1) * lotsPerPage,
+          currentLotPage * lotsPerPage
+        );
+
         return <article key={item.key} className={`inventory-product-card ${expanded ? "expanded" : ""}`}>
           <div className="inventory-product-image">{item.imageDataUrl ? <img src={item.imageDataUrl} alt={item.name} /> : <Package size={42} />}<span>{getProductImportTypeLabel(item.productImportType)}</span></div>
           <div className="inventory-product-content"><small>{item.sku || "ไม่มีรหัสสินค้า"}</small><h3>{item.name}</h3><p>{item.category}</p>
@@ -91,7 +116,57 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
             <dl><div><dt>ล็อต</dt><dd>{formatNumber(item.lots.length)}</dd></div><div><dt>หมดอายุใกล้สุด</dt><dd>{item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}</dd></div><div><dt>ต้นทุนรวม</dt><dd>{formatCurrencyWithLabel(item.totalCostValue, item.costCurrency)}</dd></div></dl>
             <button type="button" className="inventory-lot-toggle" onClick={() => toggleRow(item.key)}><span>{expanded ? "ซ่อนรายละเอียดล็อต" : `ดูรายละเอียด ${formatNumber(item.lots.length)} ล็อต`}</span>{expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
           </div>
-          {expanded ? <div className="inventory-lot-list">{item.lots.map((lot) => <div key={lot.key}><span><b>{lot.lotLabel}</b><small>รับเข้า {formatDate(lot.receivedDate)} · หมดอายุ {lot.expiryDate ? formatDate(lot.expiryDate) : "-"}</small></span><strong>{formatNumber(lot.balance)} {lot.unit}</strong></div>)}</div> : null}
+          {expanded ? (
+            <div className="inventory-lot-panel">
+              <div className="inventory-lot-toolbar">
+                <div>
+                  <b>{formatNumber(filteredLots.length)} ล็อตที่พบ</b>
+                  <span>แสดงครั้งละ {formatNumber(lotsPerPage)} ล็อต</span>
+                </div>
+                <label>
+                  <Search size={14} />
+                  <input
+                    value={lotSearchByItem[item.key] || ""}
+                    onChange={(event) => updateLotSearch(item.key, event.target.value)}
+                    placeholder="ค้นหาล็อต วันที่ หรือจำนวน..."
+                  />
+                </label>
+              </div>
+              <div className="inventory-lot-list">
+                {visibleLots.map((lot) => (
+                  <div key={lot.key}>
+                    <span>
+                      <b>{lot.lotLabel}</b>
+                      <small>รับเข้า {formatDate(lot.receivedDate)} · หมดอายุ {lot.expiryDate ? formatDate(lot.expiryDate) : "-"}</small>
+                    </span>
+                    <strong>{formatNumber(lot.balance)} {lot.unit}</strong>
+                  </div>
+                ))}
+                {visibleLots.length === 0 ? (
+                  <div className="inventory-lot-empty">ไม่พบล็อตที่ตรงกับคำค้นหา</div>
+                ) : null}
+              </div>
+              {filteredLots.length > lotsPerPage ? (
+                <div className="inventory-lot-pagination">
+                  <button
+                    type="button"
+                    disabled={currentLotPage <= 1}
+                    onClick={() => changeLotPage(item.key, currentLotPage - 1)}
+                  >
+                    ก่อนหน้า
+                  </button>
+                  <span>หน้า {formatNumber(currentLotPage)} / {formatNumber(totalLotPages)}</span>
+                  <button
+                    type="button"
+                    disabled={currentLotPage >= totalLotPages}
+                    onClick={() => changeLotPage(item.key, currentLotPage + 1)}
+                  >
+                    ถัดไป
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </article>;
       })}
       {filteredInventory.length === 0 ? <div className="issue-shop-empty"><Package size={44} /><h3>ไม่พบสินค้า</h3><p>ลองเปลี่ยนคำค้นหาหรือประเภทสินค้า</p></div> : null}

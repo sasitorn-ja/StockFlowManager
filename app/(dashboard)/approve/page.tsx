@@ -432,7 +432,16 @@ function RequisitionTrackerContent() {
       <section className="dashboard-card">
         <div className="dashboard-panel-header">
           <div>
-            <h3 className="dashboard-section-title">ติดตามสถานะการเบิกสินค้า</h3>
+            <h3 className="dashboard-section-title">
+              {isAdmin ? "จัดการใบเบิกสินค้า" : isManager ? "อนุมัติใบเบิกสินค้า" : "ใบเบิกของฉัน"}
+            </h3>
+            <p className="dashboard-subtitle">
+              {isAdmin
+                ? "ใช้กับใบเบิกที่ยังต้องดำเนินงาน เช่น จ่ายสินค้า ติดตามการรับ และปิดใบเบิก"
+                : isManager
+                  ? "ใช้ตรวจคำขอที่รออนุมัติ และติดตามใบเบิกที่เกี่ยวข้องกับคุณ"
+                  : "ใช้ติดตามสถานะใบเบิกของคุณ ตั้งแต่ส่งคำขอจนปิดใบเบิก"}
+            </p>
           </div>
           <div className="dashboard-header-actions flex flex-wrap items-center gap-3">
             {isManagerOrAdmin && (
