@@ -1654,12 +1654,12 @@ textarea {
   .issue-shop-empty p { @apply text-xs; }
 
   .inventory-shop-page { @apply min-w-0 bg-transparent; }
-  .inventory-shop-hero { border-bottom: 1px solid rgba(226, 232, 240, 0.72); @apply grid gap-3 bg-transparent px-0 py-3 lg:grid-cols-[minmax(220px,auto)_minmax(280px,1fr)_auto] lg:items-center; }
+  .inventory-shop-hero { border-bottom: 1px solid rgba(226, 232, 240, 0.72); @apply grid gap-3 bg-transparent px-0 py-3 lg:grid-cols-[minmax(220px,1fr)_minmax(280px,520px)_auto] lg:items-center; }
   .inventory-shop-title { @apply min-w-0; }
   .inventory-shop-hero span { @apply text-[10px] font-extrabold tracking-[0.18em] text-blue-600; }
   .inventory-shop-hero h2 { @apply mt-0.5 text-xl font-black text-slate-900 md:text-2xl; }
   .inventory-shop-hero p { @apply mt-1 text-sm font-medium text-slate-500; }
-  .inventory-shop-search { @apply flex h-11 w-full min-w-0 items-center gap-3 rounded-xl border-2 border-[#0b63bd] bg-white/70 px-4 text-[#0b63bd] shadow-sm backdrop-blur; }
+  .inventory-shop-search { @apply flex h-11 w-full min-w-0 max-w-[520px] items-center gap-3 justify-self-center rounded-xl border-2 border-[#0b63bd] bg-white/70 px-4 text-[#0b63bd] shadow-sm backdrop-blur; }
   .inventory-shop-search input { @apply h-full min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none; }
   .inventory-shop-total { @apply grid min-w-36 grid-cols-[auto_1fr] items-center gap-x-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[#0b63bd]; }
   .inventory-shop-total b { @apply text-2xl font-black; }
