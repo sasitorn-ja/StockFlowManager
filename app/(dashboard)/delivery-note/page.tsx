@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Printer } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
@@ -74,6 +75,10 @@ function DeliveryNoteSection({
       : [deliveryDocument.transaction];
   const requesterName = deliveryDocument.transaction.requester || "-";
   const createdByName = deliveryDocument.transaction.createdBy || deliveryDocument.transaction.requester || "-";
+  function handlePrint() {
+    window.print();
+  }
+
   return (
     <section id="delivery-note" className="grid gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -83,6 +88,10 @@ function DeliveryNoteSection({
           </p>
           <h3 className="dashboard-section-title">เอกสารเบิกสินค้า</h3>
         </div>
+        <Button type="button" onClick={handlePrint} className="gap-2">
+          <Printer size={16} />
+          พิมพ์เอกสาร
+        </Button>
         {canViewHistory ? (
           <Button type="button" variant="secondary" onClick={() => setActiveSection("history")}>
             กลับไปประวัติภาพรวม
