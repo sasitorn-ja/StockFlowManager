@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Search, Package, Boxes } from "lucide-react";
+import { Search, Package, Boxes } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   buildInventoryLotMap,
   formatCurrencyWithLabel,
@@ -43,21 +50,10 @@ type ItemsSectionProps = {
 };
 
 function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
-  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
-  const [lotSearchByItem, setLotSearchByItem] = useState<Record<string, string>>({});
+  const [selectedLotItem, setSelectedLotItem] = useState<GroupedInventoryItem | null>(null);
+  const [lotSearch, setLotSearch] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "resale" | "stable">("all");
-
-  function toggleRow(itemKey: string) {
-    setExpandedRows((current) => ({
-      ...current,
-      [itemKey]: !current[itemKey],
-    }));
-  }
-
-  function updateLotSearch(itemKey: string, value: string) {
-    setLotSearchByItem((current) => ({ ...current, [itemKey]: value }));
-  }
 
   const filteredInventory = inventory
     .filter((item) => typeFilter === "all" || item.productImportType === typeFilter)
@@ -77,69 +73,97 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
               );
             });
 
-  return <section id="items" className="inventory-shop-page">
-    <div className="inventory-shop-hero">
-      <div className="inventory-shop-title"><span>INVENTORY CATALOG</span><h2>รายการสินค้าในคลัง</h2></div>
-      <label className="inventory-shop-search"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาชื่อสินค้า รหัส หรือหมวดหมู่..." /></label>
-      <div className="inventory-shop-total"><Boxes size={22} /><b>{formatNumber(filteredInventory.length)}</b><small>รายการสินค้า</small></div>
-    </div>
-    <div className="inventory-shop-controls">
-      <div>{([['all','ทั้งหมด'],['resale','สินค้าซื้อมาขายไป'],['stable','สินค้าเข้าสต็อก']] as const).map(([value,label]) => <button key={value} type="button" className={typeFilter === value ? "active" : ""} onClick={() => setTypeFilter(value)}>{label}</button>)}</div>
-    </div>
-    <div className="inventory-card-grid">
-      {filteredInventory.map((item) => {
-        const expanded = Boolean(expandedRows[item.key]);
-        const lotSearch = lotSearchByItem[item.key]?.trim().toLowerCase() || "";
-        const filteredLots = item.lots.filter((lot) =>
-          `${lot.lotLabel} ${lot.receivedDate} ${lot.expiryDate || ""} ${lot.balance}`
-            .toLowerCase()
-            .includes(lotSearch)
-        );
+  const selectedLots = selectedLotItem
+    ? selectedLotItem.lots.filter((lot) =>
+        `${lot.lotLabel} ${lot.receivedDate} ${lot.expiryDate || ""} ${lot.balance}`
+          .toLowerCase()
+          .includes(lotSearch.trim().toLowerCase())
+      )
+    : [];
 
-        return <article key={item.key} className={`inventory-product-card ${expanded ? "expanded" : ""}`}>
-          <div className="inventory-product-image">{item.imageDataUrl ? <img src={item.imageDataUrl} alt={item.name} /> : <Package size={42} />}<span>{getProductImportTypeLabel(item.productImportType)}</span></div>
-          <div className="inventory-product-content"><small>{item.sku || "ไม่มีรหัสสินค้า"}</small><h3>{item.name}</h3><p>{item.category}</p>
-            <div className="inventory-balance"><span>คงเหลือ</span><strong className={item.balance <= lowStockThreshold ? "low" : ""}>{formatNumber(item.balance)} <small>{item.unit}</small></strong></div>
-            <dl><div><dt>ล็อต</dt><dd>{formatNumber(item.lots.length)}</dd></div><div><dt>หมดอายุใกล้สุด</dt><dd>{item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}</dd></div><div><dt>ต้นทุนรวม</dt><dd>{formatCurrencyWithLabel(item.totalCostValue, item.costCurrency)}</dd></div></dl>
-            <button type="button" className="inventory-lot-toggle" onClick={() => toggleRow(item.key)}><span>{expanded ? "ซ่อนรายละเอียดล็อต" : `ดูรายละเอียด ${formatNumber(item.lots.length)} ล็อต`}</span>{expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
-          </div>
-          {expanded ? (
-            <div className="inventory-lot-panel">
-              <div className="inventory-lot-toolbar">
-                <div>
-                  <b>พบ {formatNumber(filteredLots.length)} ล็อต</b>
-                  <span>แสดงทุกล็อตที่ตรงกับคำค้นหา</span>
-                </div>
-                <label>
-                  <Search size={14} />
-                  <input
-                    value={lotSearchByItem[item.key] || ""}
-                    onChange={(event) => updateLotSearch(item.key, event.target.value)}
-                    placeholder="ค้นหาล็อต วันที่ หรือจำนวน..."
-                  />
-                </label>
+  function openLotDialog(item: GroupedInventoryItem) {
+    setSelectedLotItem(item);
+    setLotSearch("");
+  }
+
+  return <>
+    <Dialog
+      open={Boolean(selectedLotItem)}
+      onOpenChange={(open) => {
+        if (!open) {
+          setSelectedLotItem(null);
+          setLotSearch("");
+        }
+      }}
+    >
+      <DialogContent className="inventory-lot-dialog sm:max-w-[720px]">
+        <DialogHeader>
+          <DialogTitle>{selectedLotItem?.name || "รายละเอียดล็อต"}</DialogTitle>
+          <DialogDescription>
+            {selectedLotItem
+              ? `${selectedLotItem.sku || "ไม่มีรหัสสินค้า"} · ${selectedLotItem.category} · คงเหลือ ${formatNumber(selectedLotItem.balance)} ${selectedLotItem.unit}`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        {selectedLotItem ? (
+          <div className="inventory-lot-dialog-body">
+            <div className="inventory-lot-toolbar">
+              <div>
+                <b>พบ {formatNumber(selectedLots.length)} ล็อต</b>
+                <span>แสดงทุกล็อตที่ตรงกับคำค้นหา</span>
               </div>
-              <div className="inventory-lot-list">
-                {filteredLots.map((lot) => (
-                  <div key={lot.key}>
-                    <span>
-                      <b>{lot.lotLabel}</b>
-                      <small>รับเข้า {formatDate(lot.receivedDate)} · หมดอายุ {lot.expiryDate ? formatDate(lot.expiryDate) : "-"}</small>
-                    </span>
-                    <strong>{formatNumber(lot.balance)} {lot.unit}</strong>
-                  </div>
-                ))}
-                {filteredLots.length === 0 ? (
-                  <div className="inventory-lot-empty">ไม่พบล็อตที่ตรงกับคำค้นหา</div>
-                ) : null}
-              </div>
+              <label>
+                <Search size={14} />
+                <input
+                  value={lotSearch}
+                  onChange={(event) => setLotSearch(event.target.value)}
+                  placeholder="ค้นหาล็อต วันที่ หรือจำนวน..."
+                />
+              </label>
             </div>
-          ) : null}
-        </article>;
-      })}
-      {filteredInventory.length === 0 ? <div className="issue-shop-empty"><Package size={44} /><h3>ไม่พบสินค้า</h3><p>ลองเปลี่ยนคำค้นหาหรือประเภทสินค้า</p></div> : null}
-    </div>
-  </section>;
+            <div className="inventory-lot-list inventory-lot-dialog-list">
+              {selectedLots.map((lot) => (
+                <div key={lot.key}>
+                  <span>
+                    <b>{lot.lotLabel}</b>
+                    <small>รับเข้า {formatDate(lot.receivedDate)} · หมดอายุ {lot.expiryDate ? formatDate(lot.expiryDate) : "-"}</small>
+                  </span>
+                  <strong>{formatNumber(lot.balance)} {lot.unit}</strong>
+                </div>
+              ))}
+              {selectedLots.length === 0 ? (
+                <div className="inventory-lot-empty">ไม่พบล็อตที่ตรงกับคำค้นหา</div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+
+    <section id="items" className="inventory-shop-page">
+      <div className="inventory-shop-hero">
+        <div className="inventory-shop-title"><span>INVENTORY CATALOG</span><h2>รายการสินค้าในคลัง</h2></div>
+        <label className="inventory-shop-search"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาชื่อสินค้า รหัส หรือหมวดหมู่..." /></label>
+        <div className="inventory-shop-total"><Boxes size={22} /><b>{formatNumber(filteredInventory.length)}</b><small>รายการสินค้า</small></div>
+      </div>
+      <div className="inventory-shop-controls">
+        <div>{([['all','ทั้งหมด'],['resale','สินค้าซื้อมาขายไป'],['stable','สินค้าเข้าสต็อก']] as const).map(([value,label]) => <button key={value} type="button" className={typeFilter === value ? "active" : ""} onClick={() => setTypeFilter(value)}>{label}</button>)}</div>
+      </div>
+      <div className="inventory-card-grid">
+        {filteredInventory.map((item) => (
+          <article key={item.key} className="inventory-product-card">
+            <div className="inventory-product-image">{item.imageDataUrl ? <img src={item.imageDataUrl} alt={item.name} /> : <Package size={42} />}<span>{getProductImportTypeLabel(item.productImportType)}</span></div>
+            <div className="inventory-product-content"><small>{item.sku || "ไม่มีรหัสสินค้า"}</small><h3>{item.name}</h3><p>{item.category}</p>
+              <div className="inventory-balance"><span>คงเหลือ</span><strong className={item.balance <= lowStockThreshold ? "low" : ""}>{formatNumber(item.balance)} <small>{item.unit}</small></strong></div>
+              <dl><div><dt>ล็อต</dt><dd>{formatNumber(item.lots.length)}</dd></div><div><dt>หมดอายุใกล้สุด</dt><dd>{item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}</dd></div><div><dt>ต้นทุนรวม</dt><dd>{formatCurrencyWithLabel(item.totalCostValue, item.costCurrency)}</dd></div></dl>
+              <button type="button" className="inventory-lot-toggle" onClick={() => openLotDialog(item)}><span>ดูรายละเอียด {formatNumber(item.lots.length)} ล็อต</span></button>
+            </div>
+          </article>
+        ))}
+        {filteredInventory.length === 0 ? <div className="issue-shop-empty"><Package size={44} /><h3>ไม่พบสินค้า</h3><p>ลองเปลี่ยนคำค้นหาหรือประเภทสินค้า</p></div> : null}
+      </div>
+    </section>
+  </>;
 }
 
 export default function ItemsPage() {
