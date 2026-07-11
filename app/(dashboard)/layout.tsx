@@ -1,14 +1,16 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { withBasePath } from "@/lib/base-path";
-import { TransactionProvider } from "./TransactionContext";
+import { TransactionProvider, useTransactions } from "./TransactionContext";
 import {
   Menu,
   X,
+  Bell,
+  CalendarDays,
   PackageCheck,
   Home,
   ClipboardPlus,
@@ -20,6 +22,7 @@ import {
   Settings,
   LogOut,
   ChevronDown,
+  UserRound,
 } from "lucide-react";
 
 type DashboardLayoutProps = {
@@ -86,7 +89,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>("employee");
   const [actualRole, setActualRole] = useState<UserRole>("employee");
+  const { transactions } = useTransactions();
   const pathname = usePathname();
+  const [now, setNow] = useState(() => new Date());
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(
       navigationGroups.map((group) => [
@@ -96,6 +101,33 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     )
   );
   const [ssoUser, setSsoUser] = useState<{ name: string; email?: string; userId?: string; role: UserRole } | null>(null);
+  const todayLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat("th-TH", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(now),
+    [now]
+  );
+  const timeLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(now),
+    [now]
+  );
+  const pendingApprovalCount = useMemo(
+    () =>
+      new Set(
+        transactions
+          .filter((transaction) => transaction.type === "out" && transaction.status === "pending" && transaction.issueKey)
+          .map((transaction) => transaction.issueKey)
+      ).size,
+    [transactions]
+  );
 
   useEffect(() => {
     fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
@@ -122,6 +154,11 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     localStorage.setItem("current_role", role);
     window.dispatchEvent(new Event("current-user-changed"));
   }
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   function closeMobileMenu() {
     setIsMobileMenuOpen(false);
@@ -219,6 +256,18 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           );
         })}
       </nav>
+
+      <div className="dashboard-sidebar-buddy" aria-label="SB&M Buddy">
+        <div className="dashboard-buddy-bubble">สแกนพร้อมใช้งานเลย!</div>
+        <img src={withBasePath("/picture/sbm-buddy.png")} alt="SB&M Buddy mascot" />
+      </div>
+
+      <div className="dashboard-sidebar-logout">
+        <a href={withBasePath("/api/auth/logout")} className="dashboard-logout-link">
+          <LogOut aria-hidden="true" size={18} />
+          <span>ออกจากระบบ</span>
+        </a>
+      </div>
     </>
   );
 
@@ -255,13 +304,16 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
               <Menu aria-hidden="true" size={19} />
             </button>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-bold text-[var(--text-strong)] md:text-lg">
+              <h1 className="truncate text-base font-extrabold text-[var(--text-strong)] md:text-xl">
                 CPAC SB&amp;M Inventory Management
               </h1>
+              <p className="hidden text-[12px] font-semibold text-[var(--text-muted)] md:block">
+                SB&amp;M Buddy พร้อมช่วยจัดการคลังสินค้า
+              </p>
             </div>
           </div>
 
-        <div className="flex items-center gap-3">
+        <div className="dashboard-topbar-actions">
           {actualRole === "admin" && isSasitornTester(ssoUser) ? (
             <label className="admin-role-preview">
               <span>ดูหน้าจอในบทบาท</span>
@@ -272,11 +324,24 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
               </select>
             </label>
           ) : null}
-          <div className="hidden text-right sm:block">
-            <p className="text-xs font-semibold text-slate-800">{ssoUser?.name ?? "ผู้ใช้งาน"}</p>
-            {ssoUser?.email ? <p className="text-[11px] text-slate-500">{ssoUser.email}</p> : null}
+          <div className="dashboard-date-pill">
+            <CalendarDays aria-hidden="true" size={17} />
+            <span>{todayLabel}</span>
+            <b>{timeLabel} น.</b>
           </div>
-          <a href={withBasePath("/api/auth/logout")} className="icon-button" aria-label="ออกจากระบบ" title="ออกจากระบบ"><LogOut aria-hidden="true" size={18} /></a>
+          <button type="button" className="dashboard-notification-button" aria-label="การแจ้งเตือน">
+            <Bell aria-hidden="true" size={19} />
+            {pendingApprovalCount > 0 ? <span>{pendingApprovalCount}</span> : null}
+          </button>
+          <div className="dashboard-user-card">
+            <div className="dashboard-user-avatar">
+              <UserRound aria-hidden="true" size={17} />
+            </div>
+            <div className="hidden min-w-0 text-left sm:block">
+              <p>{ssoUser?.name ?? "ผู้ใช้งาน"}</p>
+              <span>{userRole === "admin" ? "ผู้ดูแลระบบ" : userRole === "manager" ? "ผู้จัดการ" : "พนักงาน"}</span>
+            </div>
+          </div>
         </div>
       </header>
 

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SB&M lnventory Management",
+  title: "SB&M Inventory Management",
   description: "Inventory receive, issue, and expiry-priority stock management app",
 };
 
