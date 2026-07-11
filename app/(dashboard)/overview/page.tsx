@@ -182,13 +182,15 @@ export default function OverviewPage() {
     [ownTransactionsUntilOverviewDate]
   );
 
+  const lowStockItems = useMemo(
+    () => inventory.filter((item) => item.balance <= lowStockThreshold).sort((a, b) => a.balance - b.balance),
+    [inventory, lowStockThreshold]
+  );
+
   const lowStockInventory = useMemo(
     () =>
-      inventory
-        .filter((item) => item.balance <= lowStockThreshold)
-        .sort((a, b) => a.balance - b.balance)
-        .slice(0, 5),
-    [inventory, lowStockThreshold]
+      lowStockItems.slice(0, 5),
+    [lowStockItems]
   );
 
   const overviewStats = useMemo(() => {
@@ -245,8 +247,6 @@ export default function OverviewPage() {
     const stockOutToday = transactions
       .filter((item) => item.date === overviewDateTo && item.type === "out")
       .reduce((sum, item) => sum + item.quantity, 0);
-    const lowStockCount = inventory.filter((item) => item.balance <= lowStockThreshold).length;
-
     return [
       {
         label: "สินค้าในคลัง",
@@ -274,7 +274,7 @@ export default function OverviewPage() {
       },
       {
         label: "ต่ำกว่ากำหนด",
-        value: formatNumber(lowStockCount),
+        value: formatNumber(lowStockItems.length),
         unit: "รายการ",
         helper: `คงเหลือไม่เกิน ${formatNumber(lowStockThreshold)}`,
         icon: AlertTriangle,
@@ -285,6 +285,7 @@ export default function OverviewPage() {
   }, [
     canViewStockOverview,
     inventory,
+    lowStockItems.length,
     lowStockThreshold,
     overviewDateTo,
     ownRangeTransactions,
@@ -497,44 +498,78 @@ export default function OverviewPage() {
         </div>
       </section>
 
-      <section className="overview-insight-grid">
-        <article className="overview-list-card overview-brief-card">
+      <section className="overview-focus-grid">
+        <article className={`overview-action-card ${lowStockItems.length > 0 ? "overview-action-card-alert" : ""}`}>
+          <div className="overview-action-heading">
+            <div className="overview-action-icon">
+              <AlertTriangle size={22} />
+            </div>
+            <div>
+              <span>Action required</span>
+              <h3>เติมสต็อกก่อนของขาด</h3>
+              <p>สินค้าเหลือน้อยกว่าหรือเท่ากับ min {formatNumber(lowStockThreshold)} หน่วย</p>
+            </div>
+          </div>
+
+          <div className="overview-action-metric">
+            <strong>{formatNumber(lowStockItems.length)}</strong>
+            <span>รายการต้องเติม</span>
+          </div>
+
+          <div className="overview-action-list">
+            {lowStockInventory.length > 0 ? (
+              lowStockInventory.map((item) => (
+                <div className="overview-action-item" key={item.key}>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <span>{item.sku || "-"} · min {formatNumber(lowStockThreshold)} {item.unit}</span>
+                  </div>
+                  <b>{formatNumber(item.balance)} {item.unit}</b>
+                </div>
+              ))
+            ) : (
+              <div className="overview-action-empty">
+                <CheckCircle2 size={22} />
+                <span>ไม่มีสินค้าต่ำกว่า min ตอนนี้</span>
+              </div>
+            )}
+          </div>
+
+          <Link className="overview-action-link" href="/receive">
+            รับสินค้าเข้าคลัง <ArrowRight size={15} />
+          </Link>
+        </article>
+
+        <article className="overview-movement-card">
           <div className="overview-section-heading">
             <div>
-              <h3>สรุปสำหรับผู้บริหาร</h3>
+              <h3>ความเคลื่อนไหวช่วงนี้</h3>
               <p>{formatDate(overviewDateFrom)} - {formatDate(overviewDateTo)}</p>
             </div>
           </div>
 
-          <div className="overview-brief-list">
+          <div className="overview-movement-grid">
             <div>
-              <span>รับเข้าในช่วงที่เลือก</span>
-              <strong>{formatNumber(totalStockIn)} หน่วย</strong>
+              <span>รับเข้า</span>
+              <strong>{formatNumber(totalStockIn)}</strong>
+              <small>หน่วย</small>
             </div>
             <div>
-              <span>{canViewStockOverview ? "เบิกจ่ายในช่วงที่เลือก" : "เบิกของฉันในช่วงที่เลือก"}</span>
-              <strong>{formatNumber(totalStockOut)} หน่วย</strong>
+              <span>เบิกจ่าย</span>
+              <strong>{formatNumber(totalStockOut)}</strong>
+              <small>หน่วย</small>
             </div>
             <div>
-              <span>มูลค่าสต็อกคงเหลือโดยประมาณ</span>
+              <span>มูลค่าสต็อก</span>
               <strong>฿{formatNumber(estimatedInventoryValue)}</strong>
-            </div>
-            <div>
-              <span>สินค้าที่เคลื่อนไหวในช่วงนี้</span>
-              <strong>{formatNumber(new Set(rangeTransactions.map((item) => `${item.name}::${item.sku}::${item.unit}`)).size)} รายการ</strong>
+              <small>ประมาณการ</small>
             </div>
           </div>
 
-          <div className="overview-brief-note">
-            ระบบมีค่า `min` สำหรับแจ้งเตือนของใกล้หมดแล้ว แต่ยังไม่มีค่า `max` รายสินค้า จึงแสดง “คงเหลือสูงสุด” เพื่อช่วยดูของที่อาจค้างสต็อกแทน
-          </div>
-        </article>
-
-        <article className="overview-list-card">
-          <div className="overview-section-heading">
+          <div className="overview-section-heading overview-section-heading-compact">
             <div>
               <h3>สินค้าเบิกบ่อย</h3>
-              <p>ดูทั้งจำนวนครั้งและปริมาณที่ถูกเบิก</p>
+              <p>ช่วยดูว่าควรเติมของตัวไหนก่อน</p>
             </div>
           </div>
 

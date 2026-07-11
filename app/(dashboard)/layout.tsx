@@ -88,22 +88,21 @@ const buddyUiStyles = `
   }
   .dashboard-main { padding-left: 274px; }
   .dashboard-sidebar-brand { height: 92px; padding-inline: 18px; }
-  .brand-mark { width: 54px; height: 54px; border-radius: 18px; background: linear-gradient(145deg,#1565c0,#0747a1); }
+  .brand-mark {
+    display: inline-flex; width: 58px; height: 58px; align-items: center; justify-content: center;
+    border-radius: 18px; background: rgba(238,247,255,.92); overflow: hidden;
+  }
+  .brand-mark img { width: 52px; height: 52px; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(7,71,161,.14)); }
   .brand-title { font-size: 22px; line-height: 1.08; letter-spacing: 0; }
   .brand-subtitle { margin-top: 3px; color: #173b72; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; }
   .dashboard-nav { padding: 16px; }
   .dashboard-nav-item { height: 46px; border-radius: 10px; color: #183660; font-size: 14px; }
-  .dashboard-nav-item-active { background: linear-gradient(90deg,#075bd8,#0b80ff); box-shadow: 0 14px 26px rgba(8,99,216,.22); }
-  .dashboard-sidebar-buddy { margin: auto 16px 14px; display: grid; justify-items: center; gap: 10px; padding-top: 12px; }
-  .dashboard-buddy-bubble {
-    position: relative; max-width: 130px; border-radius: 10px; background: rgba(239,246,255,.96);
-    color: #0b2d62; box-shadow: 0 10px 24px rgba(13,71,161,.08); padding: 9px 12px;
-    text-align: center; font-size: 13px; font-weight: 800; line-height: 1.25;
+  .dashboard-nav-item-active {
+    background: linear-gradient(90deg,rgba(226,241,255,.96),rgba(205,232,255,.9));
+    color: #0757a6; box-shadow: 0 10px 20px rgba(8,99,216,.1);
   }
-  .dashboard-buddy-bubble::after {
-    content: ""; position: absolute; left: 50%; bottom: -7px; width: 14px; height: 14px;
-    transform: translateX(-50%) rotate(45deg); background: rgba(239,246,255,.96);
-  }
+  .dashboard-nav-item-active::before { background: #3b82f6; }
+  .dashboard-sidebar-buddy { margin: auto 16px 14px; display: grid; justify-items: center; padding-top: 12px; }
   .dashboard-sidebar-buddy img { width: min(184px,76%); height: auto; filter: drop-shadow(0 16px 22px rgba(7,71,161,.14)); }
   .dashboard-sidebar-logout { padding: 0 16px 16px; }
   .dashboard-logout-link {
@@ -248,7 +247,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     <>
       <div className="dashboard-sidebar-brand">
         <div className="brand-mark">
-          <PackageCheck aria-hidden="true" size={28} strokeWidth={2.2} />
+          <img src={withBasePath("/picture/sbm-buddy-transparent.png")} alt="SB&M Buddy mascot" />
         </div>
         <div className="min-w-0">
           <p className="brand-title">CPAC SB&amp;M</p>
@@ -273,7 +272,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
             aria-current={pathname === "/overview" ? "page" : undefined}
           >
             <Home aria-hidden="true" className="dashboard-nav-icon" size={17} strokeWidth={2.1} />
-            <span className="min-w-0 flex-1 truncate">แดชบอร์ด</span>
+            <span className="min-w-0 flex-1 truncate">Dashboard</span>
           </Link>
         ) : null}
 
@@ -329,8 +328,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       </nav>
 
       <div className="dashboard-sidebar-buddy" aria-label="SB&M Buddy">
-        <div className="dashboard-buddy-bubble">สแกนพร้อมใช้งานเลย!</div>
-        <img src={withBasePath("/picture/sbm-buddy.jpg")} alt="SB&M Buddy mascot" />
+        <img src={withBasePath("/picture/sbm-buddy-transparent.png")} alt="SB&M Buddy mascot" />
       </div>
 
       <div className="dashboard-sidebar-logout">
@@ -437,7 +435,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           </Link>
         ) : userRole === "manager" ? (
           <Link href="/overview" className={pathname === "/overview" ? "active" : ""}>
-            <Home size={20} /><span>แดชบอร์ด</span>
+            <Home size={20} /><span>Dashboard</span>
           </Link>
         ) : null}
       </nav>
