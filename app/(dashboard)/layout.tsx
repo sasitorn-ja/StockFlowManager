@@ -431,10 +431,19 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
             <span>{todayLabel}</span>
             <b>{timeLabel} น.</b>
           </div>
-          <button type="button" className="dashboard-notification-button" aria-label="การแจ้งเตือน">
+          <Link
+            href="/approve"
+            className="dashboard-notification-button"
+            aria-label={
+              pendingApprovalCount > 0
+                ? `มีใบเบิกรอดำเนินการ ${pendingApprovalCount} รายการ`
+                : "ไปหน้าจัดการใบเบิก"
+            }
+            title={pendingApprovalCount > 0 ? "ไปดูใบเบิกรอดำเนินการ" : "ไปหน้าจัดการใบเบิก"}
+          >
             <Bell aria-hidden="true" size={19} />
             {pendingApprovalCount > 0 ? <span>{pendingApprovalCount}</span> : null}
-          </button>
+          </Link>
           <div className="dashboard-user-card">
             <div className="dashboard-user-avatar">
               <UserRound aria-hidden="true" size={17} />
