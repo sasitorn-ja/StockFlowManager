@@ -69,6 +69,8 @@ export type ProductMaster = {
   price: number;
   costPrice: number;
   costCurrency: CostCurrency;
+  minStock: number;
+  maxStock: number;
   defaultStorageLocation?: string;
   defaultExpiryDate?: string;
   vendor?: string;

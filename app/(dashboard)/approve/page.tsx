@@ -67,7 +67,7 @@ export default function RequisitionTrackerPage() {
 function RequisitionTrackerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { transactions, loading: isLoading, refresh } = useTransactions();
+  const { transactions, loading: isLoading, patchIssueStatus } = useTransactions();
   const [currentRole, setCurrentRole] = useState("employee");
   const [currentUsername, setCurrentUsername] = useState("ผู้ใช้งาน");
   const [activeTab, setActiveTab] = useState<TabType>("all");
@@ -153,7 +153,16 @@ function RequisitionTrackerContent() {
     return Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
   }, [transactions]);
 
+  const hasExpandedRequisition = useMemo(
+    () => Object.values(expandedKeys).some(Boolean),
+    [expandedKeys]
+  );
+
   const lotLabels = useMemo(() => {
+    if (!hasExpandedRequisition) {
+      return new Map<string, string>();
+    }
+
     const lots = Array.from(buildInventoryLotMap(transactions).values()).sort(
       (a, b) =>
         getProductImportTypeLabel(a.productImportType).localeCompare(
@@ -175,7 +184,7 @@ function RequisitionTrackerContent() {
     });
 
     return labels;
-  }, [transactions]);
+  }, [hasExpandedRequisition, transactions]);
 
   // Filter based on active role and "Show Only Mine" toggle
   const ownedRequisitions = useMemo(() => {
@@ -282,7 +291,12 @@ function RequisitionTrackerContent() {
       });
 
       if (res.ok) {
-        await refresh();
+        patchIssueStatus(issueKey, newStatus, {
+          approver:
+            typeof extraBody.approver === "string" && extraBody.approver.trim()
+              ? extraBody.approver.trim()
+              : undefined,
+        });
       } else {
         const data = await res.json().catch(() => null);
         window.alert(data?.error || "เกิดข้อผิดพลาดในการอัปเดตสถานะใบเบิกสินค้า");

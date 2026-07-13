@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Package, Boxes } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
+import { getClientMasterProducts, getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,11 +17,12 @@ import {
   formatCurrencyWithLabel,
   formatDate,
   formatNumber,
+  getStockTargetStatus,
   getProductImportTypeLabel,
+  matchesMasterProduct,
 } from "@/lib/stock-flow/utils";
-import type { InventoryLotItem } from "@/types/stock-flow";
+import type { InventoryLotItem, ProductMaster } from "@/types/stock-flow";
 import { useTransactions } from "../TransactionContext";
-import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
 type InventoryLotWithLabel = InventoryLotItem & {
   lotLabel: string;
@@ -41,15 +43,17 @@ type GroupedInventoryItem = {
   costCurrency: InventoryLotItem["costCurrency"];
   firstReceivedDate: string;
   nearestExpiryDate: string;
+  minStock: number;
+  maxStock: number;
+  stockTargetStatus: "missing" | "low" | "normal" | "high";
   lots: InventoryLotWithLabel[];
 };
 
 type ItemsSectionProps = {
   inventory: GroupedInventoryItem[];
-  lowStockThreshold: number;
 };
 
-function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
+function ItemsSection({ inventory }: ItemsSectionProps) {
   const [selectedLotItem, setSelectedLotItem] = useState<GroupedInventoryItem | null>(null);
   const [lotSearch, setLotSearch] = useState("");
   const [search, setSearch] = useState("");
@@ -154,7 +158,15 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
           <article key={item.key} className="inventory-product-card">
             <div className="inventory-product-image">{item.imageDataUrl ? <img src={item.imageDataUrl} alt={item.name} /> : <Package size={42} />}<span>{getProductImportTypeLabel(item.productImportType)}</span></div>
             <div className="inventory-product-content"><small>{item.sku || "ไม่มีรหัสสินค้า"}</small><h3>{item.name}</h3><p>{item.category}</p>
-              <div className="inventory-balance"><span>คงเหลือ</span><strong className={item.balance <= lowStockThreshold ? "low" : ""}>{formatNumber(item.balance)} <small>{item.unit}</small></strong></div>
+              <div className="inventory-balance"><span>คงเหลือ</span><strong className={item.stockTargetStatus === "low" ? "low" : ""}>{formatNumber(item.balance)} <small>{item.unit}</small></strong></div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className={`stock-pill ${item.stockTargetStatus === "low" ? "stock-pill-danger" : item.stockTargetStatus === "high" ? "stock-pill-warn" : item.stockTargetStatus === "normal" ? "stock-pill-ok" : ""}`}>
+                  {item.stockTargetStatus === "low" ? "ต่ำกว่า min" : item.stockTargetStatus === "high" ? "สูงกว่า max" : item.stockTargetStatus === "normal" ? "อยู่ในช่วง" : "ยังไม่ตั้งค่า"}
+                </span>
+                <span className="text-[var(--text-muted)]">
+                  min {formatNumber(item.minStock)} / max {formatNumber(item.maxStock)} {item.unit}
+                </span>
+              </div>
               <dl><div><dt>ล็อต</dt><dd>{formatNumber(item.lots.length)}</dd></div><div><dt>หมดอายุใกล้สุด</dt><dd>{item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}</dd></div><div><dt>ต้นทุนรวม</dt><dd>{formatCurrencyWithLabel(item.totalCostValue, item.costCurrency)}</dd></div></dl>
               <button type="button" className="inventory-lot-toggle" onClick={() => openLotDialog(item)}><span>ดูรายละเอียด {formatNumber(item.lots.length)} ล็อต</span></button>
             </div>
@@ -169,21 +181,18 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
 export default function ItemsPage() {
   const { transactions, loading } = useTransactions();
   const [canViewInventory, setCanViewInventory] = useState<boolean | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
-  const lowStockThreshold = Number(appSettings.lowStockThreshold || defaultAppSettings.lowStockThreshold);
+  const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
 
   useEffect(() => {
-    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
+    getClientSession()
       .then((data) => {
         const role = data?.user?.role;
         setCanViewInventory(role === "admin");
       })
       .catch(() => setCanViewInventory(false));
-    fetch(withBasePath("/api/settings"), { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : defaultAppSettings)
-      .then((settings) => setAppSettings({ ...defaultAppSettings, ...settings }))
-      .catch(() => setAppSettings(defaultAppSettings));
+    getClientMasterProducts()
+      .then((products) => setMasterProducts(products))
+      .catch(() => setMasterProducts([]));
   }, []);
 
   const inventory = useMemo(() => {
@@ -242,6 +251,9 @@ export default function ItemsPage() {
           costCurrency: item.costCurrency,
           firstReceivedDate: item.receivedDate,
           nearestExpiryDate: item.expiryDate,
+          minStock: 0,
+          maxStock: 0,
+          stockTargetStatus: "missing",
           lots: [item],
         });
         return;
@@ -266,16 +278,25 @@ export default function ItemsPage() {
       }
     });
 
-    return Array.from(groupedInventory.values()).map((item) => ({
-      ...item,
-      lots: item.lots.sort(
-        (a, b) =>
-          a.receivedDate.localeCompare(b.receivedDate) ||
-          a.expiryDate.localeCompare(b.expiryDate) ||
-          a.createdAt - b.createdAt
-      ),
-    }));
-  }, [transactions]);
+    return Array.from(groupedInventory.values()).map((item) => {
+      const matchedProduct = masterProducts.find((product) => matchesMasterProduct(item, product));
+      const minStock = matchedProduct?.minStock ?? 0;
+      const maxStock = matchedProduct?.maxStock ?? 0;
+
+      return {
+        ...item,
+        minStock,
+        maxStock,
+        stockTargetStatus: getStockTargetStatus(item.balance, minStock, maxStock),
+        lots: item.lots.sort(
+          (a, b) =>
+            a.receivedDate.localeCompare(b.receivedDate) ||
+            a.expiryDate.localeCompare(b.expiryDate) ||
+            a.createdAt - b.createdAt
+        ),
+      };
+    });
+  }, [masterProducts, transactions]);
 
   if (canViewInventory === null) {
     return (
@@ -311,5 +332,5 @@ export default function ItemsPage() {
     );
   }
 
-  return <ItemsSection inventory={inventory} lowStockThreshold={lowStockThreshold} />;
+  return <ItemsSection inventory={inventory} />;
 }

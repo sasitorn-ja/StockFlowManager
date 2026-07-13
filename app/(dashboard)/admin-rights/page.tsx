@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Shield, UserCheck, ShieldAlert } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
+import { getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
@@ -31,9 +32,11 @@ export default function AdminRightsPage() {
     if (cachedRole === "admin" || cachedRole === "manager" || cachedRole === "employee") {
       setCurrentRole(cachedRole);
     }
-    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => setCurrentRole(data?.user?.role ?? "employee"))
+    getClientSession()
+      .then((data) => {
+        const role = data?.user?.role;
+        setCurrentRole(role === "admin" || role === "manager" || role === "employee" ? role : "employee");
+      })
       .catch(() => setCurrentRole("employee"));
   }, []);
 

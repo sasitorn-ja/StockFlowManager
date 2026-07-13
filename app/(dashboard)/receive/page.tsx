@@ -4,6 +4,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Filter, ChevronDown, FileText } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
+import { getClientAppSettings, getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { ComboboxInput } from "@/components/ui/combobox-input";
@@ -306,8 +307,7 @@ export default function ReceivePage() {
     };
 
     loadCurrentRole();
-    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
+    getClientSession()
       .then((data) => {
         const role = data?.user?.role;
         setCurrentRole(role === "admin" || role === "manager" ? role : "employee");
@@ -337,9 +337,8 @@ export default function ReceivePage() {
     }
 
     fetchMasterProducts();
-    fetch(withBasePath("/api/settings"), { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : defaultAppSettings)
-      .then((settings) => setAppSettings({ ...defaultAppSettings, ...settings }))
+    getClientAppSettings()
+      .then((settings) => setAppSettings(settings))
       .catch(() => setAppSettings(defaultAppSettings));
     fetch(withBasePath("/api/categories"), { cache: "no-store" })
       .then((response) => response.ok ? response.json() : [])

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Filter, X, Trash2, ShoppingCart, Plus, Minus, Package } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
+import { getClientAppSettings, getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import { ComboboxInput } from "@/components/ui/combobox-input";
 import { useTransactions } from "../TransactionContext";
@@ -193,10 +194,7 @@ export default function IssuePage() {
 
   async function fetchAppSettings() {
     try {
-      const res = await fetch(withBasePath("/api/settings"), { cache: "no-store" });
-      if (res.ok) {
-        setAppSettings({ ...defaultAppSettings, ...(await res.json()) });
-      }
+      setAppSettings(await getClientAppSettings());
     } catch (error) {
       console.error("Failed to fetch app settings", error);
     }
@@ -204,13 +202,11 @@ export default function IssuePage() {
 
   async function fetchCurrentUser() {
     try {
-      const res = await fetch(withBasePath("/api/auth/session"), { cache: "no-store" });
-      if (!res.ok) {
+      const data = await getClientSession();
+      const user = data?.user;
+      if (!user) {
         return;
       }
-
-      const data = await res.json();
-      const user = data?.user;
       const name = user?.name?.trim() || "ผู้ใช้งาน";
       const role = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
       const activeUser: DirectoryUser = { name, email: user?.email?.trim() || "", userId: user?.userId || "", role };

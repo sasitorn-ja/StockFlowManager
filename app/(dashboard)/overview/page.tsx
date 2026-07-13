@@ -5,17 +5,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, ClipboardPlus, Clock3, Database, PackageCheck, PackageMinus } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
+import { getClientMasterProducts, getClientSession } from "@/lib/dashboard-client-cache";
 import {
   addDays,
   buildInventoryMap,
   formatDate,
   formatNumber,
+  getStockTargetStatus,
   getLocalDateValue,
+  matchesMasterProduct,
 } from "@/lib/stock-flow/utils";
-import type { Transaction } from "@/types/stock-flow";
+import type { ProductMaster, Transaction } from "@/types/stock-flow";
 import { getRequisitionStatusLabel } from "@/lib/stock-flow/status";
 import { useTransactions } from "../TransactionContext";
-import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
 type UserRole = "employee" | "manager" | "admin";
 
@@ -86,20 +88,18 @@ export default function OverviewPage() {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [overviewDateFrom, setOverviewDateFrom] = useState(() => addDays(getLocalDateValue(), -6));
   const [overviewDateTo, setOverviewDateTo] = useState(getLocalDateValue);
-  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
+  const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
 
   const userRole = currentUser?.role ?? "employee";
   const canViewStockOverview = canViewStockOverviewRole(userRole);
   const currentUserName = currentUser?.name?.trim() || "";
-  const lowStockThreshold = Number(appSettings.lowStockThreshold || defaultAppSettings.lowStockThreshold);
 
   useEffect(() => {
-    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
+    getClientSession()
       .then((data) => {
         const user = data?.user;
         const actualRole: UserRole = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
-        const previewRole = actualRole === "admin" && isSasitornTester(user)
+        const previewRole = actualRole === "admin" && isSasitornTester(user || {})
           ? localStorage.getItem("current_role")
           : null;
         const role: UserRole = previewRole === "employee" || previewRole === "manager" || previewRole === "admin" ? previewRole : actualRole;
@@ -107,10 +107,9 @@ export default function OverviewPage() {
       })
       .catch(() => setCurrentUser(null))
       .finally(() => setIsCheckingSession(false));
-    fetch(withBasePath("/api/settings"), { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : defaultAppSettings)
-      .then((settings) => setAppSettings({ ...defaultAppSettings, ...settings }))
-      .catch(() => setAppSettings(defaultAppSettings));
+    getClientMasterProducts()
+      .then((products) => setMasterProducts(products))
+      .catch(() => setMasterProducts([]));
   }, []);
 
   useEffect(() => {
@@ -176,6 +175,22 @@ export default function OverviewPage() {
     () => [...buildInventoryMap(transactionsUntilOverviewDate).values()],
     [transactionsUntilOverviewDate]
   );
+  const inventoryWithTargets = useMemo(
+    () =>
+      inventory.map((item) => {
+        const matchedProduct = masterProducts.find((product) => matchesMasterProduct(item, product));
+        const minStock = matchedProduct?.minStock ?? 0;
+        const maxStock = matchedProduct?.maxStock ?? 0;
+
+        return {
+          ...item,
+          minStock,
+          maxStock,
+          stockTargetStatus: getStockTargetStatus(item.balance, minStock, maxStock),
+        };
+      }),
+    [inventory, masterProducts]
+  );
 
   const ownRequisitions = useMemo(
     () => groupRequisitions(ownTransactionsUntilOverviewDate),
@@ -183,8 +198,19 @@ export default function OverviewPage() {
   );
 
   const lowStockItems = useMemo(
-    () => inventory.filter((item) => item.balance <= lowStockThreshold).sort((a, b) => a.balance - b.balance),
-    [inventory, lowStockThreshold]
+    () =>
+      inventoryWithTargets
+        .filter((item) => item.stockTargetStatus === "low")
+        .sort((a, b) => a.balance - b.balance),
+    [inventoryWithTargets]
+  );
+
+  const highStockItems = useMemo(
+    () =>
+      inventoryWithTargets
+        .filter((item) => item.stockTargetStatus === "high")
+        .sort((a, b) => b.balance - a.balance),
+    [inventoryWithTargets]
   );
 
   const lowStockInventory = useMemo(
@@ -192,6 +218,7 @@ export default function OverviewPage() {
       lowStockItems.slice(0, 5),
     [lowStockItems]
   );
+  const highStockInventory = useMemo(() => highStockItems.slice(0, 5), [highStockItems]);
 
   const overviewStats = useMemo(() => {
     if (!canViewStockOverview) {
@@ -276,7 +303,7 @@ export default function OverviewPage() {
         label: "ต่ำกว่ากำหนด",
         value: formatNumber(lowStockItems.length),
         unit: "รายการ",
-        helper: `คงเหลือไม่เกิน ${formatNumber(lowStockThreshold)}`,
+        helper: "คงเหลือต่ำกว่า min ของสินค้า",
         icon: AlertTriangle,
         tone: "amber" as const,
         valueTone: "danger" as const,
@@ -286,7 +313,6 @@ export default function OverviewPage() {
     canViewStockOverview,
     inventory,
     lowStockItems.length,
-    lowStockThreshold,
     overviewDateTo,
     ownRangeTransactions,
     ownRequisitions,
@@ -340,34 +366,38 @@ export default function OverviewPage() {
   }, [chartTransactions, inventory]);
 
   const highestBalanceInventory = useMemo(
-    () => inventory.filter((item) => item.balance > 0).sort((a, b) => b.balance - a.balance).slice(0, 5),
-    [inventory]
+    () => inventoryWithTargets.filter((item) => item.balance > 0).sort((a, b) => b.balance - a.balance).slice(0, 5),
+    [inventoryWithTargets]
   );
 
   const inventoryStatus = useMemo(() => {
-    const total = inventory.length;
-    const low = inventory.filter((item) => item.balance <= lowStockThreshold).length;
-    const warning = inventory.filter(
-      (item) => item.balance > lowStockThreshold && item.balance <= lowStockThreshold * 3
-    ).length;
-    const normal = Math.max(0, total - warning - low);
+    const total = inventoryWithTargets.length;
+    const low = inventoryWithTargets.filter((item) => item.stockTargetStatus === "low").length;
+    const high = inventoryWithTargets.filter((item) => item.stockTargetStatus === "high").length;
+    const missing = inventoryWithTargets.filter((item) => item.stockTargetStatus === "missing").length;
+    const normal = Math.max(0, total - low - high - missing);
     const normalPercent = total > 0 ? (normal / total) * 100 : 0;
-    const warningPercent = total > 0 ? (warning / total) * 100 : 0;
+    const lowPercent = total > 0 ? (low / total) * 100 : 0;
+    const highPercent = total > 0 ? (high / total) * 100 : 0;
 
     return {
       total,
       normal,
       low,
+      high,
+      missing,
       donutStyle: {
         background:
           total > 0
-            ? `conic-gradient(#059669 0 ${normalPercent}%, #f59e0b ${normalPercent}% ${
-                normalPercent + warningPercent
-              }%, #dc2626 ${normalPercent + warningPercent}% 100%)`
+            ? `conic-gradient(#059669 0 ${normalPercent}%, #dc2626 ${normalPercent}% ${
+                normalPercent + lowPercent
+              }%, #f59e0b ${normalPercent + lowPercent}% ${
+                normalPercent + lowPercent + highPercent
+              }%, #94a3b8 ${normalPercent + lowPercent + highPercent}% 100%)`
             : "#e2e8f0",
       },
     };
-  }, [inventory, lowStockThreshold]);
+  }, [inventoryWithTargets]);
 
   const visibleRequisitions = useMemo(() => {
     if (!canViewStockOverview) return ownRequisitions.slice(0, 5);
@@ -410,11 +440,13 @@ export default function OverviewPage() {
 
         <section className="manager-kpi-grid">
           {[
-            { label: "รอฉันอนุมัติ", value: managerPending.length, icon: Clock3, tone: "amber" },
-            { label: "อนุมัติแล้ว รอคลังจ่าย", value: managerApproved.length, icon: CheckCircle2, tone: "sky" },
-            { label: "กำลังส่งมอบ", value: managerInProgress.length, icon: PackageCheck, tone: "violet" },
-            { label: "ใบเบิกของฉัน", value: managerOwn.length, icon: ClipboardList, tone: "emerald" },
-          ].map((item) => { const Icon = item.icon; return <article key={item.label}><div className={`manager-kpi-icon ${item.tone}`}><Icon size={21} /></div><span>{item.label}</span><strong>{formatNumber(item.value)}</strong><small>ใบ</small></article>; })}
+            { label: "รอฉันอนุมัติ", value: managerPending.length, unit: "ใบ", icon: Clock3, tone: "amber" },
+            { label: "อนุมัติแล้ว รอคลังจ่าย", value: managerApproved.length, unit: "ใบ", icon: CheckCircle2, tone: "sky" },
+            { label: "กำลังส่งมอบ", value: managerInProgress.length, unit: "ใบ", icon: PackageCheck, tone: "violet" },
+            { label: "ใบเบิกของฉัน", value: managerOwn.length, unit: "ใบ", icon: ClipboardList, tone: "emerald" },
+            { label: "ต่ำกว่า min", value: lowStockItems.length, unit: "รายการ", icon: AlertTriangle, tone: "amber" },
+            { label: "สูงกว่า max", value: highStockItems.length, unit: "รายการ", icon: Database, tone: "sky" },
+          ].map((item) => { const Icon = item.icon; return <article key={item.label}><div className={`manager-kpi-icon ${item.tone}`}><Icon size={21} /></div><span>{item.label}</span><strong>{formatNumber(item.value)}</strong><small>{item.unit}</small></article>; })}
         </section>
 
         <section className="manager-dashboard-grid">
@@ -507,7 +539,7 @@ export default function OverviewPage() {
             <div>
               <span>Action required</span>
               <h3>เติมสต็อกก่อนของขาด</h3>
-              <p>สินค้าเหลือน้อยกว่าหรือเท่ากับ min {formatNumber(lowStockThreshold)} หน่วย</p>
+              <p>สินค้าเหลือน้อยกว่าจำนวนขั้นต่ำที่ตั้งไว้รายสินค้า</p>
             </div>
           </div>
 
@@ -522,7 +554,7 @@ export default function OverviewPage() {
                 <div className="overview-action-item" key={item.key}>
                   <div>
                     <strong>{item.name}</strong>
-                    <span>{item.sku || "-"} · min {formatNumber(lowStockThreshold)} {item.unit}</span>
+                    <span>{item.sku || "-"} · min {formatNumber(item.minStock)} {item.unit}</span>
                   </div>
                   <b>{formatNumber(item.balance)} {item.unit}</b>
                 </div>
@@ -600,7 +632,7 @@ export default function OverviewPage() {
             <div className="overview-section-heading">
               <div>
                 <h3>สินค้าต่ำกว่า min</h3>
-                <p>สินค้าเหลือน้อยกว่าหรือเท่ากับ {formatNumber(lowStockThreshold)} หน่วย</p>
+                <p>สินค้าเหลือน้อยกว่าจำนวนขั้นต่ำที่ตั้งไว้</p>
               </div>
             </div>
 
@@ -620,6 +652,14 @@ export default function OverviewPage() {
                   <span><i className="status-dot-low" /> ต่ำกว่ากำหนด</span>
                   <strong>{formatNumber(inventoryStatus.low)}</strong>
                 </div>
+                <div>
+                  <span><i className="status-dot-low" /> สูงกว่า max</span>
+                  <strong>{formatNumber(inventoryStatus.high)}</strong>
+                </div>
+                <div>
+                  <span><i className="status-dot-normal" /> ยังไม่ตั้ง min/max</span>
+                  <strong>{formatNumber(inventoryStatus.missing)}</strong>
+                </div>
               </div>
             </div>
 
@@ -633,7 +673,7 @@ export default function OverviewPage() {
                   <div className="overview-low-stock-item" key={item.key}>
                     <div>
                       <strong>{item.name}</strong>
-                      <span>{item.sku || "-"}</span>
+                      <span>{item.sku || "-"} · min {formatNumber(item.minStock)} {item.unit}</span>
                     </div>
                     <div>
                       <strong className="text-red-600">{formatNumber(item.balance)}</strong>
@@ -665,22 +705,27 @@ export default function OverviewPage() {
             <div className="overview-secondary-block">
               <div className="overview-section-heading">
                 <div>
-                  <h3>สินค้าคงเหลือสูงสุด</h3>
-                  <p>ใช้ดูของที่ค้างคลังหรือมีโอกาสสต็อกมากเกินไป</p>
+                  <h3>{highStockInventory.length > 0 ? "สินค้าสูงกว่า max" : "สินค้าคงเหลือสูงสุด"}</h3>
+                  <p>{highStockInventory.length > 0 ? "รายการที่คงเหลือมากกว่าจำนวนสูงสุดที่ตั้งไว้" : "ใช้ดูของที่ค้างคลังหรือมีโอกาสสต็อกมากเกินไป"}</p>
                 </div>
               </div>
 
               <div className="overview-priority-list">
-                {highestBalanceInventory.length > 0 ? (
-                  highestBalanceInventory.map((item) => (
+                {(highStockInventory.length > 0 ? highStockInventory : highestBalanceInventory).length > 0 ? (
+                  (highStockInventory.length > 0 ? highStockInventory : highestBalanceInventory).map((item) => (
                     <div className="overview-priority-item" key={item.key}>
                       <div>
                         <strong>{item.name}</strong>
-                        <span>{item.sku || "-"} · รับเข้า {formatNumber(item.totalIn)} · เบิก {formatNumber(item.totalOut)}</span>
+                        <span>
+                          {item.sku || "-"}
+                          {highStockInventory.length > 0
+                            ? ` · max ${formatNumber(item.maxStock)} ${item.unit}`
+                            : ` · รับเข้า ${formatNumber(item.totalIn)} · เบิก ${formatNumber(item.totalOut)}`}
+                        </span>
                       </div>
                       <div>
                         <strong>{formatNumber(item.balance)} {item.unit}</strong>
-                        <span>คงเหลือ</span>
+                        <span>{highStockInventory.length > 0 ? "คงเหลือเกินเป้า" : "คงเหลือ"}</span>
                       </div>
                     </div>
                   ))

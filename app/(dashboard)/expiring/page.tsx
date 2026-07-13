@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { withBasePath } from "@/lib/base-path";
+import { getClientAppSettings, getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { StatusBadge } from "@/components/stock-flow/StatusBadge";
@@ -26,16 +27,14 @@ export default function ExpiringPage() {
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
 
   useEffect(() => {
-    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
+    getClientSession()
       .then((data) => {
         const role = data?.user?.role;
         setCanViewExpiring(role === "admin");
       })
       .catch(() => setCanViewExpiring(false));
-    fetch(withBasePath("/api/settings"), { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : defaultAppSettings)
-      .then((settings) => setAppSettings({ ...defaultAppSettings, ...settings }))
+    getClientAppSettings()
+      .then((settings) => setAppSettings(settings))
       .catch(() => setAppSettings(defaultAppSettings));
   }, []);
 

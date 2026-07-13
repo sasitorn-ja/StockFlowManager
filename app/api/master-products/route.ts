@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureColumnDefinition, sql } from "@/lib/db";
+import { ensureColumn, ensureColumnDefinition, sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/users";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +38,8 @@ async function ensureMasterProductTableExists() {
     `;
 
     await ensureColumnDefinition("products", "imageDataUrl", "LONGTEXT");
+    await ensureColumn("products", "minStock", "BIGINT DEFAULT 0");
+    await ensureColumn("products", "maxStock", "BIGINT DEFAULT 0");
 
   })().catch((error) => {
     masterProductTableSetup = null;
@@ -161,6 +163,8 @@ async function syncMasterProductsFromTransactions() {
             price,
             "costPrice",
             "costCurrency",
+            "minStock",
+            "maxStock",
             "defaultStorageLocation",
             "defaultExpiryDate",
             vendor,
@@ -183,6 +187,8 @@ async function syncMasterProductsFromTransactions() {
             product.costCurrency === "USD"
               ? product.costCurrency
               : "THB"},
+            ${0},
+            ${0},
             ${String(product.requester || "").trim()},
             ${String(product.expiryDate || "").trim()},
             ${""},
@@ -227,6 +233,8 @@ function normalizeProductPayload(payload: Record<string, unknown>) {
       payload.costCurrency === "THB"
         ? payload.costCurrency
         : "THB",
+    minStock: Math.max(0, Math.floor(Number(payload.minStock || 0))),
+    maxStock: Math.max(0, Math.floor(Number(payload.maxStock || 0))),
     defaultStorageLocation: String(payload.defaultStorageLocation || "").trim(),
     defaultExpiryDate: String(payload.defaultExpiryDate || "").trim(),
     vendor: String(payload.vendor || "").trim(),
@@ -286,6 +294,8 @@ export async function GET() {
         CAST(price AS FLOAT) AS price,
         CAST("costPrice" AS FLOAT) AS "costPrice",
         "costCurrency",
+        CAST("minStock" AS SIGNED) AS "minStock",
+        CAST("maxStock" AS SIGNED) AS "maxStock",
         "defaultStorageLocation",
         "defaultExpiryDate",
         vendor,
@@ -316,6 +326,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "กรอกชื่อสินค้าและหน่วยนับให้ครบก่อนบันทึก" }, { status: 400 });
     }
 
+    if (product.maxStock > 0 && product.minStock > product.maxStock) {
+      return NextResponse.json({ error: "จำนวนสต๊อกต่ำสุดต้องไม่มากกว่าจำนวนสต๊อกสูงสุด" }, { status: 400 });
+    }
+
     const duplicateMessage = await validateDuplicateProduct(product);
     if (duplicateMessage) {
       return NextResponse.json({ error: duplicateMessage }, { status: 400 });
@@ -335,6 +349,8 @@ export async function POST(request: Request) {
         price,
         "costPrice",
         "costCurrency",
+        "minStock",
+        "maxStock",
         "defaultStorageLocation",
         "defaultExpiryDate",
         vendor,
@@ -353,6 +369,8 @@ export async function POST(request: Request) {
         ${product.price},
         ${product.costPrice},
         ${product.costCurrency},
+        ${product.minStock},
+        ${product.maxStock},
         ${product.defaultStorageLocation},
         ${product.defaultExpiryDate},
         ${product.vendor},
@@ -435,6 +453,10 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "กรอกชื่อสินค้าและหน่วยนับให้ครบก่อนบันทึก" }, { status: 400 });
     }
 
+    if (product.maxStock > 0 && product.minStock > product.maxStock) {
+      return NextResponse.json({ error: "จำนวนสต๊อกต่ำสุดต้องไม่มากกว่าจำนวนสต๊อกสูงสุด" }, { status: 400 });
+    }
+
     const duplicateMessage = await validateDuplicateProduct(product, id);
     if (duplicateMessage) {
       return NextResponse.json({ error: duplicateMessage }, { status: 400 });
@@ -454,6 +476,8 @@ export async function PUT(request: Request) {
         price = ${product.price},
         "costPrice" = ${product.costPrice},
         "costCurrency" = ${product.costCurrency},
+        "minStock" = ${product.minStock},
+        "maxStock" = ${product.maxStock},
         "defaultStorageLocation" = ${product.defaultStorageLocation},
         "defaultExpiryDate" = ${product.defaultExpiryDate},
         vendor = ${product.vendor},

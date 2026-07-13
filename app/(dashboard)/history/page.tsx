@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PackageMinus, FileText, PackagePlus } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
+import { getClientAppSettings, getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import { StatsGrid } from "@/components/stock-flow/StatsGrid";
 import { Table } from "@/components/stock-flow/Table";
@@ -276,8 +277,7 @@ export default function HistoryPage() {
   const today = getLocalDateValue();
 
   useEffect(() => {
-    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
+    getClientSession()
       .then((data) => {
         const user = data?.user;
         const role = user?.role;
@@ -288,9 +288,8 @@ export default function HistoryPage() {
         setCurrentRole("employee");
         setCurrentUserName("");
       });
-    fetch(withBasePath("/api/settings"), { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : defaultAppSettings)
-      .then((settings) => setAppSettings({ ...defaultAppSettings, ...settings }))
+    getClientAppSettings()
+      .then((settings) => setAppSettings(settings))
       .catch(() => setAppSettings(defaultAppSettings));
   }, []);
   const earliestTransactionDate = useMemo(() => {

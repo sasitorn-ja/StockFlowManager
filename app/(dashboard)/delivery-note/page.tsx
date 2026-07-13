@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Printer } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
+import { getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import {
@@ -205,8 +206,7 @@ function DeliveryNoteContent() {
   }, []);
 
   useEffect(() => {
-    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
+    getClientSession()
       .then((data) => {
         const role = data?.user?.role;
         setCanViewHistory(role === "admin" || role === "manager");

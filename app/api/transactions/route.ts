@@ -16,6 +16,10 @@ function isSasitornTester(user: { name?: string; email?: string }) {
 
 let transactionTableSetup: Promise<void> | null = null;
 
+function queueRequisitionNotice(input: Parameters<typeof sendRequisitionNotice>[0]) {
+  sendRequisitionNotice(input).catch((error) => console.error("Requisition email failed", error));
+}
+
 async function ensureTableExists() {
   if (transactionTableSetup) return transactionTableSetup;
 
@@ -117,7 +121,7 @@ export async function GET() {
     const baseSelect = actor.role === "admin" ? await sql`
       SELECT 
         id, name, sku, category, 
-        "imageDataUrl", "productImportType", unit, type,
+        CASE WHEN type = 'in' THEN "imageDataUrl" ELSE '' END AS "imageDataUrl", "productImportType", unit, type,
         CAST(quantity AS FLOAT) as quantity, 
         CAST(price AS FLOAT) as price, 
         CAST("costPrice" AS FLOAT) as "costPrice", 
@@ -126,7 +130,7 @@ export async function GET() {
       FROM transactions 
       ORDER BY "createdAt" DESC;
     ` : actor.role === "manager" ? await sql`
-      SELECT id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
+      SELECT id, name, sku, category, CASE WHEN type = 'in' THEN "imageDataUrl" ELSE '' END AS "imageDataUrl", "productImportType", unit, type,
         CAST(quantity AS FLOAT) quantity, CAST(price AS FLOAT) price,
         CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "expiryDate",
         "issueKey", requester, "createdBy", approver, note, "createdAt", status
@@ -137,7 +141,7 @@ export async function GET() {
         OR approver = ${actor.name}
       ORDER BY "createdAt" DESC
     ` : await sql`
-      SELECT id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
+      SELECT id, name, sku, category, CASE WHEN type = 'in' THEN "imageDataUrl" ELSE '' END AS "imageDataUrl", "productImportType", unit, type,
         CAST(quantity AS FLOAT) quantity, CAST(price AS FLOAT) price,
         CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "expiryDate",
         "issueKey", requester, "createdBy", approver, note, "createdAt", status
@@ -214,14 +218,14 @@ export async function POST(request: Request) {
     const issue = items.find((item) => (item.type || "in") === "out");
     if (issue?.issueKey) {
       const issueStatus = (issue.status || (settings.approvalMode === "off" ? "approved" : "pending")) as TransactionStatus;
-      await sendRequisitionNotice({
+      queueRequisitionNotice({
         issueKey: issue.issueKey,
         status: issueStatus,
         actorName: actor.name,
         requester: issue.requester || actor.name,
         createdBy: actor.name,
         approver: issue.approver || "",
-      }).catch((error) => console.error("Requisition email failed", error));
+      });
     }
 
     return NextResponse.json({ success: true, count: items.length });
@@ -252,7 +256,8 @@ export async function PUT(request: Request) {
       const requisition = requisitionRows[0];
       if (!requisition) return NextResponse.json({ error: "Requisition not found" }, { status: 404 });
       const currentStatus = requisition.status || "completed";
-      const settings = await getAppSettings();
+      const requiresSettingsCheck = status === "completed";
+      const settings = requiresSettingsCheck ? await getAppSettings() : null;
       const isOwner = [requisition.requester, requisition.createdBy].some(
         (name) => String(name || "").trim() === actor.name.trim()
       );
@@ -260,7 +265,7 @@ export async function PUT(request: Request) {
         (status === "approved" && currentStatus === "pending" && (actor.role === "manager" || (actor.role === "admin" && isSasitornTester(actor))) && (!requisition.approver || requisition.approver === actor.name)) ||
         (status === "issued" && currentStatus === "approved" && actor.role === "admin") ||
         (status === "received" && currentStatus === "issued" && String(requisition.requester || "").trim() === actor.name.trim()) ||
-        (status === "completed" && currentStatus === "issued" && actor.role === "admin" && !settings.requireEmployeeConfirmation) ||
+        (status === "completed" && currentStatus === "issued" && actor.role === "admin" && !settings?.requireEmployeeConfirmation) ||
         (status === "completed" && (currentStatus === "received" || currentStatus === "employee_confirmed") && actor.role === "admin") ||
         (status === "cancelled" && currentStatus === "pending" && (isOwner || actor.role === "admin"));
       if (!allowed) return NextResponse.json({ error: "ไม่สามารถเปลี่ยนสถานะในขั้นตอนนี้ได้" }, { status: 403 });
@@ -278,15 +283,20 @@ export async function PUT(request: Request) {
           WHERE "issueKey" = ${issueKey}
         `;
       }
-      await sendRequisitionNotice({
+      queueRequisitionNotice({
         issueKey,
         status: status as TransactionStatus,
         actorName: actor.name,
         requester: requisition.requester,
         createdBy: requisition.createdBy,
         approver: body.approver || requisition.approver,
-      }).catch((error) => console.error("Requisition email failed", error));
-      return NextResponse.json({ success: true });
+      });
+      return NextResponse.json({
+        success: true,
+        issueKey,
+        status,
+        approver: body.approver || requisition.approver || "",
+      });
     }
 
     // Action 1: Update all transactions matching a product itemKey

@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { withBasePath } from "@/lib/base-path";
+import { getClientSession } from "@/lib/dashboard-client-cache";
 import { TransactionProvider, useTransactions } from "./TransactionContext";
 import {
   Menu,
@@ -229,10 +230,17 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   );
 
   useEffect(() => {
-    fetch(withBasePath("/api/auth/session"), { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : null)
+    getClientSession()
       .then((data) => {
-        const user = data?.user ?? null;
+        const rawUser = data?.user;
+        const user = rawUser
+          ? {
+              name: rawUser.name ?? "ผู้ใช้งาน",
+              email: rawUser.email,
+              userId: rawUser.userId,
+              role: (rawUser.role === "admin" || rawUser.role === "manager" ? rawUser.role : "employee") as UserRole,
+            }
+          : null;
         setSsoUser(user);
         const role: UserRole = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
         setActualRole(role);

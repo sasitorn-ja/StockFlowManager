@@ -4,6 +4,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Boxes, PackageCheck, Pencil, Plus, Search, ShieldAlert, Store, Trash2 } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
+import { invalidateClientMasterProductsCache } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
 import {
@@ -19,7 +20,9 @@ import {
   buildInventoryMap,
   formatCurrency,
   formatNumber,
+  getStockTargetStatus,
   getProductImportTypeLabel,
+  matchesMasterProduct,
   sanitizeSku,
 } from "@/lib/stock-flow/utils";
 import type { CostCurrency, InventoryItem, ProductImportType, ProductMaster } from "@/types/stock-flow";
@@ -37,6 +40,8 @@ type ProductMasterForm = {
   price: string;
   costPrice: string;
   costCurrency: CostCurrency;
+  minStock: string;
+  maxStock: string;
   defaultStorageLocation: string;
   defaultExpiryDate: string;
   vendor: string;
@@ -56,6 +61,8 @@ const defaultForm: ProductMasterForm = {
   price: "0",
   costPrice: "0",
   costCurrency: "THB",
+  minStock: "0",
+  maxStock: "0",
   defaultStorageLocation: "",
   defaultExpiryDate: "",
   vendor: "",
@@ -98,13 +105,7 @@ function findInventoryMatch(masterProduct: ProductMaster, inventory: InventoryIt
         item.sku.trim().toLowerCase() === masterProduct.sku.trim().toLowerCase() &&
         item.sku.trim().length > 0
     ) ??
-    inventory.find(
-      (item) =>
-        item.name.trim().toLowerCase() === masterProduct.name.trim().toLowerCase() &&
-        item.category.trim().toLowerCase() === masterProduct.category.trim().toLowerCase() &&
-        item.unit.trim().toLowerCase() === masterProduct.unit.trim().toLowerCase() &&
-        item.productImportType === masterProduct.productImportType
-    ) ??
+    inventory.find((item) => matchesMasterProduct(item, masterProduct)) ??
     null
   );
 }
@@ -121,6 +122,8 @@ function buildInventoryDerivedProductMasters(inventory: InventoryItem[]): Produc
     price: item.price ?? 0,
     costPrice: item.costPrice ?? 0,
     costCurrency: item.costCurrency ?? "THB",
+    minStock: 0,
+    maxStock: 0,
     defaultStorageLocation: "",
     defaultExpiryDate: item.nearestExpiryDate || "",
     vendor: "",
@@ -175,6 +178,11 @@ export default function MasterDataPage() {
     return effectiveMasterProducts.map((product) => ({
       ...product,
       inventoryItem: findInventoryMatch(product, inventory),
+      stockTargetStatus: getStockTargetStatus(
+        findInventoryMatch(product, inventory)?.balance ?? 0,
+        product.minStock,
+        product.maxStock
+      ),
     }));
   }, [effectiveMasterProducts, inventory]);
 
@@ -282,6 +290,8 @@ export default function MasterDataPage() {
               price: product.price ?? 0,
               costPrice: product.costPrice ?? 0,
               costCurrency: product.costCurrency ?? "THB",
+              minStock: product.minStock ?? 0,
+              maxStock: product.maxStock ?? 0,
               defaultStorageLocation: product.defaultStorageLocation || "",
               defaultExpiryDate: product.defaultExpiryDate || "",
               vendor: product.vendor || "",
@@ -361,6 +371,8 @@ export default function MasterDataPage() {
       price: String(product.price ?? 0),
       costPrice: String(product.costPrice ?? 0),
       costCurrency: product.costCurrency ?? "THB",
+      minStock: String(product.minStock ?? 0),
+      maxStock: String(product.maxStock ?? 0),
       defaultStorageLocation: product.defaultStorageLocation || "",
       defaultExpiryDate: product.defaultExpiryDate || "",
       vendor: product.vendor || "",
@@ -413,6 +425,8 @@ export default function MasterDataPage() {
       unit: form.unit.trim(),
       price: Math.max(0, Number(form.price || 0)),
       costPrice: Math.max(0, Number(form.costPrice || 0)),
+      minStock: Math.max(0, Math.floor(Number(form.minStock || 0))),
+      maxStock: Math.max(0, Math.floor(Number(form.maxStock || 0))),
       defaultStorageLocation: form.defaultStorageLocation.trim(),
       defaultExpiryDate: form.defaultExpiryDate,
       vendor: form.vendor.trim(),
@@ -421,6 +435,11 @@ export default function MasterDataPage() {
 
     if (!payload.name || !payload.unit) {
       window.alert("กรอกชื่อสินค้าและหน่วยนับให้ครบก่อนบันทึก");
+      return;
+    }
+
+    if (payload.maxStock > 0 && payload.minStock > payload.maxStock) {
+      window.alert("จำนวนสต๊อกต่ำสุดต้องไม่มากกว่าจำนวนสต๊อกสูงสุด");
       return;
     }
 
@@ -438,6 +457,7 @@ export default function MasterDataPage() {
         throw new Error(data.error || "ไม่สามารถบันทึก ข้อมูลหลักสินค้า สินค้าได้");
       }
 
+      invalidateClientMasterProductsCache();
       await Promise.all([fetchMasterProducts(), refresh()]);
       closeDialog();
     } catch (error) {
@@ -473,6 +493,7 @@ export default function MasterDataPage() {
         throw new Error(data.error || "ไม่สามารถเปลี่ยนสถานะสินค้าได้");
       }
 
+      invalidateClientMasterProductsCache();
       await fetchMasterProducts();
     } catch (error) {
       console.error(error);
@@ -497,6 +518,7 @@ export default function MasterDataPage() {
         throw new Error(data.error || "ไม่สามารถลบสินค้าออกจาก ข้อมูลหลักสินค้า ได้");
       }
 
+      invalidateClientMasterProductsCache();
       await fetchMasterProducts();
     } catch (error) {
       console.error(error);
@@ -629,14 +651,16 @@ export default function MasterDataPage() {
               "ประเภทสินค้า",
               "หมวดหมู่ / หน่วย",
               "จุดเก็บ / ผู้ขาย",
-              "วันหมดอายุ",
               "คงเหลือในคลัง",
+              "เป้าหมายสต๊อก",
+              "สถานะสต๊อก",
+              "วันหมดอายุ",
               "ต้นทุนมาตรฐาน",
               "สถานะ",
               "จัดการ",
             ]}
             emptyMessage={isLoading ? "กำลังโหลด ข้อมูลหลักสินค้า..." : "ยังไม่มีสินค้าใน ข้อมูลหลักสินค้า"}
-            columnCount={8}
+            columnCount={10}
           >
             {filteredProducts.map((product) => (
               <tr key={product.id}>
@@ -661,13 +685,40 @@ export default function MasterDataPage() {
                     <span>{product.vendor || "ยังไม่ระบุผู้ขาย"}</span>
                   </div>
                 </td>
-                <td>{product.defaultExpiryDate || "-"}</td>
                 <td className="text-right">
                   <div className="master-data-amount-cell">
                     <strong>{formatNumber(product.inventoryItem?.balance ?? 0)}</strong>
                     <span>{product.unit}</span>
                   </div>
                 </td>
+                <td>
+                  <div className="master-data-stack-cell">
+                    <strong>min {formatNumber(product.minStock ?? 0)}</strong>
+                    <span>max {formatNumber(product.maxStock ?? 0)}</span>
+                  </div>
+                </td>
+                <td>
+                  <span
+                    className={`stock-pill ${
+                      product.stockTargetStatus === "low"
+                        ? "stock-pill-danger"
+                        : product.stockTargetStatus === "high"
+                          ? "stock-pill-warn"
+                          : product.stockTargetStatus === "normal"
+                            ? "stock-pill-ok"
+                            : ""
+                    }`}
+                  >
+                    {product.stockTargetStatus === "low"
+                      ? "ต่ำกว่า min"
+                      : product.stockTargetStatus === "high"
+                        ? "สูงกว่า max"
+                        : product.stockTargetStatus === "normal"
+                          ? "อยู่ในช่วง"
+                          : "ยังไม่ตั้งค่า"}
+                  </span>
+                </td>
+                <td>{product.defaultExpiryDate || "-"}</td>
                 <td className="text-right">{formatCurrency(product.costPrice ?? 0)}</td>
                 <td>
                   <span className={`stock-pill ${product.isActive ? "stock-pill-ok" : "stock-pill-danger"}`}>
@@ -819,6 +870,32 @@ export default function MasterDataPage() {
                   value={form.price}
                   onChange={(event) => updateForm("price", event.target.value)}
                   className={inputClassName}
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                จำนวนต่ำสุด (min)
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.minStock}
+                  onChange={(event) => updateForm("minStock", event.target.value)}
+                  className={inputClassName}
+                  placeholder="0 = ยังไม่กำหนด"
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                จำนวนสูงสุด (max)
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.maxStock}
+                  onChange={(event) => updateForm("maxStock", event.target.value)}
+                  className={inputClassName}
+                  placeholder="0 = ยังไม่กำหนด"
                 />
               </label>
 

@@ -203,6 +203,7 @@ export function buildInventoryLotMap(transactions: Transaction[]) {
   const sortedTransactions = transactions
     .slice()
     .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
+  const lotsByItemKey = new Map<string, InventoryLotItem[]>();
 
   sortedTransactions.forEach((transaction) => {
     const baseItemKey = buildItemKey(transaction);
@@ -256,6 +257,12 @@ export function buildInventoryLotMap(transactions: Transaction[]) {
       }
 
       lotMap.set(lotKey, entry);
+      if (!lotsByItemKey.has(baseItemKey)) {
+        lotsByItemKey.set(baseItemKey, []);
+      }
+      if (!lotsByItemKey.get(baseItemKey)?.includes(entry)) {
+        lotsByItemKey.get(baseItemKey)?.push(entry);
+      }
       return;
     }
 
@@ -264,18 +271,10 @@ export function buildInventoryLotMap(transactions: Transaction[]) {
     }
 
     let remainingQuantity = transaction.quantity;
-    const candidateLots = Array.from(lotMap.values())
-      .filter((item) => item.baseItemKey === baseItemKey && item.balance > 0)
-      .sort((a, b) => {
-        // ใบเบิกใหม่บันทึกวันหมดอายุของล็อตที่ระบบจัดสรรไว้ จึงต้องตัดล็อตนั้นก่อน
-        // แล้วค่อย fallback ตาม FIFO สำหรับข้อมูลเก่าที่ไม่ได้ระบุล็อต
-        const aMatches = a.expiryDate === transaction.expiryDate ? 0 : 1;
-        const bMatches = b.expiryDate === transaction.expiryDate ? 0 : 1;
-        return aMatches - bMatches || a.receivedDate.localeCompare(b.receivedDate) || a.createdAt - b.createdAt;
-      });
+    const candidateLots = lotsByItemKey.get(baseItemKey) || [];
 
-    candidateLots.forEach((lot) => {
-      if (remainingQuantity <= 0) {
+    const deductFromLot = (lot: InventoryLotItem) => {
+      if (remainingQuantity <= 0 || lot.balance <= 0) {
         return;
       }
 
@@ -283,7 +282,23 @@ export function buildInventoryLotMap(transactions: Transaction[]) {
       lot.balance -= deducted;
       lot.totalOut += deducted;
       remainingQuantity -= deducted;
-    });
+    };
+
+    if (transaction.expiryDate) {
+      candidateLots.forEach((lot) => {
+        if (lot.expiryDate === transaction.expiryDate) {
+          deductFromLot(lot);
+        }
+      });
+    }
+
+    if (remainingQuantity > 0) {
+      candidateLots.forEach((lot) => {
+        if (lot.expiryDate !== transaction.expiryDate) {
+          deductFromLot(lot);
+        }
+      });
+    }
   });
 
   return lotMap;
@@ -312,6 +327,31 @@ export function matchesMasterProduct(
     item.productImportType === product.productImportType &&
     item.unit.trim().toLowerCase() === product.unit.trim().toLowerCase()
   );
+}
+
+export type StockTargetStatus = "missing" | "low" | "normal" | "high";
+
+export function getStockTargetStatus(
+  balance: number,
+  minStock?: number,
+  maxStock?: number
+): StockTargetStatus {
+  const safeMin = Math.max(0, Number(minStock || 0));
+  const safeMax = Math.max(0, Number(maxStock || 0));
+
+  if (safeMin <= 0 && safeMax <= 0) {
+    return "missing";
+  }
+
+  if (safeMin > 0 && balance < safeMin) {
+    return "low";
+  }
+
+  if (safeMax > 0 && balance > safeMax) {
+    return "high";
+  }
+
+  return "normal";
 }
 
 export function sanitizeSku(value: string) {

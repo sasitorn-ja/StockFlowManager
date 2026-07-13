@@ -23,15 +23,33 @@ export async function sendRequisitionNotice(input: RequisitionNotice) {
   const names = [input.requester, input.createdBy, input.approver]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value));
-  const users = await sql`
+  const adminUsers = await sql`
     SELECT DISTINCT email, display_name, role
     FROM users
     WHERE email IS NOT NULL AND email <> ''
+      AND role = 'admin'
   `;
-  const recipients = users.filter((user) => user.role === "admin" || names.includes(String(user.display_name || ""))).map((user) => ({
-    address: String(user.email),
-    name: String(user.display_name || user.email),
-  }));
+  const namedUsers = await Promise.all(
+    names.map((name) => sql`
+      SELECT DISTINCT email, display_name, role
+      FROM users
+      WHERE email IS NOT NULL AND email <> ''
+        AND display_name = ${name}
+    `)
+  );
+  const recipients = [...adminUsers, ...namedUsers.flat()]
+    .reduce<Array<{ address: string; name: string }>>((list, user) => {
+      const address = String(user.email || "").trim();
+      if (!address || list.some((entry) => entry.address === address)) {
+        return list;
+      }
+
+      list.push({
+        address,
+        name: String(user.display_name || user.email),
+      });
+      return list;
+    }, []);
   if (recipients.length === 0) return;
   const routedRecipients = resolveEmailRecipients(recipients);
 
