@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureColumn, ensureColumnDefinition, sql } from "@/lib/db";
+import { ensureColumn, ensureColumnDefinition, ensureIndex, sql } from "@/lib/db";
 import { createSampleTransactions } from "@/lib/stock-flow/sample-data";
 import { buildItemKey } from "@/lib/stock-flow/utils";
 import { getCurrentUser } from "@/lib/auth/users";
@@ -68,6 +68,36 @@ async function ensureTableExists() {
       await ensureColumnDefinition("transactions", "imageDataUrl", "LONGTEXT");
       await tx`UPDATE transactions SET quantity = FLOOR(quantity) WHERE quantity <> FLOOR(quantity);`;
       await ensureColumnDefinition("transactions", "quantity", "BIGINT NOT NULL DEFAULT 0");
+      await ensureIndex(
+        "transactions",
+        "transactions_created_at_idx",
+        "CREATE INDEX transactions_created_at_idx ON transactions (`createdAt`)"
+      );
+      await ensureIndex(
+        "transactions",
+        "transactions_issue_key_idx",
+        "CREATE INDEX transactions_issue_key_idx ON transactions (`issueKey`)"
+      );
+      await ensureIndex(
+        "transactions",
+        "transactions_status_idx",
+        "CREATE INDEX transactions_status_idx ON transactions (status)"
+      );
+      await ensureIndex(
+        "transactions",
+        "transactions_requester_idx",
+        "CREATE INDEX transactions_requester_idx ON transactions (requester)"
+      );
+      await ensureIndex(
+        "transactions",
+        "transactions_created_by_idx",
+        "CREATE INDEX transactions_created_by_idx ON transactions (`createdBy`)"
+      );
+      await ensureIndex(
+        "transactions",
+        "transactions_approver_idx",
+        "CREATE INDEX transactions_approver_idx ON transactions (approver)"
+      );
     });
   })().catch((error) => {
     transactionTableSetup = null;
@@ -84,7 +114,7 @@ export async function GET() {
     const actor = await getCurrentUser();
     if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const rows = actor.role === "admin" ? await sql`
+    const baseSelect = actor.role === "admin" ? await sql`
       SELECT 
         id, name, sku, category, 
         "imageDataUrl", "productImportType", unit, type,
@@ -101,6 +131,10 @@ export async function GET() {
         CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "expiryDate",
         "issueKey", requester, "createdBy", approver, note, "createdAt", status
       FROM transactions
+      WHERE type = 'in'
+        OR requester = ${actor.name}
+        OR "createdBy" = ${actor.name}
+        OR approver = ${actor.name}
       ORDER BY "createdAt" DESC
     ` : await sql`
       SELECT id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
@@ -108,16 +142,12 @@ export async function GET() {
         CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "expiryDate",
         "issueKey", requester, "createdBy", approver, note, "createdAt", status
       FROM transactions
+      WHERE type = 'in'
+        OR requester = ${actor.name}
+        OR "createdBy" = ${actor.name}
       ORDER BY "createdAt" DESC
     `;
-
-    const visibleRows = actor.role === "admin" ? rows : rows.filter((row) => {
-      if (row.type === "in") return true;
-      const related = row.requester === actor.name || row.createdBy === actor.name ||
-        (actor.role === "manager" && row.approver === actor.name);
-      return related;
-    });
-    return NextResponse.json(visibleRows);
+    return NextResponse.json(baseSelect);
   } catch (error: any) {
     console.error("GET transactions error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

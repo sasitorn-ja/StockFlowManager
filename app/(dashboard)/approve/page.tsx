@@ -21,13 +21,13 @@ import {
   formatDate,
   formatNumber,
   formatCurrency,
-  normalizeTransactions,
   buildInventoryLotMap,
   buildItemKey,
   getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, TransactionStatus } from "@/types/stock-flow";
 import { getRequisitionStatusLabel } from "@/lib/stock-flow/status";
+import { useTransactions } from "../TransactionContext";
 
 type GroupedRequisition = {
   issueKey: string;
@@ -67,8 +67,7 @@ export default function RequisitionTrackerPage() {
 function RequisitionTrackerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { transactions, loading: isLoading, refresh } = useTransactions();
   const [currentRole, setCurrentRole] = useState("employee");
   const [currentUsername, setCurrentUsername] = useState("ผู้ใช้งาน");
   const [activeTab, setActiveTab] = useState<TabType>("all");
@@ -79,22 +78,6 @@ function RequisitionTrackerContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const deepLinkedIssueKey = searchParams.get("issueKey")?.trim() || "";
-
-  // Fetch transactions from the configured database.
-  async function fetchTransactions() {
-    setIsLoading(true);
-    try {
-      const res = await fetch(withBasePath("/api/transactions"));
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
   // Load and listen to the current role from the dashboard layout.
   useEffect(() => {
@@ -123,7 +106,6 @@ function RequisitionTrackerContent() {
     };
 
     loadCurrentRole();
-    fetchTransactions();
 
     window.addEventListener("current-user-changed", loadCurrentRole);
     return () => {
@@ -300,7 +282,7 @@ function RequisitionTrackerContent() {
       });
 
       if (res.ok) {
-        await fetchTransactions();
+        await refresh();
       } else {
         const data = await res.json().catch(() => null);
         window.alert(data?.error || "เกิดข้อผิดพลาดในการอัปเดตสถานะใบเบิกสินค้า");

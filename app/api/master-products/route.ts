@@ -5,6 +5,9 @@ import { getCurrentUser } from "@/lib/auth/users";
 export const dynamic = "force-dynamic";
 
 let masterProductTableSetup: Promise<void> | null = null;
+let masterProductSyncPromise: Promise<void> | null = null;
+let lastMasterProductSyncAt = 0;
+const MASTER_PRODUCT_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 async function ensureMasterProductTableExists() {
   if (masterProductTableSetup) {
@@ -49,143 +52,159 @@ function createMasterProductId() {
 }
 
 async function syncMasterProductsFromTransactions() {
-  try {
-    const existingProducts = (await sql`
-      SELECT id, name, sku, category, "productImportType", unit
-      FROM products;
-    `) as Array<{
-      id: string;
-      name: string;
-      sku: string;
-      category: string;
-      productImportType: string;
-      unit: string;
-    }>;
+  if (masterProductSyncPromise) {
+    return masterProductSyncPromise;
+  }
 
-    const existingKeys = new Set(
-      existingProducts.map((item) =>
-        [
-          item.name?.trim().toLowerCase(),
-          item.sku?.trim().toLowerCase(),
-          (item.category || "-").trim().toLowerCase(),
-          (item.productImportType || "resale").trim().toLowerCase(),
-          item.unit?.trim().toLowerCase(),
-        ].join("::")
-      )
-    );
+  if (Date.now() - lastMasterProductSyncAt < MASTER_PRODUCT_SYNC_INTERVAL_MS) {
+    return;
+  }
 
-    const transactionRows = (await sql`
-      SELECT
-        name,
-        sku,
-        category,
-        "productImportType",
-        "imageDataUrl",
-        unit,
-        CAST(price AS FLOAT) AS price,
-        CAST("costPrice" AS FLOAT) AS "costPrice",
-        "costCurrency",
-        requester,
-        "expiryDate",
-        "createdAt"
-      FROM transactions
-      WHERE COALESCE(name, '') <> '' AND COALESCE(unit, '') <> ''
-      ORDER BY "createdAt" DESC;
-    `) as Array<{
-      name: string;
-      sku: string;
-      category: string;
-      productImportType: string;
-      imageDataUrl: string;
-      unit: string;
-      price: number;
-      costPrice: number;
-      costCurrency: string;
-      requester: string;
-      expiryDate: string;
-      createdAt: number;
-    }>;
+  masterProductSyncPromise = (async () => {
+    try {
+      const existingProducts = (await sql`
+        SELECT id, name, sku, category, "productImportType", unit
+        FROM products;
+      `) as Array<{
+        id: string;
+        name: string;
+        sku: string;
+        category: string;
+        productImportType: string;
+        unit: string;
+      }>;
 
-    const uniqueProducts = new Map<string, (typeof transactionRows)[number]>();
+      const existingKeys = new Set(
+        existingProducts.map((item) =>
+          [
+            item.name?.trim().toLowerCase(),
+            item.sku?.trim().toLowerCase(),
+            (item.category || "-").trim().toLowerCase(),
+            (item.productImportType || "resale").trim().toLowerCase(),
+            item.unit?.trim().toLowerCase(),
+          ].join("::")
+        )
+      );
 
-    transactionRows.forEach((item) => {
-      const key = [
-        item.name?.trim().toLowerCase(),
-        item.sku?.trim().toLowerCase(),
-        (item.category || "-").trim().toLowerCase(),
-        (item.productImportType || "resale").trim().toLowerCase(),
-        item.unit?.trim().toLowerCase(),
-      ].join("::");
-
-      if (!uniqueProducts.has(key)) {
-        uniqueProducts.set(key, item);
-      }
-    });
-
-    for (const product of uniqueProducts.values()) {
-      const uniqueKey = [
-        String(product.name || "").trim().toLowerCase(),
-        String(product.sku || "").trim().toLowerCase(),
-        String(product.category || "-").trim().toLowerCase(),
-        String(product.productImportType || "resale").trim().toLowerCase(),
-        String(product.unit || "").trim().toLowerCase(),
-      ].join("::");
-
-      if (existingKeys.has(uniqueKey)) {
-        continue;
-      }
-
-      const timestamp = Number(product.createdAt || Date.now());
-
-      await sql`
-        INSERT INTO products (
-          id,
+      const transactionRows = (await sql`
+        SELECT
           name,
           sku,
           category,
           "productImportType",
           "imageDataUrl",
           unit,
-          price,
-          "costPrice",
+          CAST(price AS FLOAT) AS price,
+          CAST("costPrice" AS FLOAT) AS "costPrice",
           "costCurrency",
-          "defaultStorageLocation",
-          "defaultExpiryDate",
-          vendor,
-          note,
-          "isActive",
-          "createdAt",
-          "updatedAt"
-        ) VALUES (
-          ${createMasterProductId()},
-          ${String(product.name || "").trim()},
-          ${String(product.sku || "").trim()},
-          ${String(product.category || "-").trim() || "-"},
-          ${product.productImportType === "stable" ? "stable" : "resale"},
-          ${String(product.imageDataUrl || "").trim()},
-          ${String(product.unit || "").trim()},
-          ${Math.max(0, Number(product.price || 0))},
-          ${Math.max(0, Number(product.costPrice || 0))},
-          ${product.costCurrency === "JPY" ||
-          product.costCurrency === "CNY" ||
-          product.costCurrency === "USD"
-            ? product.costCurrency
-            : "THB"},
-          ${String(product.requester || "").trim()},
-          ${String(product.expiryDate || "").trim()},
-          ${""},
-          ${""},
-          ${true},
-          ${timestamp},
-          ${timestamp}
-        );
-      `;
+          requester,
+          "expiryDate",
+          "createdAt"
+        FROM transactions
+        WHERE COALESCE(name, '') <> '' AND COALESCE(unit, '') <> ''
+        ORDER BY "createdAt" DESC;
+      `) as Array<{
+        name: string;
+        sku: string;
+        category: string;
+        productImportType: string;
+        imageDataUrl: string;
+        unit: string;
+        price: number;
+        costPrice: number;
+        costCurrency: string;
+        requester: string;
+        expiryDate: string;
+        createdAt: number;
+      }>;
 
-      existingKeys.add(uniqueKey);
+      const uniqueProducts = new Map<string, (typeof transactionRows)[number]>();
+
+      transactionRows.forEach((item) => {
+        const key = [
+          item.name?.trim().toLowerCase(),
+          item.sku?.trim().toLowerCase(),
+          (item.category || "-").trim().toLowerCase(),
+          (item.productImportType || "resale").trim().toLowerCase(),
+          item.unit?.trim().toLowerCase(),
+        ].join("::");
+
+        if (!uniqueProducts.has(key)) {
+          uniqueProducts.set(key, item);
+        }
+      });
+
+      for (const product of uniqueProducts.values()) {
+        const uniqueKey = [
+          String(product.name || "").trim().toLowerCase(),
+          String(product.sku || "").trim().toLowerCase(),
+          String(product.category || "-").trim().toLowerCase(),
+          String(product.productImportType || "resale").trim().toLowerCase(),
+          String(product.unit || "").trim().toLowerCase(),
+        ].join("::");
+
+        if (existingKeys.has(uniqueKey)) {
+          continue;
+        }
+
+        const timestamp = Number(product.createdAt || Date.now());
+
+        await sql`
+          INSERT INTO products (
+            id,
+            name,
+            sku,
+            category,
+            "productImportType",
+            "imageDataUrl",
+            unit,
+            price,
+            "costPrice",
+            "costCurrency",
+            "defaultStorageLocation",
+            "defaultExpiryDate",
+            vendor,
+            note,
+            "isActive",
+            "createdAt",
+            "updatedAt"
+          ) VALUES (
+            ${createMasterProductId()},
+            ${String(product.name || "").trim()},
+            ${String(product.sku || "").trim()},
+            ${String(product.category || "-").trim() || "-"},
+            ${product.productImportType === "stable" ? "stable" : "resale"},
+            ${String(product.imageDataUrl || "").trim()},
+            ${String(product.unit || "").trim()},
+            ${Math.max(0, Number(product.price || 0))},
+            ${Math.max(0, Number(product.costPrice || 0))},
+            ${product.costCurrency === "JPY" ||
+            product.costCurrency === "CNY" ||
+            product.costCurrency === "USD"
+              ? product.costCurrency
+              : "THB"},
+            ${String(product.requester || "").trim()},
+            ${String(product.expiryDate || "").trim()},
+            ${""},
+            ${""},
+            ${true},
+            ${timestamp},
+            ${timestamp}
+          );
+        `;
+
+        existingKeys.add(uniqueKey);
+      }
+
+      lastMasterProductSyncAt = Date.now();
+    } catch (error) {
+      console.error("Sync master-products from transactions error:", error);
+    } finally {
+      masterProductSyncPromise = null;
     }
-  } catch (error) {
-    console.error("Sync master-products from transactions error:", error);
-  }
+  })();
+
+  return masterProductSyncPromise;
 }
 
 function normalizeProductPayload(payload: Record<string, unknown>) {

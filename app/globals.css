@@ -1543,7 +1543,7 @@ textarea {
 
   .issue-shop-hero {
     border-bottom: 1px solid rgba(226, 232, 240, 0.72);
-    @apply flex flex-col gap-3 bg-transparent px-0 py-3 sm:flex-row sm:items-center sm:justify-between;
+    @apply grid gap-3 bg-transparent px-0 py-3 lg:grid-cols-[minmax(220px,1fr)_minmax(280px,520px)_auto] lg:items-center;
   }
 
   .issue-shop-kicker {
@@ -1559,23 +1559,23 @@ textarea {
   }
 
   .issue-cart-button {
-    @apply relative flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 font-extrabold text-[#0b63bd] shadow-none transition hover:bg-blue-100;
+    @apply relative grid min-w-36 shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-left font-extrabold text-[#0b63bd] shadow-none transition hover:bg-blue-100;
+  }
+
+  .issue-cart-button svg {
+    @apply row-span-2;
   }
 
   .issue-cart-button b {
-    @apply inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#0b63bd] px-1.5 text-xs text-white;
+    @apply text-2xl font-black leading-none;
+  }
+
+  .issue-cart-button small {
+    @apply col-start-2 text-[10px] font-semibold text-blue-600;
   }
 
   .issue-shop-controls {
-    @apply grid gap-3 bg-transparent px-0 py-3;
-  }
-
-  .issue-shop-search {
-    @apply mx-auto flex h-12 max-w-3xl items-center gap-3 rounded-xl border-2 border-[#0b63bd] bg-white px-4 text-[#0b63bd] shadow-sm;
-  }
-
-  .issue-shop-search input {
-    @apply h-full min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400;
+    @apply grid gap-3 bg-transparent px-0 py-2;
   }
 
   .issue-category-chips {

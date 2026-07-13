@@ -6,12 +6,12 @@ import { Search, Filter, X, Trash2, ShoppingCart, Plus, Minus, Package } from "l
 import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { ComboboxInput } from "@/components/ui/combobox-input";
+import { useTransactions } from "../TransactionContext";
 import {
   buildInventoryLotMap,
   createTransactionId,
   getLocalDateValue,
   getProductImportTypeLabel,
-  normalizeTransactions,
   formatDate,
   formatNumber,
   matchesMasterProduct,
@@ -148,7 +148,7 @@ function buildAutoAllocationPlan(item: IssueProductItem, quantity: number, alloc
 
 export default function IssuePage() {
   const router = useRouter();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions } = useTransactions();
   const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [issueImportTypeFilter, setIssueImportTypeFilter] = useState<OverviewFilter>("all");
@@ -164,18 +164,6 @@ export default function IssuePage() {
   const [issueNote, setIssueNote] = useState("");
   const [isSendingIssueEmail, setIsSendingIssueEmail] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
-
-  async function fetchTransactions() {
-    try {
-      const res = await fetch(withBasePath("/api/transactions"));
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(normalizeTransactions(data));
-      }
-    } catch (error) {
-      console.error("Failed to fetch transactions:", error);
-    }
-  }
 
   async function fetchMasterProducts() {
     try {
@@ -241,7 +229,6 @@ export default function IssuePage() {
   }
 
   useEffect(() => {
-    fetchTransactions();
     fetchMasterProducts();
     fetchUserDirectory();
     fetchAppSettings();
@@ -675,23 +662,23 @@ export default function IssuePage() {
             <span className="issue-shop-kicker">STOCK FLOW SHOP</span>
             <h2>เลือกสินค้าเพื่อสร้างใบเบิก</h2>
           </div>
-          <button type="button" className="issue-cart-button" onClick={() => setIsIssuePanelOpen(true)}>
-            <ShoppingCart size={22} />
-            <span>ตะกร้าเบิก</span>
-            <b>{selectedIssueEntries.length}</b>
-          </button>
-        </div>
-
-        <div className="issue-shop-controls">
-          <label className="issue-shop-search">
-            <Search size={17} />
+          <label className="inventory-shop-search issue-shop-search">
+            <Search size={18} />
             <input
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="ค้นหาสินค้า, รหัส, หมวดหมู่..."
+              placeholder="ค้นหาชื่อสินค้า รหัส หรือหมวดหมู่..."
             />
           </label>
+          <button type="button" className="issue-cart-button" onClick={() => setIsIssuePanelOpen(true)}>
+            <ShoppingCart size={22} />
+            <b>{selectedIssueEntries.length}</b>
+            <small>ตะกร้าเบิก</small>
+          </button>
+        </div>
+
+        <div className="issue-shop-controls">
           <div className="issue-category-chips">
             {filterOptions.map((option) => (
               <button key={option.value} type="button" className={issueImportTypeFilter === option.value ? "active" : ""}
