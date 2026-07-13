@@ -682,7 +682,7 @@ export default function IssuePage() {
           </button>
         </div>
 
-        <div className="issue-shop-toolbar">
+        <div className="issue-shop-controls">
           <label className="issue-shop-search">
             <Search size={17} />
             <input
@@ -692,13 +692,13 @@ export default function IssuePage() {
               placeholder="ค้นหาสินค้า, รหัส, หมวดหมู่..."
             />
           </label>
-        </div>
-        <div className="issue-category-chips">
-          {filterOptions.map((option) => (
-            <button key={option.value} type="button" className={issueImportTypeFilter === option.value ? "active" : ""}
-              onClick={() => setIssueImportTypeFilter(option.value)}>{option.label}</button>
-          ))}
-          {(searchTerm || issueImportTypeFilter !== "all") && <button type="button" onClick={() => { setSearchTerm(""); setIssueImportTypeFilter("all"); }}><Filter size={14} /> ล้างตัวกรอง</button>}
+          <div className="issue-category-chips">
+            {filterOptions.map((option) => (
+              <button key={option.value} type="button" className={issueImportTypeFilter === option.value ? "active" : ""}
+                onClick={() => setIssueImportTypeFilter(option.value)}>{option.label}</button>
+            ))}
+            {(searchTerm || issueImportTypeFilter !== "all") && <button type="button" onClick={() => { setSearchTerm(""); setIssueImportTypeFilter("all"); }}><Filter size={14} /> ล้างตัวกรอง</button>}
+          </div>
         </div>
 
         <div className="issue-product-grid">

@@ -46,7 +46,7 @@ function isSasitornTester(user: { name?: string; email?: string } | null) {
 const navigationGroups = [
   {
     id: "requisition",
-    label: "งานเบิกสินค้า",
+    label: "จัดการใบเบิกสินค้า",
     icon: PackageMinus,
     items: [
       { label: "เลือกสินค้าเพื่อเบิก", href: "/issue", icon: PackageMinus },

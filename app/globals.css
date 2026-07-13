@@ -1566,8 +1566,8 @@ textarea {
     @apply inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#0b63bd] px-1.5 text-xs text-white;
   }
 
-  .issue-shop-toolbar {
-    @apply bg-transparent px-0 py-3;
+  .issue-shop-controls {
+    @apply grid gap-3 bg-transparent px-0 py-3;
   }
 
   .issue-shop-search {
@@ -1579,7 +1579,7 @@ textarea {
   }
 
   .issue-category-chips {
-    @apply flex gap-2 overflow-x-auto border-t border-slate-100 bg-transparent px-0 py-3 md:justify-center;
+    @apply flex justify-start gap-2 overflow-x-auto bg-transparent md:justify-center;
   }
 
   .issue-category-chips button {
