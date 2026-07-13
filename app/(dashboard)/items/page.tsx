@@ -167,7 +167,7 @@ function ItemsSection({ inventory, lowStockThreshold }: ItemsSectionProps) {
 }
 
 export default function ItemsPage() {
-  const { transactions } = useTransactions();
+  const { transactions, loading } = useTransactions();
   const [canViewInventory, setCanViewInventory] = useState<boolean | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
   const lowStockThreshold = Number(appSettings.lowStockThreshold || defaultAppSettings.lowStockThreshold);
@@ -299,6 +299,14 @@ export default function ItemsPage() {
             </Button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-[var(--text-muted)]">
+        กำลังโหลดข้อมูลสินค้า...
       </div>
     );
   }
