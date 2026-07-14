@@ -2,7 +2,18 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Boxes, Pencil, Plus, RotateCcw, SlidersHorizontal, Trash2, Workflow } from "lucide-react";
+import {
+  ArrowRightLeft,
+  Boxes,
+  FolderTree,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  Workflow,
+} from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import {
   getClientMasterProducts,
@@ -86,6 +97,8 @@ function SettingsSection({
 }: SettingsSectionProps) {
   const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState("");
+  const [categorySearch, setCategorySearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingCategoryValue, setEditingCategoryValue] = useState("");
   const summarizedInventory = useMemo(
@@ -110,24 +123,78 @@ function SettingsSection({
   ).length;
   const categoryStats = useMemo(() => {
     return categories.map((category) => {
-      const productCount = inventory.filter((item) => item.category === category).length;
+      const categoryProducts = masterProducts.filter((item) => item.category === category);
+      const categoryInventory = summarizedInventory.filter((item) => item.category === category);
+      const productCount = categoryProducts.length;
       const movementCount = transactions.filter((item) => item.category === category).length;
-      const totalBalance = inventory
-        .filter((item) => item.category === category)
-        .reduce((sum, item) => sum + item.balance, 0);
+      const totalBalance = categoryInventory.reduce((sum, item) => sum + item.balance, 0);
+      const lowStockCount = categoryInventory.filter((item) => item.stockTargetStatus === "low").length;
+      const overStockCount = categoryInventory.filter((item) => item.stockTargetStatus === "high").length;
 
       return {
         category,
         productCount,
         movementCount,
         totalBalance,
+        lowStockCount,
+        overStockCount,
+        sampleProducts: categoryProducts.slice(0, 4).map((item) => item.name),
       };
     });
-  }, [categories, inventory, transactions]);
+  }, [categories, masterProducts, summarizedInventory, transactions]);
+  const filteredCategoryStats = useMemo(() => {
+    const normalizedSearch = categorySearch.trim().toLowerCase();
+
+    return categoryStats
+      .filter((item) => {
+        if (!normalizedSearch) {
+          return true;
+        }
+
+        const haystack = [item.category, ...item.sampleProducts].join(" ").toLowerCase();
+        return haystack.includes(normalizedSearch);
+      })
+      .sort(
+        (left, right) =>
+          right.productCount - left.productCount ||
+          right.movementCount - left.movementCount ||
+          left.category.localeCompare(right.category, "th")
+      );
+  }, [categorySearch, categoryStats]);
+  const selectedCategorySummary = useMemo(
+    () => categoryStats.find((item) => item.category === selectedCategory) ?? filteredCategoryStats[0] ?? null,
+    [categoryStats, filteredCategoryStats, selectedCategory]
+  );
+  const selectedCategoryProducts = useMemo(() => {
+    if (!selectedCategorySummary) {
+      return [];
+    }
+
+    return masterProducts
+      .filter((item) => item.category === selectedCategorySummary.category)
+      .map((product) => {
+        const inventoryItem = summarizedInventory.find((item) => matchesMasterProduct(item, product));
+        return {
+          ...product,
+          balance: inventoryItem?.balance ?? 0,
+          unit: inventoryItem?.unit ?? product.unit,
+          stockTargetStatus:
+            inventoryItem?.stockTargetStatus ??
+            getStockTargetStatus(0, product.minStock, product.maxStock),
+        };
+      })
+      .sort((left, right) => left.name.localeCompare(right.name, "th"));
+  }, [masterProducts, selectedCategorySummary, summarizedInventory]);
 
   async function loadCategories() {
     const response = await fetch(withBasePath("/api/categories"), { cache: "no-store" });
-    if (response.ok) setCategories(await response.json());
+    if (response.ok) {
+      const nextCategories = (await response.json()) as string[];
+      setCategories(nextCategories);
+      setSelectedCategory((current) =>
+        current && nextCategories.includes(current) ? current : nextCategories[0] || ""
+      );
+    }
   }
 
   useEffect(() => { loadCategories().catch(console.error); }, []);
@@ -151,7 +218,14 @@ function SettingsSection({
     if (!response.ok) return window.alert("ไม่สามารถแก้ไขชื่อหมวดหมู่ได้");
     setEditingCategory(null);
     setEditingCategoryValue("");
+    setSelectedCategory(nextName);
     await loadCategories();
+  }
+
+  function startEditingCategory(category: string) {
+    setSelectedCategory(category);
+    setEditingCategory(category);
+    setEditingCategoryValue(category);
   }
 
   return (
@@ -284,23 +358,211 @@ function SettingsSection({
           <div className="category-settings-note">
             หมวดหมู่ที่สร้างหรือเปลี่ยนชื่อจากหน้านี้ จะถูกใช้ร่วมกันในฟอร์มรับเข้า สินค้าในคลัง ข้อมูลสินค้า และประวัติรับเข้า-เบิกจ่ายทั้งหมด
           </div>
-          <div className="category-settings-add">
-            <input className={inputClassName} value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder="ชื่อหมวดหมู่ใหม่" />
-            <Button type="button" onClick={addCategory}><Plus size={16} />เพิ่มหมวดหมู่</Button>
-          </div>
-          <div className="category-settings-list">
-            {categoryStats.map((item) => <div key={item.category}>
-              <div className="category-settings-info">
-                {editingCategory === item.category ? <input className={inputClassName} value={editingCategoryValue} onChange={(event) => setEditingCategoryValue(event.target.value)} autoFocus /> : <strong>{item.category}</strong>}
-                <small>
-                  {formatNumber(item.productCount)} สินค้า · {formatNumber(item.movementCount)} รายการเคลื่อนไหว · คงเหลือรวม {formatNumber(item.totalBalance)}
-                </small>
+          <div className="category-settings-shell">
+            <section className="category-settings-sidebar">
+              <div className="category-settings-card">
+                <div className="category-settings-card-header">
+                  <div>
+                    <span>จัดการโครงสร้างหมวดหมู่</span>
+                    <h4>เพิ่มหมวดหมู่ใหม่</h4>
+                  </div>
+                  <div className="category-settings-card-icon">
+                    <FolderTree size={18} />
+                  </div>
+                </div>
+                <div className="category-settings-add">
+                  <input
+                    className={inputClassName}
+                    value={newCategory}
+                    onChange={(event) => setNewCategory(event.target.value)}
+                    placeholder="ชื่อหมวดหมู่ใหม่"
+                  />
+                  <Button type="button" onClick={addCategory}>
+                    <Plus size={16} />
+                    เพิ่มหมวดหมู่
+                  </Button>
+                </div>
               </div>
-              <div>
-                {editingCategory === item.category ? <Button type="button" size="sm" onClick={() => saveCategory(item.category)}>บันทึก</Button> : <Button type="button" size="sm" variant="secondary" onClick={() => { setEditingCategory(item.category); setEditingCategoryValue(item.category); }}><Pencil size={14} />เปลี่ยนชื่อทั้งระบบ</Button>}
+
+              <div className="category-settings-card">
+                <div className="category-settings-card-header">
+                  <div>
+                    <span>เลือกหมวดหมู่ที่ต้องการแก้</span>
+                    <h4>ดูผลกระทบก่อนเปลี่ยนชื่อ</h4>
+                  </div>
+                  <div className="category-settings-card-icon category-settings-card-icon-soft">
+                    <Search size={18} />
+                  </div>
+                </div>
+                <label className="category-settings-search">
+                  <Search size={15} />
+                  <input
+                    className={inputClassName}
+                    value={categorySearch}
+                    onChange={(event) => setCategorySearch(event.target.value)}
+                    placeholder="ค้นหาหมวดหมู่หรือชื่อสินค้า..."
+                  />
+                </label>
+                <div className="category-settings-mini-stats">
+                  <div>
+                    <strong>{formatNumber(filteredCategoryStats.length)}</strong>
+                    <span>หมวดหมู่</span>
+                  </div>
+                  <div>
+                    <strong>{formatNumber(masterProducts.length)}</strong>
+                    <span>สินค้าในระบบ</span>
+                  </div>
+                </div>
               </div>
-            </div>)}
+            </section>
+
+            <section className="category-settings-main">
+              <div className="category-settings-list">
+                {filteredCategoryStats.map((item) => (
+                  <button
+                    key={item.category}
+                    type="button"
+                    className={`category-settings-list-item ${
+                      selectedCategorySummary?.category === item.category ? "is-active" : ""
+                    }`}
+                    onClick={() => setSelectedCategory(item.category)}
+                  >
+                    <div className="category-settings-list-top">
+                      <strong>{item.category}</strong>
+                      <span>{formatNumber(item.productCount)} สินค้า</span>
+                    </div>
+                    <small>
+                      ใช้อยู่ใน {formatNumber(item.movementCount)} รายการเคลื่อนไหว · คงเหลือรวม{" "}
+                      {formatNumber(item.totalBalance)}
+                    </small>
+                    <div className="category-settings-list-tags">
+                      {item.lowStockCount > 0 ? (
+                        <span className="stock-pill stock-pill-danger">
+                          ต่ำกว่า min {formatNumber(item.lowStockCount)}
+                        </span>
+                      ) : null}
+                      {item.overStockCount > 0 ? (
+                        <span className="stock-pill stock-pill-warn">
+                          สูงกว่า max {formatNumber(item.overStockCount)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
+                {filteredCategoryStats.length === 0 ? (
+                  <div className="category-settings-empty">
+                    <strong>ไม่พบหมวดหมู่ที่ค้นหา</strong>
+                    <span>ลองค้นหาด้วยชื่อหมวดหมู่หรือชื่อสินค้าอีกครั้ง</span>
+                  </div>
+                ) : null}
+              </div>
+            </section>
           </div>
+
+          {selectedCategorySummary ? (
+            <div className="category-settings-detail">
+              <div className="category-settings-detail-head">
+                <div>
+                  <span>หมวดหมู่ที่เลือก</span>
+                  <h4>{selectedCategorySummary.category}</h4>
+                  <p>
+                    ถ้าเปลี่ยนชื่อ ระบบจะอัปเดตสินค้าที่ผูกอยู่ {formatNumber(selectedCategorySummary.productCount)} รายการ
+                    และประวัติที่เกี่ยวข้องอีก {formatNumber(selectedCategorySummary.movementCount)} รายการ
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => startEditingCategory(selectedCategorySummary.category)}
+                >
+                  <ArrowRightLeft size={16} />
+                  เปลี่ยนชื่อหมวดหมู่นี้
+                </Button>
+              </div>
+
+              {editingCategory === selectedCategorySummary.category ? (
+                <div className="category-settings-rename">
+                  <label className="settings-field">
+                    <span>ชื่อหมวดหมู่ใหม่</span>
+                    <input
+                      className={inputClassName}
+                      value={editingCategoryValue}
+                      onChange={(event) => setEditingCategoryValue(event.target.value)}
+                      autoFocus
+                    />
+                  </label>
+                  <div className="category-settings-rename-actions">
+                    <Button type="button" variant="secondary" onClick={() => setEditingCategory(null)}>
+                      ยกเลิก
+                    </Button>
+                    <Button type="button" onClick={() => saveCategory(selectedCategorySummary.category)}>
+                      บันทึกชื่อใหม่
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="category-settings-impact-grid">
+                <article>
+                  <span>สินค้าในหมวดนี้</span>
+                  <strong>{formatNumber(selectedCategorySummary.productCount)}</strong>
+                </article>
+                <article>
+                  <span>รายการเคลื่อนไหว</span>
+                  <strong>{formatNumber(selectedCategorySummary.movementCount)}</strong>
+                </article>
+                <article>
+                  <span>ต่ำกว่า min</span>
+                  <strong>{formatNumber(selectedCategorySummary.lowStockCount)}</strong>
+                </article>
+                <article>
+                  <span>สูงกว่า max</span>
+                  <strong>{formatNumber(selectedCategorySummary.overStockCount)}</strong>
+                </article>
+              </div>
+
+              <div className="category-settings-product-list">
+                <div className="category-settings-product-head">
+                  <strong>รายการสินค้าในหมวดนี้</strong>
+                  <span>{formatNumber(selectedCategoryProducts.length)} รายการ</span>
+                </div>
+                <div className="category-settings-product-grid">
+                  {selectedCategoryProducts.map((product) => {
+                    const inventoryItem =
+                      summarizedInventory.find((item) => matchesMasterProduct(item, product)) ?? null;
+
+                    return (
+                      <button
+                        key={product.id}
+                        type="button"
+                        className="category-settings-product-card"
+                        disabled={!inventoryItem}
+                        onClick={() => {
+                          if (inventoryItem) {
+                            openEditProductDialog(inventoryItem);
+                          }
+                        }}
+                      >
+                        <div>
+                          <strong>{product.name}</strong>
+                          <span>{product.sku || "ไม่มีรหัสสินค้า"}</span>
+                        </div>
+                        <div className="category-settings-product-meta">
+                          <span>
+                            คงเหลือ {formatNumber(product.balance)} {product.unit}
+                          </span>
+                          <span>
+                            min {formatNumber(product.minStock)} / max {formatNumber(product.maxStock)}
+                          </span>
+                          {!inventoryItem ? <span>ยังไม่มีล็อตคงเหลือให้แก้จากหน้านี้</span> : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </DataPanel>
 
