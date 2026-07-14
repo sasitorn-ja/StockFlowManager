@@ -874,32 +874,6 @@ export default function MasterDataPage() {
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                จำนวนต่ำสุด (min)
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={form.minStock}
-                  onChange={(event) => updateForm("minStock", event.target.value)}
-                  className={inputClassName}
-                  placeholder="0 = ยังไม่กำหนด"
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                จำนวนสูงสุด (max)
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={form.maxStock}
-                  onChange={(event) => updateForm("maxStock", event.target.value)}
-                  className={inputClassName}
-                  placeholder="0 = ยังไม่กำหนด"
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 ผู้ขาย
                 <input
                   value={form.vendor}

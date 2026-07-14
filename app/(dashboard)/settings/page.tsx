@@ -4,6 +4,10 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Boxes, Pencil, Plus, RotateCcw, SlidersHorizontal, Trash2, Workflow } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
+import {
+  getClientMasterProducts,
+  invalidateClientMasterProductsCache,
+} from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
@@ -21,10 +25,12 @@ import {
   formatDate,
   formatNumber,
   formatCurrency,
+  getStockTargetStatus,
   getProductImportTypeLabel,
+  matchesMasterProduct,
   sanitizeSku,
 } from "@/lib/stock-flow/utils";
-import type { InventoryItem, ProductImportType, Transaction } from "@/types/stock-flow";
+import type { InventoryItem, ProductImportType, ProductMaster, Transaction } from "@/types/stock-flow";
 import { useTransactions } from "../TransactionContext";
 import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
@@ -50,11 +56,14 @@ type ProductEditForm = {
   unit: string;
   price: string;
   costPrice: string;
+  minStock: string;
+  maxStock: string;
   expiryDate: string;
 };
 
 type SettingsSectionProps = {
   inventory: InventoryItem[];
+  masterProducts: ProductMaster[];
   transactions: Transaction[];
   transactionsCount: number;
   appSettings: AppSettings;
@@ -66,6 +75,7 @@ type SettingsSectionProps = {
 
 function SettingsSection({
   inventory,
+  masterProducts,
   transactions,
   transactionsCount,
   appSettings,
@@ -78,6 +88,22 @@ function SettingsSection({
   const [newCategory, setNewCategory] = useState("");
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingCategoryValue, setEditingCategoryValue] = useState("");
+  const summarizedInventory = useMemo(
+    () =>
+      inventory.map((item) => {
+        const matchedProduct = masterProducts.find((product) => matchesMasterProduct(item, product));
+        const minStock = matchedProduct?.minStock ?? 0;
+        const maxStock = matchedProduct?.maxStock ?? 0;
+
+        return {
+          ...item,
+          minStock,
+          maxStock,
+          stockTargetStatus: getStockTargetStatus(item.balance, minStock, maxStock),
+        };
+      }),
+    [inventory, masterProducts]
+  );
   const activeProducts = inventory.filter((item) => item.balance > 0).length;
   const lowStockProducts = inventory.filter(
     (item) => item.balance > 0 && item.balance <= Number(appSettings.lowStockThreshold || 0)
@@ -289,6 +315,8 @@ function SettingsSection({
             "หมวดหมู่",
             "หมดอายุใกล้สุด",
             "คงเหลือ",
+            "เป้าหมายสต๊อก",
+            "สถานะสต๊อก",
             "รับเข้า",
             "จ่ายออก",
             "ราคาต้นทุน",
@@ -297,9 +325,9 @@ function SettingsSection({
             "จัดการ",
           ]}
           emptyMessage="ยังไม่มีรายการสินค้า"
-          columnCount={11}
+          columnCount={13}
         >
-          {inventory
+          {summarizedInventory
             .slice()
             .sort((a, b) => {
               const typeCompare = getProductImportTypeLabel(a.productImportType).localeCompare(
@@ -326,6 +354,33 @@ function SettingsSection({
                 >
                   {formatNumber(item.balance)}{" "}
                   <span className="text-[12px] text-[var(--text-subtle)]">{item.unit}</span>
+                </td>
+                <td>
+                  <div className="master-data-stack-cell">
+                    <strong>min {formatNumber(item.minStock)}</strong>
+                    <span>max {formatNumber(item.maxStock)}</span>
+                  </div>
+                </td>
+                <td>
+                  <span
+                    className={`stock-pill ${
+                      item.stockTargetStatus === "low"
+                        ? "stock-pill-danger"
+                        : item.stockTargetStatus === "high"
+                          ? "stock-pill-warn"
+                          : item.stockTargetStatus === "normal"
+                            ? "stock-pill-ok"
+                            : ""
+                    }`}
+                  >
+                    {item.stockTargetStatus === "low"
+                      ? "ต่ำกว่า min"
+                      : item.stockTargetStatus === "high"
+                        ? "สูงกว่า max"
+                        : item.stockTargetStatus === "normal"
+                          ? "อยู่ในช่วง"
+                          : "ยังไม่ตั้งค่า"}
+                  </span>
                 </td>
                 <td className="text-right">
                   {formatNumber(item.totalIn)}{" "}
@@ -375,7 +430,9 @@ export default function SettingsPage() {
   const { transactions, refresh } = useTransactions();
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
   const [editingItemKey, setEditingItemKey] = useState("");
+  const [editingMasterProductId, setEditingMasterProductId] = useState("");
   const [selectedLotKey, setSelectedLotKey] = useState("");
+  const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
   const [productEditForm, setProductEditForm] = useState<ProductEditForm>({
     name: "",
     sku: "",
@@ -385,6 +442,8 @@ export default function SettingsPage() {
     unit: "",
     price: "0",
     costPrice: "0",
+    minStock: "0",
+    maxStock: "0",
     expiryDate: "",
   });
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
@@ -396,6 +455,9 @@ export default function SettingsPage() {
       .catch((error) => {
       console.error("Failed to load system settings", error);
       });
+    getClientMasterProducts()
+      .then((products) => setMasterProducts(products))
+      .catch(() => setMasterProducts([]));
   }, []);
 
   async function persistAppSettings(nextSettings: AppSettings) {
@@ -458,7 +520,9 @@ export default function SettingsPage() {
 
   function openEditProductDialog(item: InventoryItem) {
     const firstLot = inventoryLots.find((lot) => lot.baseItemKey === item.key);
+    const matchedProduct = masterProducts.find((product) => matchesMasterProduct(item, product));
     setEditingItemKey(item.key);
+    setEditingMasterProductId(matchedProduct?.id || "");
     setSelectedLotKey(firstLot?.key || "");
     setProductEditForm({
       name: item.name,
@@ -469,6 +533,8 @@ export default function SettingsPage() {
       unit: item.unit,
       price: String(firstLot?.price ?? item.price),
       costPrice: String(firstLot?.costPrice ?? item.costPrice ?? 0),
+      minStock: String(matchedProduct?.minStock ?? 0),
+      maxStock: String(matchedProduct?.maxStock ?? 0),
       expiryDate: firstLot?.expiryDate ?? item.nearestExpiryDate,
     });
     setIsEditProductDialogOpen(true);
@@ -524,6 +590,8 @@ export default function SettingsPage() {
     const nextUnit = productEditForm.unit.trim();
     const nextPrice = Number(productEditForm.price || 0);
     const nextCostPrice = Number(productEditForm.costPrice || 0);
+    const nextMinStock = Math.max(0, Math.floor(Number(productEditForm.minStock || 0)));
+    const nextMaxStock = Math.max(0, Math.floor(Number(productEditForm.maxStock || 0)));
 
     if (!nextName || !nextUnit) {
       window.alert("กรอกชื่อสินค้าและหน่วยนับให้ครบก่อนบันทึก");
@@ -532,6 +600,11 @@ export default function SettingsPage() {
 
     if (!Number.isFinite(nextPrice) || !Number.isFinite(nextCostPrice)) {
       window.alert("กรอกราคาและราคาต้นทุนเป็นตัวเลขที่ถูกต้องก่อนบันทึก");
+      return;
+    }
+
+    if (nextMaxStock > 0 && nextMinStock > nextMaxStock) {
+      window.alert("จำนวนสต๊อกต่ำสุดต้องไม่มากกว่าจำนวนสต๊อกสูงสุด");
       return;
     }
 
@@ -553,24 +626,58 @@ export default function SettingsPage() {
       return;
     }
 
-    fetch(withBasePath("/api/transactions"), {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "update_product",
-        itemKey: editingItemKey,
-        lotExpiryDate: selectedLot.expiryDate,
-        updatedData,
+    Promise.all([
+      fetch(withBasePath("/api/transactions"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_product",
+          itemKey: editingItemKey,
+          lotExpiryDate: selectedLot.expiryDate,
+          updatedData,
+        }),
       }),
-    }).then((res) => {
-      if (res.ok) {
-        refresh();
-        setIsEditProductDialogOpen(false);
-        setEditingItemKey("");
-        setSelectedLotKey("");
-      } else {
+      editingMasterProductId
+        ? fetch(withBasePath("/api/master-products"), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: editingMasterProductId,
+              name: nextName,
+              sku: sanitizeSku(productEditForm.sku.trim()),
+              category: productEditForm.category.trim() || "-",
+              productImportType: productEditForm.productImportType,
+              imageDataUrl: productEditForm.imageDataUrl,
+              unit: nextUnit,
+              price: Math.max(0, nextPrice),
+              costPrice: Math.max(0, nextCostPrice),
+              costCurrency:
+                masterProducts.find((product) => product.id === editingMasterProductId)?.costCurrency ?? "THB",
+              minStock: nextMinStock,
+              maxStock: nextMaxStock,
+              defaultStorageLocation:
+                masterProducts.find((product) => product.id === editingMasterProductId)?.defaultStorageLocation ?? "",
+              defaultExpiryDate: productEditForm.expiryDate,
+              vendor: masterProducts.find((product) => product.id === editingMasterProductId)?.vendor ?? "",
+              note: masterProducts.find((product) => product.id === editingMasterProductId)?.note ?? "",
+              isActive: masterProducts.find((product) => product.id === editingMasterProductId)?.isActive ?? true,
+            }),
+          })
+        : Promise.resolve(new Response(null, { status: 204 })),
+    ]).then(async ([transactionRes, masterRes]) => {
+      if (!transactionRes.ok || !masterRes.ok) {
         window.alert("ไม่สามารถอัปเดตข้อมูลสินค้าในฐานข้อมูลได้");
+        return;
       }
+
+      invalidateClientMasterProductsCache();
+      const products = await getClientMasterProducts().catch(() => []);
+      setMasterProducts(products);
+      refresh();
+      setIsEditProductDialogOpen(false);
+      setEditingItemKey("");
+      setEditingMasterProductId("");
+      setSelectedLotKey("");
     });
   }
 
@@ -600,6 +707,7 @@ export default function SettingsPage() {
     <>
       <SettingsSection
         inventory={inventory}
+        masterProducts={masterProducts}
         transactions={transactions}
         transactionsCount={transactions.length}
         appSettings={appSettings}
@@ -609,7 +717,7 @@ export default function SettingsPage() {
         handleDeleteProduct={handleDeleteProduct}
       />
 
-      <Dialog open={isEditProductDialogOpen} onOpenChange={(open) => { if (!open) { setIsEditProductDialogOpen(false); setEditingItemKey(""); setSelectedLotKey(""); } }}>
+      <Dialog open={isEditProductDialogOpen} onOpenChange={(open) => { if (!open) { setIsEditProductDialogOpen(false); setEditingItemKey(""); setEditingMasterProductId(""); setSelectedLotKey(""); } }}>
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[880px]">
           <DialogHeader>
             <DialogTitle>แก้ไขสินค้าและล็อต</DialogTitle>
@@ -748,6 +856,32 @@ export default function SettingsPage() {
                   value={productEditForm.costPrice}
                   onChange={(event) => updateProductEditForm("costPrice", event.target.value)}
                   className={inputClassName}
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                จำนวนต่ำสุด (min)
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={productEditForm.minStock}
+                  onChange={(event) => updateProductEditForm("minStock", event.target.value)}
+                  className={inputClassName}
+                  placeholder="0 = ยังไม่กำหนด"
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                จำนวนสูงสุด (max)
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={productEditForm.maxStock}
+                  onChange={(event) => updateProductEditForm("maxStock", event.target.value)}
+                  className={inputClassName}
+                  placeholder="0 = ยังไม่กำหนด"
                 />
               </label>
             </div>
