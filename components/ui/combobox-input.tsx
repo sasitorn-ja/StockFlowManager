@@ -47,6 +47,10 @@ export function ComboboxInput({
   const [searchValue, setSearchValue] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
   const activeOption = options.find((option) => option.value === value);
+  const trimmedSearchValue = searchValue.trim();
+  const hasExactOption = options.some(
+    (option) => option.value.trim().toLowerCase() === trimmedSearchValue.toLowerCase()
+  );
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
@@ -98,6 +102,18 @@ export function ComboboxInput({
                 : emptyText}
             </CommandEmpty>
             <CommandGroup>
+              {allowCustomValue && trimmedSearchValue && !hasExactOption ? (
+                <CommandItem
+                  value={`__custom__ ${trimmedSearchValue}`}
+                  onSelect={() => {
+                    onValueChange(trimmedSearchValue);
+                    setOpen(false);
+                  }}
+                >
+                  <Check size={16} className="shrink-0 opacity-0" />
+                  <span className="truncate">ใช้ค่า “{trimmedSearchValue}”</span>
+                </CommandItem>
+              ) : null}
               {options.map((option) => (
                 <CommandItem
                   key={`${option.value}-${option.label}`}

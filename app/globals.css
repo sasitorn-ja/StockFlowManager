@@ -1530,28 +1530,6 @@ textarea {
     @apply -mt-1 text-[11px] font-semibold leading-4 sm:col-span-2;
   }
 
-  .receive-suggestion-row {
-    @apply mt-2 flex flex-wrap gap-2;
-  }
-
-  .receive-suggestion-chip {
-    border: 1px solid rgba(191, 219, 254, 0.9);
-    background: rgba(239, 246, 255, 0.82);
-    color: #0f3f74;
-    @apply inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-xs font-semibold transition hover:border-sky-300 hover:bg-sky-100;
-  }
-
-  .receive-suggestion-chip small {
-    color: #4b5563;
-    @apply text-[10px] font-bold;
-  }
-
-  .receive-suggestion-chip.is-active {
-    border-color: #0284c7;
-    background: rgba(224, 242, 254, 0.95);
-    color: #075985;
-  }
-
   .receive-auto-time {
     background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.96));
     border: 1px solid rgba(147, 197, 253, 0.65);

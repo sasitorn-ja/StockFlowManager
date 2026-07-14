@@ -227,39 +227,6 @@ export default function ReceivePage() {
       }))
       .sort((a, b) => a.category.localeCompare(b.category, "th"));
   }, [categoryCatalog, form.productImportType, receiveProductSuggestions]);
-  const visibleReceiveCategorySuggestions = useMemo(() => {
-    const normalizedSearch = normalizeCategoryValue(form.category);
-
-    return receiveCategorySuggestions
-      .filter((item) => {
-        if (!normalizedSearch) {
-          return true;
-        }
-
-        return (
-          item.normalizedCategory.includes(normalizedSearch) ||
-          item.category.toLowerCase().includes(form.category.trim().toLowerCase())
-        );
-      })
-      .slice(0, 8);
-  }, [form.category, receiveCategorySuggestions]);
-  const visibleReceiveProductSuggestions = useMemo(() => {
-    const normalizedSearch = form.name.trim().toLowerCase();
-
-    return filteredReceiveProductSuggestions
-      .filter((item) => {
-        if (!normalizedSearch) {
-          return true;
-        }
-
-        return (
-          item.name.toLowerCase().includes(normalizedSearch) ||
-          item.sku.toLowerCase().includes(normalizedSearch)
-        );
-      })
-      .slice(0, 8);
-  }, [filteredReceiveProductSuggestions, form.name]);
-
   const receiveStorageLocationSuggestions = useMemo(() => {
     return Array.from(
       new Set(
@@ -1065,79 +1032,59 @@ export default function ReceivePage() {
 
               <label>
                 <span>หมวดหมู่ *</span>
-                <input
+                <ComboboxInput
                   className={showMissingCategoryError ? "receive-input-error" : ""}
                   value={form.category}
-                  onChange={(event) => handleReceiveCategoryChange(event.target.value)}
+                  onValueChange={handleReceiveCategoryChange}
+                  options={receiveCategorySuggestions.map(({ category, productCount }) => ({
+                    value: category,
+                    label: `${category} ${productCount > 0 ? `${formatNumber(productCount)} รายการ` : "0 รายการ"}`,
+                  }))}
                   placeholder={
                     canCreateNewProduct
-                      ? "พิมพ์หมวดหมู่ใหม่ได้เลย หรือเลือกจากรายการด้านล่าง"
+                      ? "พิมพ์หมวดหมู่ใหม่ได้เลย หรือเลือกจากรายการเดิม"
                       : "เลือกหมวดหมู่จากรายการเดิมก่อน"
                   }
+                  searchPlaceholder="ค้นหาหรือพิมพ์หมวดหมู่..."
+                  emptyText="ไม่พบหมวดหมู่ในระบบ"
+                  allowCustomValue={canCreateNewProduct}
                   disabled={!hasSelectedProductType}
                 />
-                {hasSelectedProductType && visibleReceiveCategorySuggestions.length > 0 ? (
-                  <div className="receive-suggestion-row">
-                    {visibleReceiveCategorySuggestions.map((item) => (
-                      <button
-                        key={item.normalizedCategory}
-                        type="button"
-                        className={`receive-suggestion-chip ${
-                          normalizeCategoryValue(form.category) === item.normalizedCategory ? "is-active" : ""
-                        }`}
-                        onClick={() => handleReceiveCategorySelect(item.category)}
-                      >
-                        {item.category}
-                        <small>{formatNumber(item.productCount)} รายการ</small>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
               </label>
               {!hasSelectedProductType ? (
                 <small className="receive-grid-helper">ขั้นตอนที่ 1: เลือกประเภทสินค้าก่อน แล้วระบบจะปลดล็อกช่องหมวดหมู่</small>
               ) : !isCategoryReady ? (
-                <small className="receive-grid-helper">ขั้นตอนที่ 2: พิมพ์หมวดหมู่ใหม่ได้เลย หรือแตะจากรายการแนะนำด้านล่าง</small>
+                <small className="receive-grid-helper">ขั้นตอนที่ 2: เปิด dropdown แล้วเลือกหมวดเดิม หรือพิมพ์เพิ่มหมวดใหม่ได้ทันที</small>
               ) : showMissingCategoryError ? (
                 <small className="receive-grid-helper receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
               ) : !canCreateNewProduct ? (
                 <small className="receive-grid-helper">พนักงานเลือกได้เฉพาะหมวดหมู่และสินค้าที่มีอยู่ในระบบแล้ว</small>
               ) : (
-                <small className="receive-grid-helper">แอดมินพิมพ์ชื่อหมวดหมู่ใหม่ได้ทันที ระบบจะสร้างให้ตอนบันทึก</small>
+                <small className="receive-grid-helper">แอดมินสามารถเลือกจาก dropdown หรือพิมพ์ชื่อหมวดใหม่ แล้วกดใช้ค่านั้นได้เลย</small>
               )}
             </div>
 
             <div className="receive-form-grid">
               <label>
                 <span>รายการสินค้า *</span>
-                <input
+                <ComboboxInput
                   className={showMissingProductError ? "receive-input-error" : ""}
                   value={form.name}
-                  onChange={(event) => handleReceiveProductNameChange(event.target.value)}
+                  onValueChange={handleReceiveProductNameChange}
+                  options={filteredReceiveProductSuggestions.map((item) => ({
+                    value: item.name,
+                    label: `${item.name}${item.sku ? ` (${item.sku})` : ""}`,
+                  }))}
                   placeholder={
                     canCreateNewProduct
-                      ? "พิมพ์ชื่อสินค้าใหม่ได้เลย หรือเลือกจากรายการด้านล่าง"
+                      ? "พิมพ์ชื่อสินค้าใหม่ได้เลย หรือเลือกจากรายการเดิม"
                       : "เลือกสินค้าเดิมจากรายการเท่านั้น"
                   }
+                  searchPlaceholder="ค้นหาหรือพิมพ์ชื่อสินค้า..."
+                  emptyText="ไม่พบสินค้าในระบบ"
+                  allowCustomValue={canCreateNewProduct}
                   disabled={!isCategoryReady}
                 />
-                {isCategoryReady && visibleReceiveProductSuggestions.length > 0 ? (
-                  <div className="receive-suggestion-row">
-                    {visibleReceiveProductSuggestions.map((item) => (
-                      <button
-                        key={item.key}
-                        type="button"
-                        className={`receive-suggestion-chip ${
-                          form.name.trim().toLowerCase() === item.name.trim().toLowerCase() ? "is-active" : ""
-                        }`}
-                        onClick={() => handleReceiveProductNameChange(item.name)}
-                      >
-                        {item.name}
-                        <small>{item.sku || item.unit}</small>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
                 {!canCreateNewProduct ? (
                   showMissingProductError ? (
                     <small className="receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
@@ -1145,7 +1092,7 @@ export default function ReceivePage() {
                     <small>ถ้าไม่พบสินค้าในรายการ ต้องให้ผู้ดูแลระบบเพิ่มสินค้าใหม่ก่อน</small>
                   )
                 ) : (
-                  <small>แอดมินพิมพ์ชื่อสินค้าใหม่ได้ทันที ระบบจะสร้างสินค้าให้ตอนบันทึกถ้ายังไม่มีในระบบ</small>
+                  <small>แอดมินสามารถเลือกจาก dropdown หรือพิมพ์ชื่อสินค้าใหม่ แล้วกดใช้ค่านั้นได้เลย</small>
                 )}
               </label>
 
