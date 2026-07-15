@@ -30,6 +30,7 @@ type ComboboxSelectProps = {
   onValueChange: (value: string) => void;
   options: ComboboxSelectOption[];
   placeholder?: string;
+  portalled?: boolean;
   searchPlaceholder?: string;
   title?: string;
   value: string;
@@ -44,6 +45,7 @@ export function ComboboxSelect({
   onValueChange,
   options,
   placeholder = "เลือกข้อมูล",
+  portalled = true,
   searchPlaceholder = "ค้นหา...",
   title,
   value,
@@ -76,6 +78,7 @@ export function ComboboxSelect({
       </PopoverTrigger>
       <PopoverContent
         align={align}
+        portalled={portalled}
         className={cn("w-[--radix-popover-trigger-width] max-w-[calc(100vw-1rem)] p-0", contentClassName)}
       >
         <Command>

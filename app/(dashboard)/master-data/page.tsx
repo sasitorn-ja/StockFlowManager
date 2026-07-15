@@ -808,6 +808,7 @@ export default function MasterDataPage() {
                     options={productImportTypeOptions}
                     className={inputClassName}
                     searchPlaceholder="ค้นหาประเภทสินค้า..."
+                    portalled={false}
                   />
                 </label>
 
@@ -822,6 +823,7 @@ export default function MasterDataPage() {
                     ]}
                     className={inputClassName}
                     searchPlaceholder="ค้นหาสถานะ..."
+                    portalled={false}
                   />
                 </label>
 
@@ -952,6 +954,7 @@ export default function MasterDataPage() {
                     options={costCurrencyOptions}
                     className={inputClassName}
                     searchPlaceholder="ค้นหาสกุลเงิน..."
+                    portalled={false}
                   />
                 </label>
 

@@ -1026,6 +1026,7 @@ export default function ReceivePage() {
                   onValueChange={(value) => handleProductImportTypeChange(value as ProductImportType)}
                   options={productImportTypeOptions}
                   placeholder="เลือกประเภทสินค้าก่อน"
+                  portalled={false}
                   searchPlaceholder="ค้นหาประเภทสินค้า..."
                 />
               </label>
@@ -1045,6 +1046,7 @@ export default function ReceivePage() {
                       ? "พิมพ์หมวดหมู่ใหม่ได้เลย หรือเลือกจากรายการเดิม"
                       : "เลือกหมวดหมู่จากรายการเดิมก่อน"
                   }
+                  portalled={false}
                   searchPlaceholder="ค้นหาหรือพิมพ์หมวดหมู่..."
                   emptyText="ไม่พบหมวดหมู่ในระบบ"
                   allowCustomValue={canCreateNewProduct}
@@ -1067,24 +1069,26 @@ export default function ReceivePage() {
             <div className="receive-form-grid">
               <label>
                 <span>รายการสินค้า *</span>
-                <ComboboxInput
+                <input
                   className={showMissingProductError ? "receive-input-error" : ""}
                   value={form.name}
-                  onValueChange={handleReceiveProductNameChange}
-                  options={filteredReceiveProductSuggestions.map((item) => ({
-                    value: item.name,
-                    label: `${item.name}${item.sku ? ` (${item.sku})` : ""}`,
-                  }))}
+                  onChange={(event) => handleReceiveProductNameChange(event.target.value)}
+                  list="receive-product-name-suggestions"
                   placeholder={
                     canCreateNewProduct
-                      ? "พิมพ์ชื่อสินค้าใหม่ได้เลย หรือเลือกจากรายการเดิม"
-                      : "เลือกสินค้าเดิมจากรายการเท่านั้น"
+                      ? "พิมพ์ชื่อสินค้าได้ทันที"
+                      : "พิมพ์เพื่อค้นหาสินค้าเดิม"
                   }
-                  searchPlaceholder="ค้นหาหรือพิมพ์ชื่อสินค้า..."
-                  emptyText="ไม่พบสินค้าในระบบ"
-                  allowCustomValue={canCreateNewProduct}
                   disabled={!isCategoryReady}
+                  autoComplete="off"
                 />
+                <datalist id="receive-product-name-suggestions">
+                  {filteredReceiveProductSuggestions.map((item) => (
+                    <option key={item.key} value={item.name}>
+                      {item.sku ? `${item.sku} · ${item.unit}` : item.unit}
+                    </option>
+                  ))}
+                </datalist>
                 {!canCreateNewProduct ? (
                   showMissingProductError ? (
                     <small className="receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
@@ -1092,7 +1096,7 @@ export default function ReceivePage() {
                     <small>ถ้าไม่พบสินค้าในรายการ ต้องให้ผู้ดูแลระบบเพิ่มสินค้าใหม่ก่อน</small>
                   )
                 ) : (
-                  <small>แอดมินสามารถเลือกจาก dropdown หรือพิมพ์ชื่อสินค้าใหม่ แล้วกดใช้ค่านั้นได้เลย</small>
+                  <small>พิมพ์ชื่อสินค้าใหม่ได้ทันที หรือเลือกชื่อสินค้าที่ระบบแนะนำ</small>
                 )}
               </label>
 
@@ -1157,6 +1161,7 @@ export default function ReceivePage() {
                     }
                     disabled={!isCategoryReady}
                     options={costCurrencyOptions}
+                    portalled={false}
                     searchPlaceholder="ค้นหาสกุลเงิน..."
                   />
                 </div>
@@ -1172,6 +1177,7 @@ export default function ReceivePage() {
                     label: item,
                   }))}
                   placeholder="เช่น A01 - ลานวางแผ่นพื้น"
+                  portalled={false}
                   searchPlaceholder="ค้นหาหรือพิมพ์จุดเก็บ..."
                   disabled={!isCategoryReady}
                 />

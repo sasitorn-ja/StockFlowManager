@@ -28,6 +28,7 @@ type ComboboxInputProps = {
   onValueChange: (value: string) => void;
   options: ComboboxInputOption[];
   placeholder?: string;
+  portalled?: boolean;
   searchPlaceholder?: string;
   value: string;
 };
@@ -40,6 +41,7 @@ export function ComboboxInput({
   onValueChange,
   options,
   placeholder = "เลือกหรือพิมพ์ข้อมูล",
+  portalled = true,
   searchPlaceholder = "ค้นหาหรือพิมพ์ค่าใหม่...",
   value,
 }: ComboboxInputProps) {
@@ -82,7 +84,11 @@ export function ComboboxInput({
           <ChevronDown size={15} className="shrink-0 text-slate-500" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[--radix-popover-trigger-width] max-w-[calc(100vw-1rem)] p-0">
+      <PopoverContent
+        align="start"
+        portalled={portalled}
+        className="w-[--radix-popover-trigger-width] max-w-[calc(100vw-1rem)] p-0"
+      >
         <Command shouldFilter>
           <CommandInput
             ref={inputRef}
