@@ -3,16 +3,9 @@ type EmailRecipient = {
   name?: string;
 };
 
-type EmailSimulationResult = {
-  enabled: boolean;
+type EmailRoutingResult = {
   recipients: EmailRecipient[];
-  originalRecipients: EmailRecipient[];
   summary: string;
-};
-
-const DEFAULT_SIMULATION_RECIPIENT = {
-  address: "SASITOJA@SCG.COM",
-  name: "ศศิธร จรุงจรรยาพงศ์",
 };
 
 function normalizeRecipient(recipient: EmailRecipient) {
@@ -22,40 +15,16 @@ function normalizeRecipient(recipient: EmailRecipient) {
   };
 }
 
-export function resolveEmailRecipients(recipients: EmailRecipient[]): EmailSimulationResult {
-  const originalRecipients = recipients
+export function resolveEmailRecipients(recipients: EmailRecipient[]): EmailRoutingResult {
+  const normalizedRecipients = recipients
     .map(normalizeRecipient)
     .filter((recipient) => Boolean(recipient.address));
 
-  const simulationDisabled = process.env.MAIL_SIMULATION_ENABLED?.trim().toLowerCase() === "false";
-  const simulationAddress = simulationDisabled
-    ? ""
-    : process.env.MAIL_SIMULATION_TO_ADDRESS?.trim() || DEFAULT_SIMULATION_RECIPIENT.address;
-  const simulationName = simulationDisabled
-    ? ""
-    : process.env.MAIL_SIMULATION_TO_NAME?.trim() || DEFAULT_SIMULATION_RECIPIENT.name;
-
-  if (!simulationAddress) {
-    return {
-      enabled: false,
-      recipients: originalRecipients,
-      originalRecipients,
-      summary: originalRecipients.map((recipient) => recipient.name || recipient.address).join(", "),
-    };
-  }
-
-  const simulatedRecipient = {
-    address: simulationAddress,
-    name: simulationName || DEFAULT_SIMULATION_RECIPIENT.name,
-  };
-
   return {
-    enabled: true,
-    recipients: [simulatedRecipient],
-    originalRecipients,
+    recipients: normalizedRecipients,
     summary:
-      originalRecipients.length > 0
-        ? originalRecipients.map((recipient) => `${recipient.name} <${recipient.address}>`).join(", ")
-        : "ไม่พบผู้รับปลายทางเดิม",
+      normalizedRecipients.length > 0
+        ? normalizedRecipients.map((recipient) => `${recipient.name} <${recipient.address}>`).join(", ")
+        : "ไม่พบผู้รับอีเมล",
   };
 }

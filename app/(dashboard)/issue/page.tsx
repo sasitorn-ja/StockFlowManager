@@ -66,12 +66,6 @@ type DirectoryUser = {
   userId: string;
 };
 
-function isSasitornTester(user: Pick<DirectoryUser, "name" | "email"> | null) {
-  const name = user?.name?.trim().toLowerCase() || "";
-  const email = user?.email?.trim().toLowerCase() || "";
-  return name === "ศศิธร จรุงจรรยาพงศ์" || email === "sasitoja@scg.com";
-}
-
 function formatApproverContactLabel(name: string, email: string) {
   return [name.trim(), email.trim()].filter(Boolean).join(" · ");
 }
@@ -212,13 +206,6 @@ export default function IssuePage() {
       const activeUser: DirectoryUser = { name, email: user?.email?.trim() || "", userId: user?.userId || "", role };
       setCurrentUser(activeUser);
       setIssueCreatedBy(name);
-      if (role === "admin" && isSasitornTester(activeUser)) {
-        const contact = formatApproverContactLabel(name, activeUser.email);
-        setIssueRequester(name);
-        setIssueApprover(name);
-        setIssueApproverEmail(activeUser.email);
-        setIssueApproverContact(contact);
-      }
     } catch (error) {
       console.error("Failed to fetch current user", error);
     }
@@ -362,15 +349,13 @@ export default function IssuePage() {
   }, [directoryUsers]);
 
   const issueApproverContactSuggestions = useMemo<ApproverContactOption[]>(() => {
-    const users = directoryUsers.filter(
-      (user) => user.role === "manager" || (isSasitornTester(user) && user.role === "admin")
-    );
+    const users = directoryUsers.filter((user) => user.role === "manager");
     return users.filter((user) => Boolean(user.email)).map((user) => ({
       name: user.name,
       email: user.email,
       label: formatApproverContactLabel(user.name, user.email),
     }));
-  }, [currentUser, directoryUsers]);
+  }, [directoryUsers]);
 
   const issueApproverInputSuggestions = useMemo(() => {
     const prioritizedContacts = new Map<string, string>();

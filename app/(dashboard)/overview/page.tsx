@@ -27,10 +27,6 @@ type SessionUser = {
   role: UserRole;
 };
 
-function isSasitornTester(user: { name?: string; email?: string }) {
-  return user.name?.trim().toLowerCase() === "ศศิธร จรุงจรรยาพงศ์" || user.email?.trim().toLowerCase() === "sasitoja@scg.com";
-}
-
 type RequisitionSummary = {
   issueKey: string;
   requester: string;
@@ -98,11 +94,7 @@ export default function OverviewPage() {
     getClientSession()
       .then((data) => {
         const user = data?.user;
-        const actualRole: UserRole = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
-        const previewRole = actualRole === "admin" && isSasitornTester(user || {})
-          ? localStorage.getItem("current_role")
-          : null;
-        const role: UserRole = previewRole === "employee" || previewRole === "manager" || previewRole === "admin" ? previewRole : actualRole;
+        const role: UserRole = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
         setCurrentUser(user ? { name: user.name ?? "ผู้ใช้งาน", email: user.email, role } : null);
       })
       .catch(() => setCurrentUser(null))

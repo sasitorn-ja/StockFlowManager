@@ -37,12 +37,6 @@ type NavigationItem = {
   roles?: UserRole[];
 };
 
-function isSasitornTester(user: { name?: string; email?: string } | null) {
-  const name = user?.name?.trim().toLowerCase() || "";
-  const email = user?.email?.trim().toLowerCase() || "";
-  return name === "ศศิธร จรุงจรรยาพงศ์" || email === "sasitoja@scg.com";
-}
-
 const navigationGroups = [
   {
     id: "requisition",
@@ -244,23 +238,13 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         setSsoUser(user);
         const role: UserRole = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
         setActualRole(role);
-        const previewRole = role === "admin" && isSasitornTester(user) ? localStorage.getItem("admin_preview_role") : null;
-        const effectiveRole: UserRole = previewRole === "employee" || previewRole === "manager" || previewRole === "admin" ? previewRole : role;
-        setUserRole(effectiveRole);
-        localStorage.setItem("current_role", effectiveRole);
+        setUserRole(role);
+        localStorage.setItem("current_role", role);
         localStorage.setItem("current_username", user?.name ?? "ผู้ใช้งาน");
         window.dispatchEvent(new Event("current-user-changed"));
       })
       .catch(() => setSsoUser(null));
   }, []);
-
-  function changePreviewRole(role: UserRole) {
-    if (actualRole !== "admin" || !isSasitornTester(ssoUser)) return;
-    setUserRole(role);
-    localStorage.setItem("admin_preview_role", role);
-    localStorage.setItem("current_role", role);
-    window.dispatchEvent(new Event("current-user-changed"));
-  }
 
   useEffect(() => {
     setNow(new Date());
@@ -422,16 +406,6 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           </div>
 
         <div className="dashboard-topbar-actions">
-          {actualRole === "admin" && isSasitornTester(ssoUser) ? (
-            <label className="admin-role-preview">
-              <span>ดูหน้าจอในบทบาท</span>
-              <select value={userRole} onChange={(event) => changePreviewRole(event.target.value as UserRole)}>
-                <option value="employee">พนักงาน</option>
-                <option value="manager">ผู้จัดการ</option>
-                <option value="admin">แอดมิน</option>
-              </select>
-            </label>
-          ) : null}
           <div className="dashboard-date-pill">
             <CalendarDays aria-hidden="true" size={17} />
             <span>{todayLabel}</span>
@@ -463,9 +437,6 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       </header>
 
         <div className="dashboard-content">
-          {actualRole === "admin" && isSasitornTester(ssoUser) && userRole !== "admin" ? (
-            <div className="admin-preview-banner">กำลังดูตัวอย่างหน้าจอในบทบาท <strong>{userRole === "manager" ? "ผู้จัดการ" : "พนักงาน"}</strong> · สิทธิ์บัญชีจริงยังเป็นแอดมิน</div>
-          ) : null}
           {children}
         </div>
       </div>

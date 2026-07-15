@@ -70,14 +70,8 @@ export async function sendRequisitionNotice(input: RequisitionNotice) {
   await transporter.sendMail({
     from: { name: process.env.MAIL_FROM_NAME || "Stock Flow Manager", address: from },
     to: routedRecipients.recipients,
-    subject: `${routedRecipients.enabled ? "[SIMULATION] " : ""}[${statusLabel}] ใบเบิกสินค้า ${input.issueKey}`,
-    text: `ใบเบิก ${input.issueKey}\nสถานะ: ${statusLabel}\nดำเนินการโดย: ${input.actorName}\nผู้ขอเบิก: ${input.requester || "-"}\n${
-      routedRecipients.enabled ? `ผู้รับปลายทางจริง: ${routedRecipients.summary}\n` : ""
-    }${requisitionUrl ? `เปิดใบเบิกนี้: ${requisitionUrl}` : ""}`,
-    html: `<div style="font-family:Arial,sans-serif;line-height:1.7;color:#0f172a"><h2>ใบเบิกสินค้า ${input.issueKey}</h2><p><strong>สถานะ:</strong> ${statusLabel}</p><p><strong>ดำเนินการโดย:</strong> ${input.actorName}</p><p><strong>ผู้ขอเบิก:</strong> ${input.requester || "-"}</p>${
-      routedRecipients.enabled
-        ? `<p><strong>โหมดจำลองส่งอีเมล:</strong> ขณะนี้อีเมลฉบับนี้ถูกส่งเข้า mailbox ทดสอบของศศิธรแทนผู้รับจริง</p><p><strong>ผู้รับปลายทางจริง:</strong> ${routedRecipients.summary}</p>`
-        : ""
-    }${requisitionUrl ? `<p><a href="${requisitionUrl}" style="display:inline-block;padding:10px 16px;border-radius:10px;background:#0b63bd;color:#fff;text-decoration:none;font-weight:700">${input.status === "pending" ? "ตรวจสอบและอนุมัติใบเบิก" : "เปิดใบเบิกนี้"}</a></p>` : ""}<p style="color:#64748b;font-size:12px">อีเมลนี้ส่งโดยอัตโนมัติจากระบบ</p></div>`,
+    subject: `[${statusLabel}] ใบเบิกสินค้า ${input.issueKey}`,
+    text: `ใบเบิก ${input.issueKey}\nสถานะ: ${statusLabel}\nดำเนินการโดย: ${input.actorName}\nผู้ขอเบิก: ${input.requester || "-"}\n${requisitionUrl ? `เปิดใบเบิกนี้: ${requisitionUrl}` : ""}`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.7;color:#0f172a"><h2>ใบเบิกสินค้า ${input.issueKey}</h2><p><strong>สถานะ:</strong> ${statusLabel}</p><p><strong>ดำเนินการโดย:</strong> ${input.actorName}</p><p><strong>ผู้ขอเบิก:</strong> ${input.requester || "-"}</p>${requisitionUrl ? `<p><a href="${requisitionUrl}" style="display:inline-block;padding:10px 16px;border-radius:10px;background:#0b63bd;color:#fff;text-decoration:none;font-weight:700">${input.status === "pending" ? "ตรวจสอบและอนุมัติใบเบิก" : "เปิดใบเบิกนี้"}</a></p>` : ""}<p style="color:#64748b;font-size:12px">อีเมลนี้ส่งโดยอัตโนมัติจากระบบ</p></div>`,
   });
 }

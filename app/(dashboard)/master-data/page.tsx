@@ -82,6 +82,21 @@ const productImportTypeOptions: { value: ProductImportType; label: string }[] = 
   { value: "stable", label: "สินค้าเข้าสต็อก" },
 ];
 
+const masterDataSetupSteps = [
+  {
+    title: "เริ่มจากข้อมูลจำเป็น",
+    description: "เลือกประเภทสินค้า ตั้งชื่อสินค้า และกำหนดหน่วยนับให้เรียบร้อยก่อน",
+  },
+  {
+    title: "ตั้งค่าการควบคุมสต๊อก",
+    description: "กำหนดหมวดหมู่ จุดเก็บ และค่า min / max เพื่อใช้เตือนและติดตามสต๊อก",
+  },
+  {
+    title: "เติมรายละเอียดเสริม",
+    description: "ใส่ต้นทุน ผู้ขาย รูปสินค้า หรือหมายเหตุเพิ่มเติมเท่าที่จำเป็น",
+  },
+] as const;
+
 function buildMasterProductKey(product: {
   name: string;
   sku: string;
@@ -533,7 +548,7 @@ export default function MasterDataPage() {
           <div className="flex items-start gap-3">
             <ShieldAlert className="mt-1 text-rose-500" size={22} />
             <div>
-              <h2 className="dashboard-section-title">ข้อมูลหลักสินค้า สินค้า</h2>
+              <h2 className="dashboard-section-title">ข้อมูลหลักสินค้า</h2>
               <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
                 หน้านี้สำหรับแอดมินใช้เพิ่มหรือแก้ไขสินค้าใหม่ในระบบเท่านั้น
               </p>
@@ -553,9 +568,9 @@ export default function MasterDataPage() {
               <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
                 ข้อมูลมาตรฐานสินค้า
               </p>
-              <h2 className="dashboard-section-title">ข้อมูลหลักสินค้า สินค้า</h2>
+              <h2 className="dashboard-section-title">ข้อมูลหลักสินค้า</h2>
               <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-                ใช้เพิ่มสินค้าใหม่และดูรายการสินค้ามาตรฐานของระบบ โดยระบบจะซิงก์สินค้าที่มีอยู่ในคลังเข้ามาให้ด้วย
+                ใช้ตั้งค่ารายการสินค้ามาตรฐานก่อนนำไปใช้ในหน้ารับเข้าและหน้าเบิก โดยระบบจะซิงก์สินค้าที่มีอยู่ในคลังเข้ามาให้ด้วย
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -564,6 +579,27 @@ export default function MasterDataPage() {
                 เพิ่มสินค้าใหม่
               </Button>
             </div>
+          </div>
+        </section>
+
+        <section className="master-data-steps">
+          <div className="master-data-steps-header">
+            <div>
+              <p className="master-data-steps-eyebrow">เริ่มยังไงดี</p>
+              <h3>ลำดับที่ควรกรอกในหน้าตั้งค่ารายการสินค้า</h3>
+            </div>
+            <p>กรอกเฉพาะข้อมูลสำคัญก่อน แล้วค่อยเติมรายละเอียดเสริมทีหลังได้</p>
+          </div>
+          <div className="master-data-steps-grid">
+            {masterDataSetupSteps.map((step, index) => (
+              <article key={step.title} className="master-data-step-card">
+                <span className="master-data-step-number">0{index + 1}</span>
+                <div className="master-data-step-content">
+                  <strong>{step.title}</strong>
+                  <p>{step.description}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
@@ -616,8 +652,8 @@ export default function MasterDataPage() {
         </section>
 
         <DataPanel
-          title="รายการสินค้าใน ข้อมูลหลักสินค้า"
-          description="แอดมินสามารถเพิ่มสินค้าใหม่ไว้ที่หน้านี้ก่อนนำไปใช้ในหน้ารับเข้า"
+          title="รายการสินค้าในข้อมูลหลักสินค้า"
+          description="ใช้ค้นหา ตรวจสถานะ และแก้ไขรายการสินค้าที่พร้อมใช้งานในระบบ"
           action={
             <div className="master-data-toolbar">
               <label className="master-data-search">
@@ -660,7 +696,7 @@ export default function MasterDataPage() {
               "จัดการ",
             ]}
             emptyMessage={isLoading ? "กำลังโหลด ข้อมูลหลักสินค้า..." : "ยังไม่มีสินค้าใน ข้อมูลหลักสินค้า"}
-            columnCount={10}
+            columnCount={11}
           >
             {filteredProducts.map((product) => (
               <tr key={product.id}>
@@ -764,174 +800,239 @@ export default function MasterDataPage() {
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[860px]">
           <DialogHeader>
-            <DialogTitle>{editingId ? "แก้ไข ข้อมูลหลักสินค้า สินค้า" : "เพิ่มสินค้าใหม่ใน ข้อมูลหลักสินค้า"}</DialogTitle>
+            <DialogTitle>{editingId ? "แก้ไขข้อมูลหลักสินค้า" : "เพิ่มสินค้าใหม่"}</DialogTitle>
             <DialogDescription>
-              กำหนดข้อมูลมาตรฐานของสินค้าเพื่อให้ใช้ต่อในหน้ารับเข้าได้ทันที
+              กรอกข้อมูลตามลำดับด้านล่าง เริ่มจากข้อมูลจำเป็นก่อน แล้วค่อยตั้งค่าควบคุมสต๊อกและรายละเอียดเสริม
             </DialogDescription>
           </DialogHeader>
 
           <form className="grid gap-4 p-4" onSubmit={handleSubmit}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                ประเภทสินค้า *
-                <ComboboxSelect
-                  value={form.productImportType}
-                  onValueChange={(value) =>
-                    updateForm("productImportType", value as ProductImportType)
-                  }
-                  options={productImportTypeOptions}
-                  className={inputClassName}
-                  searchPlaceholder="ค้นหาประเภทสินค้า..."
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                หมวดหมู่
-                <input
-                  value={form.category}
-                  onChange={(event) => updateForm("category", event.target.value)}
-                  className={inputClassName}
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                ชื่อสินค้า *
-                <input
-                  value={form.name}
-                  onChange={(event) => updateForm("name", event.target.value)}
-                  className={inputClassName}
-                  required
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                รหัสสินค้า
-                <input
-                  value={form.sku}
-                  onChange={(event) => updateForm("sku", sanitizeSku(event.target.value))}
-                  className={inputClassName}
-                  inputMode="text"
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                หน่วยนับ *
-                <input
-                  value={form.unit}
-                  onChange={(event) => updateForm("unit", event.target.value)}
-                  className={inputClassName}
-                  required
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                สถานะใช้งาน
-                <ComboboxSelect
-                  value={form.isActive ? "active" : "inactive"}
-                  onValueChange={(value) => updateForm("isActive", value === "active")}
-                  options={[
-                    { value: "active", label: "เปิดใช้งาน" },
-                    { value: "inactive", label: "ปิดใช้งาน" },
-                  ]}
-                  className={inputClassName}
-                  searchPlaceholder="ค้นหาสถานะ..."
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                ต้นทุนมาตรฐาน
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.costPrice}
-                  onChange={(event) => updateForm("costPrice", event.target.value)}
-                  className={inputClassName}
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                สกุลเงินต้นทุน
-                <ComboboxSelect
-                  value={form.costCurrency}
-                  onValueChange={(value) => updateForm("costCurrency", value as CostCurrency)}
-                  options={costCurrencyOptions}
-                  className={inputClassName}
-                  searchPlaceholder="ค้นหาสกุลเงิน..."
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                ราคาขายมาตรฐาน
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.price}
-                  onChange={(event) => updateForm("price", event.target.value)}
-                  className={inputClassName}
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                ผู้ขาย
-                <input
-                  value={form.vendor}
-                  onChange={(event) => updateForm("vendor", event.target.value)}
-                  className={inputClassName}
-                  placeholder="เช่น บริษัทผู้ขาย / ร้านค้า"
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                จุดเก็บมาตรฐาน
-                <input
-                  value={form.defaultStorageLocation}
-                  onChange={(event) => updateForm("defaultStorageLocation", event.target.value)}
-                  className={inputClassName}
-                  placeholder="เช่น A01 - ลานวางแผ่นพื้น"
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                วันหมดอายุ
-                <input
-                  type="date"
-                  value={form.defaultExpiryDate}
-                  onChange={(event) => updateForm("defaultExpiryDate", event.target.value)}
-                  className={inputClassName}
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">
-                รูปสินค้า
-                <input type="file" accept="image/*" onChange={handleImageChange} className={inputClassName} />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">
-                หมายเหตุ
-                <textarea
-                  value={form.note}
-                  onChange={(event) => updateForm("note", event.target.value)}
-                  className={`${inputClassName} min-h-[64px] h-auto resize-y py-2.5`}
-                  rows={2}
-                  placeholder="บันทึกรายละเอียดเพิ่มเติมของสินค้า"
-                />
-              </label>
-
-              {form.imageDataUrl ? (
-                <div className="grid gap-3 sm:col-span-2">
-                  <div className="receive-image-preview">
-                    <img src={form.imageDataUrl} alt={form.name || "รูปสินค้า"} />
-                  </div>
+            <div className="master-data-dialog-steps">
+              {masterDataSetupSteps.map((step, index) => (
+                <div key={step.title} className="master-data-dialog-step">
+                  <span>{index + 1}</span>
                   <div>
-                    <Button type="button" variant="secondary" size="sm" onClick={() => updateForm("imageDataUrl", "")}>
-                      ลบรูปสินค้า
-                    </Button>
+                    <strong>{step.title}</strong>
+                    <p>{step.description}</p>
                   </div>
                 </div>
-              ) : null}
+              ))}
             </div>
+
+            <section className="master-data-form-section">
+              <div className="master-data-form-section-header">
+                <p className="master-data-form-step-label">ขั้นตอนที่ 1</p>
+                <h3>ข้อมูลจำเป็น</h3>
+                <p>กรอก 3 อย่างนี้ก่อน: ประเภทสินค้า ชื่อสินค้า และหน่วยนับ</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  ประเภทสินค้า *
+                  <ComboboxSelect
+                    value={form.productImportType}
+                    onValueChange={(value) =>
+                      updateForm("productImportType", value as ProductImportType)
+                    }
+                    options={productImportTypeOptions}
+                    className={inputClassName}
+                    searchPlaceholder="ค้นหาประเภทสินค้า..."
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  สถานะใช้งาน
+                  <ComboboxSelect
+                    value={form.isActive ? "active" : "inactive"}
+                    onValueChange={(value) => updateForm("isActive", value === "active")}
+                    options={[
+                      { value: "active", label: "เปิดใช้งาน" },
+                      { value: "inactive", label: "ปิดใช้งาน" },
+                    ]}
+                    className={inputClassName}
+                    searchPlaceholder="ค้นหาสถานะ..."
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">
+                  ชื่อสินค้า *
+                  <input
+                    value={form.name}
+                    onChange={(event) => updateForm("name", event.target.value)}
+                    className={inputClassName}
+                    placeholder="เช่น ปูนซีเมนต์ปอร์ตแลนด์ ประเภท 1"
+                    required
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  หน่วยนับ *
+                  <input
+                    value={form.unit}
+                    onChange={(event) => updateForm("unit", event.target.value)}
+                    className={inputClassName}
+                    placeholder="เช่น ถุง, แผ่น, ชิ้น"
+                    required
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  รหัสสินค้า
+                  <input
+                    value={form.sku}
+                    onChange={(event) => updateForm("sku", sanitizeSku(event.target.value))}
+                    className={inputClassName}
+                    inputMode="text"
+                    placeholder="ถ้ามีรหัสประจำสินค้าให้กรอก"
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="master-data-form-section">
+              <div className="master-data-form-section-header">
+                <p className="master-data-form-step-label">ขั้นตอนที่ 2</p>
+                <h3>การจัดเก็บและควบคุมสต๊อก</h3>
+                <p>ข้อมูลส่วนนี้ช่วยให้ค้นหาและติดตามสถานะสต๊อกได้ง่ายขึ้น</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  หมวดหมู่
+                  <input
+                    value={form.category}
+                    onChange={(event) => updateForm("category", event.target.value)}
+                    className={inputClassName}
+                    placeholder="เช่น ปูน, เหล็ก, เคมีภัณฑ์"
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  จุดเก็บมาตรฐาน
+                  <input
+                    value={form.defaultStorageLocation}
+                    onChange={(event) => updateForm("defaultStorageLocation", event.target.value)}
+                    className={inputClassName}
+                    placeholder="เช่น A01 - ลานวางแผ่นพื้น"
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  สต๊อกต่ำสุด (min)
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.minStock}
+                    onChange={(event) => updateForm("minStock", event.target.value)}
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  สต๊อกสูงสุด (max)
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.maxStock}
+                    onChange={(event) => updateForm("maxStock", event.target.value)}
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">
+                  วันหมดอายุมาตรฐาน
+                  <input
+                    type="date"
+                    value={form.defaultExpiryDate}
+                    onChange={(event) => updateForm("defaultExpiryDate", event.target.value)}
+                    className={inputClassName}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="master-data-form-section">
+              <div className="master-data-form-section-header">
+                <p className="master-data-form-step-label">ขั้นตอนที่ 3</p>
+                <h3>ต้นทุนและรายละเอียดเสริม</h3>
+                <p>ถ้ายังไม่มีข้อมูลครบ สามารถบันทึกเฉพาะเท่าที่ใช้จริงก่อนแล้วกลับมาแก้ไขภายหลังได้</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  ต้นทุนมาตรฐาน
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.costPrice}
+                    onChange={(event) => updateForm("costPrice", event.target.value)}
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  สกุลเงินต้นทุน
+                  <ComboboxSelect
+                    value={form.costCurrency}
+                    onValueChange={(value) => updateForm("costCurrency", value as CostCurrency)}
+                    options={costCurrencyOptions}
+                    className={inputClassName}
+                    searchPlaceholder="ค้นหาสกุลเงิน..."
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  ราคาขายมาตรฐาน
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.price}
+                    onChange={(event) => updateForm("price", event.target.value)}
+                    className={inputClassName}
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                  ผู้ขาย
+                  <input
+                    value={form.vendor}
+                    onChange={(event) => updateForm("vendor", event.target.value)}
+                    className={inputClassName}
+                    placeholder="เช่น บริษัทผู้ขาย / ร้านค้า"
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">
+                  รูปสินค้า
+                  <input type="file" accept="image/*" onChange={handleImageChange} className={inputClassName} />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">
+                  หมายเหตุ
+                  <textarea
+                    value={form.note}
+                    onChange={(event) => updateForm("note", event.target.value)}
+                    className={`${inputClassName} min-h-[64px] h-auto resize-y py-2.5`}
+                    rows={2}
+                    placeholder="บันทึกรายละเอียดเพิ่มเติมของสินค้า"
+                  />
+                </label>
+
+                {form.imageDataUrl ? (
+                  <div className="grid gap-3 sm:col-span-2">
+                    <div className="receive-image-preview">
+                      <img src={form.imageDataUrl} alt={form.name || "รูปสินค้า"} />
+                    </div>
+                    <div>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => updateForm("imageDataUrl", "")}>
+                        ลบรูปสินค้า
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </section>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="secondary" onClick={closeDialog} disabled={isSaving}>

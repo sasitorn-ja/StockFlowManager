@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { ensureColumn, ensureColumnDefinition, ensureIndex, sql } from "@/lib/db";
-import { createSampleTransactions } from "@/lib/stock-flow/sample-data";
 import { buildItemKey } from "@/lib/stock-flow/utils";
 import { getCurrentUser } from "@/lib/auth/users";
 import { sendRequisitionNotice } from "@/lib/requisition-email";
@@ -8,11 +7,6 @@ import { getAppSettings } from "@/lib/app-settings";
 import type { TransactionStatus } from "@/types/stock-flow";
 
 export const dynamic = "force-dynamic";
-
-function isSasitornTester(user: { name?: string; email?: string }) {
-  return user.name?.trim().toLowerCase() === "ศศิธร จรุงจรรยาพงศ์" ||
-    user.email?.trim().toLowerCase() === "sasitoja@scg.com";
-}
 
 let transactionTableSetup: Promise<void> | null = null;
 
@@ -262,7 +256,7 @@ export async function PUT(request: Request) {
         (name) => String(name || "").trim() === actor.name.trim()
       );
       const allowed =
-        (status === "approved" && currentStatus === "pending" && (actor.role === "manager" || (actor.role === "admin" && isSasitornTester(actor))) && (!requisition.approver || requisition.approver === actor.name)) ||
+        (status === "approved" && currentStatus === "pending" && actor.role === "manager" && (!requisition.approver || requisition.approver === actor.name)) ||
         (status === "issued" && currentStatus === "approved" && actor.role === "admin") ||
         (status === "received" && currentStatus === "issued" && String(requisition.requester || "").trim() === actor.name.trim()) ||
         (status === "completed" && currentStatus === "issued" && actor.role === "admin" && !settings?.requireEmployeeConfirmation) ||
