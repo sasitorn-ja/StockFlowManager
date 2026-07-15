@@ -126,6 +126,7 @@ const buddyUiStyles = `
   }
   .dashboard-shell.sidebar-collapsed .brand-title,
   .dashboard-shell.sidebar-collapsed .brand-subtitle,
+  .dashboard-shell.sidebar-collapsed .dashboard-nav-item span,
   .dashboard-shell.sidebar-collapsed .dashboard-nav-group-trigger span,
   .dashboard-shell.sidebar-collapsed .dashboard-nav-subitem span,
   .dashboard-shell.sidebar-collapsed .dashboard-sidebar-logout span {
