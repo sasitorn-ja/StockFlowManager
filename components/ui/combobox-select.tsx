@@ -10,7 +10,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 export type ComboboxSelectOption = {
@@ -74,40 +74,56 @@ export function ComboboxSelect({
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange} modal>
-      <PopoverTrigger asChild>
+      <PopoverAnchor asChild>
         <div
-          role="combobox"
-          aria-expanded={open}
-          aria-disabled={disabled}
           title={title}
           className={cn(
             "flex h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-[var(--panel)] px-4 text-left text-sm font-semibold text-slate-800 shadow-sm transition focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-100",
             disabled && "cursor-not-allowed opacity-60",
             className
           )}
-          onClick={() => {
-            if (!disabled && !open) {
-              setOpen(true);
-            }
-          }}
         >
-          {open && !disabled ? (
-            <input
-              ref={inputRef}
-              value={searchValue}
-              onChange={(event) => setSearchValue(event.target.value)}
-              placeholder={searchPlaceholder}
-              className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-slate-400"
-              onClick={(event) => event.stopPropagation()}
-            />
-          ) : (
-            <span className={cn("min-w-0 truncate", !activeOption && "text-slate-400")}>
-              {activeOption?.label ?? placeholder}
-            </span>
-          )}
-          <ChevronDown size={15} className="shrink-0 text-slate-500" />
+          <input
+            ref={inputRef}
+            role="combobox"
+            aria-expanded={open}
+            aria-disabled={disabled}
+            value={open ? searchValue : activeOption?.label ?? ""}
+            onChange={(event) => {
+              if (!disabled) {
+                setSearchValue(event.target.value);
+                if (!open) {
+                  setOpen(true);
+                }
+              }
+            }}
+            onFocus={() => {
+              if (!disabled) {
+                setOpen(true);
+              }
+            }}
+            placeholder={open ? searchPlaceholder : placeholder}
+            readOnly={disabled}
+            className={cn(
+              "min-w-0 flex-1 bg-transparent outline-none placeholder:text-slate-400",
+              !open && activeOption && "cursor-pointer"
+            )}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (!disabled) {
+                setOpen((current) => !current);
+              }
+            }}
+            className="shrink-0 text-slate-500"
+            tabIndex={-1}
+            aria-label="Toggle options"
+          >
+            <ChevronDown size={15} />
+          </button>
         </div>
-      </PopoverTrigger>
+      </PopoverAnchor>
       <PopoverContent
         align={align}
         portalled={portalled}
