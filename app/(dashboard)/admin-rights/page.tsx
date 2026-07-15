@@ -6,7 +6,7 @@ import { Shield, UserCheck, ShieldAlert } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
-import { ComboboxSelect } from "@/components/ui/combobox-select";
+import { ComboboxInput } from "@/components/ui/combobox-input";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
 
@@ -190,7 +190,7 @@ export default function AdminRightsPage() {
                   {formatTimestamp(user.createdAt)}
                 </td>
                 <td>
-                  <ComboboxSelect
+                  <ComboboxInput
                     value={user.role}
                     onValueChange={(value) =>
                       handleUpdateRole(user.username, value as AdminUser["role"])
@@ -201,8 +201,8 @@ export default function AdminRightsPage() {
                       { value: "admin", label: "แอดมิน" },
                     ]}
                     className="control-input w-full min-w-[140px]"
-                    title="ปรับบทบาทผู้ใช้"
                     searchPlaceholder="ค้นหาบทบาท..."
+                    allowCustomValue={false}
                   />
                 </td>
               </tr>

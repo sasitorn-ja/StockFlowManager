@@ -1493,7 +1493,7 @@ textarea {
     @apply text-[11px] font-semibold leading-4;
   }
 
-  .receive-form input,
+  .receive-form input:not([cmdk-input]),
   .receive-form select,
   .receive-form [role="combobox"],
   .receive-form textarea {
@@ -1503,7 +1503,7 @@ textarea {
     @apply h-10 w-full rounded-md px-3 text-sm outline-none transition-colors;
   }
 
-  .receive-form input:focus,
+  .receive-form input:not([cmdk-input]):focus,
   .receive-form select:focus,
   .receive-form [role="combobox"]:focus-visible,
   .receive-form textarea:focus {
@@ -1511,7 +1511,7 @@ textarea {
     box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
   }
 
-  .receive-form input:disabled,
+  .receive-form input:not([cmdk-input]):disabled,
   .receive-form select:disabled,
   .receive-form button:disabled[role="combobox"],
   .receive-form textarea:disabled {
@@ -1522,7 +1522,7 @@ textarea {
     opacity: 1;
   }
 
-  .receive-form input:disabled::placeholder,
+  .receive-form input:not([cmdk-input]):disabled::placeholder,
   .receive-form textarea:disabled::placeholder {
     color: #94a3b8;
   }

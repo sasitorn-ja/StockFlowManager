@@ -6,7 +6,6 @@ import { Plus, Search, Filter, ChevronDown, FileText } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { getClientAppSettings, getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
-import { ComboboxSelect } from "@/components/ui/combobox-select";
 import { ComboboxInput } from "@/components/ui/combobox-input";
 import {
   Dialog,
@@ -1021,13 +1020,17 @@ export default function ReceivePage() {
             <div className="receive-form-grid">
               <label>
                 <span>ประเภทสินค้า *</span>
-                <ComboboxSelect
+                <ComboboxInput
                   value={form.productImportType}
                   onValueChange={(value) => handleProductImportTypeChange(value as ProductImportType)}
-                  options={productImportTypeOptions}
+                  options={productImportTypeOptions.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
                   placeholder="เลือกประเภทสินค้าก่อน"
                   portalled={false}
                   searchPlaceholder="ค้นหาประเภทสินค้า..."
+                  allowCustomValue={false}
                 />
               </label>
 
@@ -1157,15 +1160,19 @@ export default function ReceivePage() {
                     onChange={(event) => updateForm("costPrice", event.target.value)}
                     disabled={!isCategoryReady}
                   />
-                  <ComboboxSelect
+                  <ComboboxInput
                     value={form.costCurrency}
                     onValueChange={(value) =>
                       updateForm("costCurrency", value as CostCurrency)
                     }
                     disabled={!isCategoryReady}
-                    options={costCurrencyOptions}
+                    options={costCurrencyOptions.map((option) => ({
+                      value: option.value,
+                      label: option.label,
+                    }))}
                     portalled={false}
                     searchPlaceholder="ค้นหาสกุลเงิน..."
+                    allowCustomValue={false}
                   />
                 </div>
               </label>

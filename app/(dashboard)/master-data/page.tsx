@@ -6,7 +6,7 @@ import { Boxes, PackageCheck, Pencil, Plus, Search, ShieldAlert, Trash2 } from "
 import { withBasePath } from "@/lib/base-path";
 import { invalidateClientMasterProductsCache } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
-import { ComboboxSelect } from "@/components/ui/combobox-select";
+import { ComboboxInput } from "@/components/ui/combobox-input";
 import {
   Dialog,
   DialogContent,
@@ -649,7 +649,7 @@ export default function MasterDataPage() {
                   placeholder="ค้นหาชื่อสินค้า, รหัส, หมวดหมู่..."
                 />
               </label>
-              <ComboboxSelect
+              <ComboboxInput
                 value={statusFilter}
                 onValueChange={(value) =>
                   setStatusFilter(value as "all" | "active" | "inactive")
@@ -661,6 +661,7 @@ export default function MasterDataPage() {
                 ]}
                 className="master-data-filter"
                 searchPlaceholder="ค้นหาสถานะ..."
+                allowCustomValue={false}
               />
             </div>
           }
@@ -800,21 +801,25 @@ export default function MasterDataPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                   ประเภทสินค้า *
-                  <ComboboxSelect
+                  <ComboboxInput
                     value={form.productImportType}
                     onValueChange={(value) =>
                       updateForm("productImportType", value as ProductImportType)
                     }
-                    options={productImportTypeOptions}
+                    options={productImportTypeOptions.map((option) => ({
+                      value: option.value,
+                      label: option.label,
+                    }))}
                     className={inputClassName}
                     searchPlaceholder="ค้นหาประเภทสินค้า..."
                     portalled={false}
+                    allowCustomValue={false}
                   />
                 </label>
 
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                   สถานะใช้งาน
-                  <ComboboxSelect
+                  <ComboboxInput
                     value={form.isActive ? "active" : "inactive"}
                     onValueChange={(value) => updateForm("isActive", value === "active")}
                     options={[
@@ -824,6 +829,7 @@ export default function MasterDataPage() {
                     className={inputClassName}
                     searchPlaceholder="ค้นหาสถานะ..."
                     portalled={false}
+                    allowCustomValue={false}
                   />
                 </label>
 
@@ -948,13 +954,17 @@ export default function MasterDataPage() {
 
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                   สกุลเงินต้นทุน
-                  <ComboboxSelect
+                  <ComboboxInput
                     value={form.costCurrency}
                     onValueChange={(value) => updateForm("costCurrency", value as CostCurrency)}
-                    options={costCurrencyOptions}
+                    options={costCurrencyOptions.map((option) => ({
+                      value: option.value,
+                      label: option.label,
+                    }))}
                     className={inputClassName}
                     searchPlaceholder="ค้นหาสกุลเงิน..."
                     portalled={false}
+                    allowCustomValue={false}
                   />
                 </label>
 
