@@ -1,18 +1,30 @@
 import mysql, { PoolConnection, type QueryResult } from "mysql2/promise";
 
-const databaseUrl = process.env.DATABASE_URL ?? "";
+function getDatabaseUrl() {
+  const databaseUrl = process.env.DATABASE_URL ?? "";
 
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not set in environment variables");
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is not set in environment variables");
+  }
+
+  return databaseUrl;
 }
 
-const pool = mysql.createPool({
-  uri: databaseUrl,
-  connectionLimit: 5,
-  charset: "utf8mb4",
-  decimalNumbers: true,
-  namedPlaceholders: false,
-});
+let pool: mysql.Pool | null = null;
+
+function getPool() {
+  if (!pool) {
+    pool = mysql.createPool({
+      uri: getDatabaseUrl(),
+      connectionLimit: 5,
+      charset: "utf8mb4",
+      decimalNumbers: true,
+      namedPlaceholders: false,
+    });
+  }
+
+  return pool;
+}
 
 type SqlTag = {
   (strings: TemplateStringsArray, ...values: unknown[]): Promise<any[]>;
@@ -31,6 +43,7 @@ function formatQuery(strings: TemplateStringsArray, values: unknown[]) {
 
 function getDatabaseName() {
   try {
+    const databaseUrl = getDatabaseUrl();
     const url = new URL(databaseUrl);
     return decodeURIComponent(url.pathname.replace(/^\//, ""));
   } catch {
@@ -51,7 +64,7 @@ async function ensureDatabaseExists() {
     const databaseName = getDatabaseName();
     if (!databaseName) return;
 
-    const url = new URL(databaseUrl);
+    const url = new URL(getDatabaseUrl());
     const connection = await mysql.createConnection({
       host: url.hostname,
       port: url.port ? Number(url.port) : 3306,
@@ -81,14 +94,14 @@ function createSqlTag(connection?: PoolConnection): SqlTag {
       await ensureDatabaseExists();
     }
     const { text, values: params } = formatQuery(strings, values);
-    const executor = connection ?? pool;
+    const executor = connection ?? getPool();
     const [rows] = await executor.query<QueryResult>(text, params);
     return Array.isArray(rows) ? rows : [];
   }) as SqlTag;
 
   query.begin = async <T>(callback: (tx: SqlTag) => Promise<T>) => {
     await ensureDatabaseExists();
-    const conn = await pool.getConnection();
+    const conn = await getPool().getConnection();
     try {
       await conn.beginTransaction();
       const result = await callback(createSqlTag(conn));
@@ -118,13 +131,13 @@ export async function ensureColumn(tableName: string, columnName: string, defini
   `;
 
   if (rows.length === 0) {
-    await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${definition}`);
+    await getPool().query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${definition}`);
   }
 }
 
 export async function ensureColumnDefinition(tableName: string, columnName: string, definition: string) {
   await ensureColumn(tableName, columnName, definition);
-  await pool.query(
+  await getPool().query(
     `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\` ${definition}`
   );
 }
@@ -144,6 +157,6 @@ export async function ensureIndex(
   `;
 
   if (rows.length === 0) {
-    await pool.query(createIndexSql);
+    await getPool().query(createIndexSql);
   }
 }
