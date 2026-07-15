@@ -11,7 +11,6 @@ import {
   Menu,
   X,
   Bell,
-  CalendarDays,
   PackageCheck,
   Home,
   ClipboardPlus,
@@ -184,10 +183,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>("employee");
-  const [actualRole, setActualRole] = useState<UserRole>("employee");
   const { transactions } = useTransactions();
   const pathname = usePathname();
-  const [now, setNow] = useState<Date | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(
       navigationGroups.map((group) => [
@@ -197,22 +194,6 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     )
   );
   const [ssoUser, setSsoUser] = useState<{ name: string; email?: string; userId?: string; role: UserRole } | null>(null);
-  const todayLabel = useMemo(() => {
-    if (!now) return "กำลังโหลดวันที่";
-    return new Intl.DateTimeFormat("th-TH", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }).format(now);
-  }, [now]);
-  const timeLabel = useMemo(() => {
-    if (!now) return "--:--";
-    return new Intl.DateTimeFormat("th-TH", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).format(now);
-  }, [now]);
   const pendingApprovalCount = useMemo(
     () =>
       new Set(
@@ -237,19 +218,12 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           : null;
         setSsoUser(user);
         const role: UserRole = user?.role === "admin" || user?.role === "manager" ? user.role : "employee";
-        setActualRole(role);
         setUserRole(role);
         localStorage.setItem("current_role", role);
         localStorage.setItem("current_username", user?.name ?? "ผู้ใช้งาน");
         window.dispatchEvent(new Event("current-user-changed"));
       })
       .catch(() => setSsoUser(null));
-  }, []);
-
-  useEffect(() => {
-    setNow(new Date());
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
   }, []);
 
   function closeMobileMenu() {
@@ -406,11 +380,6 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           </div>
 
         <div className="dashboard-topbar-actions">
-          <div className="dashboard-date-pill">
-            <CalendarDays aria-hidden="true" size={17} />
-            <span>{todayLabel}</span>
-            <b>{timeLabel} น.</b>
-          </div>
           <Link
             href="/approve"
             className="dashboard-notification-button"

@@ -2647,6 +2647,15 @@ textarea {
     @apply w-full justify-center rounded-xl;
   }
 
+  .master-data-stock-summary {
+    @apply grid gap-2;
+  }
+
+  .master-data-stock-inline {
+    color: var(--text-muted);
+    @apply flex flex-wrap gap-2 text-[12px] leading-5;
+  }
+
   .master-data-dialog-steps {
     background: #f8fbff;
     border: 1px solid #dbeafe;
@@ -2700,6 +2709,21 @@ textarea {
   .master-data-form-section-header p {
     color: var(--text-muted);
     @apply text-sm leading-6;
+  }
+
+  .master-data-advanced-section {
+    @apply grid gap-3;
+  }
+
+  .master-data-advanced-section > summary {
+    color: var(--text-strong);
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    @apply cursor-pointer rounded-xl px-4 py-3 text-sm font-bold;
+  }
+
+  .master-data-advanced-section[open] > summary {
+    @apply rounded-b-md;
   }
 
   .settings-overview-grid {

@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, PackageCheck, Pencil, Plus, Search, ShieldAlert, Store, Trash2 } from "lucide-react";
+import { Boxes, PackageCheck, Pencil, Plus, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { invalidateClientMasterProductsCache } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
 import {
   buildInventoryMap,
-  formatCurrency,
   formatNumber,
   getStockTargetStatus,
   getProductImportTypeLabel,
@@ -84,16 +83,16 @@ const productImportTypeOptions: { value: ProductImportType; label: string }[] = 
 
 const masterDataSetupSteps = [
   {
-    title: "เริ่มจากข้อมูลจำเป็น",
-    description: "เลือกประเภทสินค้า ตั้งชื่อสินค้า และกำหนดหน่วยนับให้เรียบร้อยก่อน",
+    title: "เพิ่มสินค้าให้ใช้งานได้ก่อน",
+    description: "กรอกแค่ ประเภทสินค้า, ชื่อสินค้า, หน่วยนับ และรหัสสินค้า ถ้ามี",
   },
   {
-    title: "ตั้งค่าการควบคุมสต๊อก",
-    description: "กำหนดหมวดหมู่ จุดเก็บ และค่า min / max เพื่อใช้เตือนและติดตามสต๊อก",
+    title: "ค่อยตั้งค่าควบคุมสต๊อก",
+    description: "หมวดหมู่, min / max และจุดเก็บ เป็นข้อมูลเสริมที่กลับมาแก้ทีหลังได้",
   },
   {
-    title: "เติมรายละเอียดเสริม",
-    description: "ใส่ต้นทุน ผู้ขาย รูปสินค้า หรือหมายเหตุเพิ่มเติมเท่าที่จำเป็น",
+    title: "ใช้รายการด้านล่างเป็นตัวหลัก",
+    description: "ค้นหา แก้ไข เปิดใช้งาน หรือปิดใช้งานจากรายการสินค้าได้ตลอด",
   },
 ] as const;
 
@@ -205,9 +204,6 @@ export default function MasterDataPage() {
   const activeCategoryCount = new Set(
     summarizedProducts.filter((product) => product.isActive).map((product) => product.category)
   ).size;
-  const stockedProductCount = summarizedProducts.filter(
-    (product) => (product.inventoryItem?.balance ?? 0) > 0
-  ).length;
   const categorySummary = useMemo(() => {
     const categoryMap = new Map<string, number>();
 
@@ -568,9 +564,9 @@ export default function MasterDataPage() {
               <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-sky-600">
                 ข้อมูลมาตรฐานสินค้า
               </p>
-              <h2 className="dashboard-section-title">ข้อมูลหลักสินค้า</h2>
+              <h2 className="dashboard-section-title">ตั้งค่ารายการสินค้า</h2>
               <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-                ใช้ตั้งค่ารายการสินค้ามาตรฐานก่อนนำไปใช้ในหน้ารับเข้าและหน้าเบิก โดยระบบจะซิงก์สินค้าที่มีอยู่ในคลังเข้ามาให้ด้วย
+                หน้านี้ใช้เพิ่มและแก้ไขรายการสินค้าในระบบ ถ้ายังไม่แน่ใจ ให้เริ่มจากข้อมูลจำเป็นก่อน แล้วค่อยเติมรายละเอียดเพิ่มภายหลัง
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -585,10 +581,10 @@ export default function MasterDataPage() {
         <section className="master-data-steps">
           <div className="master-data-steps-header">
             <div>
-              <p className="master-data-steps-eyebrow">เริ่มยังไงดี</p>
-              <h3>ลำดับที่ควรกรอกในหน้าตั้งค่ารายการสินค้า</h3>
+              <p className="master-data-steps-eyebrow">เริ่มแบบสั้นที่สุด</p>
+              <h3>ต้องใช้จริงแค่ 3 จังหวะ</h3>
             </div>
-            <p>กรอกเฉพาะข้อมูลสำคัญก่อน แล้วค่อยเติมรายละเอียดเสริมทีหลังได้</p>
+            <p>ไม่ต้องกรอกทุกช่องตั้งแต่รอบแรก</p>
           </div>
           <div className="master-data-steps-grid">
             {masterDataSetupSteps.map((step, index) => (
@@ -612,7 +608,7 @@ export default function MasterDataPage() {
               <p className="master-data-stat-label">สินค้าที่เปิดใช้งาน</p>
               <div className="master-data-stat-body">
                 <strong className="master-data-stat-value">{formatNumber(activeProductCount)}</strong>
-                <span className="master-data-stat-helper">พร้อมใช้ในระบบตอนนี้</span>
+                <span className="master-data-stat-helper">พร้อมใช้ในหน้ารับเข้าและหน้าเบิก</span>
               </div>
             </div>
           </div>
@@ -624,7 +620,7 @@ export default function MasterDataPage() {
               <p className="master-data-stat-label">หมวดหมู่ทั้งหมด</p>
               <div className="master-data-stat-body">
                 <strong className="master-data-stat-value">{formatNumber(activeCategoryCount)}</strong>
-                <span className="master-data-stat-helper">รวมทุกหมวดที่มีการใช้งาน</span>
+                <span className="master-data-stat-helper">ใช้ดูว่าเราจัดกลุ่มสินค้าไว้กี่หมวด</span>
               </div>
             </div>
             <Button
@@ -636,18 +632,6 @@ export default function MasterDataPage() {
             >
               ดูหมวดหมู่
             </Button>
-          </div>
-          <div className="master-data-stat-card">
-            <div className="master-data-stat-icon">
-              <Store size={20} />
-            </div>
-            <div className="master-data-stat-content">
-              <p className="master-data-stat-label">สินค้าที่มีสต๊อกคงเหลือ</p>
-              <div className="master-data-stat-body">
-                <strong className="master-data-stat-value">{formatNumber(stockedProductCount)}</strong>
-                <span className="master-data-stat-helper">อ้างอิงจากของที่ยังคงเหลือในคลัง</span>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -684,19 +668,14 @@ export default function MasterDataPage() {
           <Table
             headers={[
               "สินค้า",
-              "ประเภทสินค้า",
-              "หมวดหมู่ / หน่วย",
-              "จุดเก็บ / ผู้ขาย",
-              "คงเหลือในคลัง",
-              "เป้าหมายสต๊อก",
-              "สถานะสต๊อก",
-              "วันหมดอายุ",
-              "ต้นทุนมาตรฐาน",
+              "ประเภท / หมวดหมู่",
+              "รหัส / หน่วย",
+              "สต๊อก",
               "สถานะ",
               "จัดการ",
             ]}
             emptyMessage={isLoading ? "กำลังโหลด ข้อมูลหลักสินค้า..." : "ยังไม่มีสินค้าใน ข้อมูลหลักสินค้า"}
-            columnCount={11}
+            columnCount={6}
           >
             {filteredProducts.map((product) => (
               <tr key={product.id}>
@@ -708,54 +687,49 @@ export default function MasterDataPage() {
                     </div>
                   </div>
                 </td>
-                <td>{getProductImportTypeLabel(product.productImportType)}</td>
                 <td>
                   <div className="master-data-stack-cell">
-                    <strong>{product.category || "-"}</strong>
+                    <strong>{getProductImportTypeLabel(product.productImportType)}</strong>
+                    <span>{product.category || "ยังไม่จัดหมวดหมู่"}</span>
+                  </div>
+                </td>
+                <td>
+                  <div className="master-data-stack-cell">
+                    <strong>{product.sku || "ยังไม่มีรหัสสินค้า"}</strong>
                     <span>หน่วย {product.unit}</span>
                   </div>
                 </td>
                 <td>
-                  <div className="master-data-stack-cell">
-                    <strong>{product.defaultStorageLocation || "-"}</strong>
-                    <span>{product.vendor || "ยังไม่ระบุผู้ขาย"}</span>
-                  </div>
-                </td>
-                <td className="text-right">
-                  <div className="master-data-amount-cell">
-                    <strong>{formatNumber(product.inventoryItem?.balance ?? 0)}</strong>
-                    <span>{product.unit}</span>
-                  </div>
-                </td>
-                <td>
-                  <div className="master-data-stack-cell">
-                    <strong>min {formatNumber(product.minStock ?? 0)}</strong>
-                    <span>max {formatNumber(product.maxStock ?? 0)}</span>
-                  </div>
-                </td>
-                <td>
-                  <span
-                    className={`stock-pill ${
-                      product.stockTargetStatus === "low"
-                        ? "stock-pill-danger"
+                  <div className="master-data-stock-summary">
+                    <div className="master-data-amount-cell">
+                      <strong>{formatNumber(product.inventoryItem?.balance ?? 0)}</strong>
+                      <span>{product.unit}</span>
+                    </div>
+                    <div className="master-data-stock-inline">
+                      <span>min {formatNumber(product.minStock ?? 0)}</span>
+                      <span>max {formatNumber(product.maxStock ?? 0)}</span>
+                    </div>
+                    <span
+                      className={`stock-pill ${
+                        product.stockTargetStatus === "low"
+                          ? "stock-pill-danger"
+                          : product.stockTargetStatus === "high"
+                            ? "stock-pill-warn"
+                            : product.stockTargetStatus === "normal"
+                              ? "stock-pill-ok"
+                              : ""
+                      }`}
+                    >
+                      {product.stockTargetStatus === "low"
+                        ? "ต่ำกว่า min"
                         : product.stockTargetStatus === "high"
-                          ? "stock-pill-warn"
+                          ? "สูงกว่า max"
                           : product.stockTargetStatus === "normal"
-                            ? "stock-pill-ok"
-                            : ""
-                    }`}
-                  >
-                    {product.stockTargetStatus === "low"
-                      ? "ต่ำกว่า min"
-                      : product.stockTargetStatus === "high"
-                        ? "สูงกว่า max"
-                        : product.stockTargetStatus === "normal"
-                          ? "อยู่ในช่วง"
-                          : "ยังไม่ตั้งค่า"}
-                  </span>
+                            ? "อยู่ในช่วง"
+                            : "ยังไม่ตั้งค่า"}
+                    </span>
+                  </div>
                 </td>
-                <td>{product.defaultExpiryDate || "-"}</td>
-                <td className="text-right">{formatCurrency(product.costPrice ?? 0)}</td>
                 <td>
                   <span className={`stock-pill ${product.isActive ? "stock-pill-ok" : "stock-pill-danger"}`}>
                     {product.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"}
@@ -802,28 +776,26 @@ export default function MasterDataPage() {
           <DialogHeader>
             <DialogTitle>{editingId ? "แก้ไขข้อมูลหลักสินค้า" : "เพิ่มสินค้าใหม่"}</DialogTitle>
             <DialogDescription>
-              กรอกข้อมูลตามลำดับด้านล่าง เริ่มจากข้อมูลจำเป็นก่อน แล้วค่อยตั้งค่าควบคุมสต๊อกและรายละเอียดเสริม
+              ถ้าจะเริ่มแบบง่ายที่สุด ให้กรอกประเภทสินค้า ชื่อสินค้า หน่วยนับ และรหัสสินค้าเท่าที่มี แล้วกดบันทึกได้เลย
             </DialogDescription>
           </DialogHeader>
 
           <form className="grid gap-4 p-4" onSubmit={handleSubmit}>
             <div className="master-data-dialog-steps">
-              {masterDataSetupSteps.map((step, index) => (
-                <div key={step.title} className="master-data-dialog-step">
-                  <span>{index + 1}</span>
-                  <div>
-                    <strong>{step.title}</strong>
-                    <p>{step.description}</p>
-                  </div>
+              <div className="master-data-dialog-step">
+                <span>1</span>
+                <div>
+                  <strong>ข้อมูลที่ต้องกรอกก่อน</strong>
+                  <p>ประเภทสินค้า, ชื่อสินค้า, หน่วยนับ และรหัสสินค้า ถ้ามี</p>
                 </div>
-              ))}
+              </div>
             </div>
 
             <section className="master-data-form-section">
               <div className="master-data-form-section-header">
-                <p className="master-data-form-step-label">ขั้นตอนที่ 1</p>
+                <p className="master-data-form-step-label">ต้องมี</p>
                 <h3>ข้อมูลจำเป็น</h3>
-                <p>กรอก 3 อย่างนี้ก่อน: ประเภทสินค้า ชื่อสินค้า และหน่วยนับ</p>
+                <p>ส่วนนี้พอบันทึกสินค้าให้ใช้งานได้แล้ว</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
@@ -888,11 +860,13 @@ export default function MasterDataPage() {
               </div>
             </section>
 
-            <section className="master-data-form-section">
+            <details className="master-data-advanced-section">
+              <summary>ตั้งค่าเพิ่มเติมถ้าต้องการ</summary>
+              <section className="master-data-form-section">
               <div className="master-data-form-section-header">
-                <p className="master-data-form-step-label">ขั้นตอนที่ 2</p>
+                <p className="master-data-form-step-label">ตัวเลือกเพิ่ม</p>
                 <h3>การจัดเก็บและควบคุมสต๊อก</h3>
-                <p>ข้อมูลส่วนนี้ช่วยให้ค้นหาและติดตามสถานะสต๊อกได้ง่ายขึ้น</p>
+                <p>ใช้เมื่ออยากตั้ง min / max หรือระบุหมวดหมู่และจุดเก็บให้ชัดขึ้น</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
@@ -949,13 +923,13 @@ export default function MasterDataPage() {
                   />
                 </label>
               </div>
-            </section>
+              </section>
 
-            <section className="master-data-form-section">
+              <section className="master-data-form-section">
               <div className="master-data-form-section-header">
-                <p className="master-data-form-step-label">ขั้นตอนที่ 3</p>
+                <p className="master-data-form-step-label">ตัวเลือกเพิ่ม</p>
                 <h3>ต้นทุนและรายละเอียดเสริม</h3>
-                <p>ถ้ายังไม่มีข้อมูลครบ สามารถบันทึกเฉพาะเท่าที่ใช้จริงก่อนแล้วกลับมาแก้ไขภายหลังได้</p>
+                <p>ยังไม่มีข้อมูลก็ข้ามได้ แล้วกลับมาเติมทีหลัง</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
@@ -1032,7 +1006,8 @@ export default function MasterDataPage() {
                   </div>
                 ) : null}
               </div>
-            </section>
+              </section>
+            </details>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="secondary" onClick={closeDialog} disabled={isSaving}>
