@@ -29,6 +29,7 @@ export type Transaction = {
   requester?: string;
   createdBy?: string;
   approver?: string;
+  approvedAt?: number;
   note: string;
   createdAt: number;
   status?: TransactionStatus;

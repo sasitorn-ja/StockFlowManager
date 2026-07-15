@@ -2507,7 +2507,7 @@ textarea {
 
   .delivery-table {
     border-collapse: collapse;
-    @apply w-full min-w-[780px] table-fixed text-[11px];
+    @apply w-full min-w-[620px] table-fixed text-[11px];
   }
 
   .delivery-table th,
@@ -2528,22 +2528,22 @@ textarea {
 
   .delivery-table th:nth-child(2),
   .delivery-table td:nth-child(2) {
-    @apply w-[92px] text-center;
+    @apply w-[96px] text-right;
   }
 
   .delivery-table th:nth-child(3),
   .delivery-table td:nth-child(3) {
-    @apply w-[140px];
+    @apply w-auto;
   }
 
-  .delivery-table th:nth-child(6),
-  .delivery-table td:nth-child(6) {
+  .delivery-table th:nth-child(4),
+  .delivery-table td:nth-child(4) {
     @apply w-[88px];
   }
 
-  .delivery-table th:nth-child(7),
-  .delivery-table td:nth-child(7) {
-    @apply w-[76px] text-center;
+  .delivery-table th:nth-child(5),
+  .delivery-table td:nth-child(5) {
+    @apply w-[160px];
   }
 
   .delivery-summary-grid {
@@ -3119,12 +3119,28 @@ textarea {
     margin: 10mm;
   }
 
+  html,
   body {
     background: #ffffff !important;
+    height: auto !important;
+    margin: 0 !important;
+    overflow: visible !important;
   }
 
   body * {
     visibility: hidden;
+  }
+
+  .dashboard-shell,
+  .dashboard-main,
+  .dashboard-content {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    position: static !important;
+    transform: none !important;
   }
 
   #delivery-note,
@@ -3133,9 +3149,11 @@ textarea {
   }
 
   #delivery-note {
-    position: absolute;
-    inset: 0;
+    position: fixed !important;
+    inset: 0 !important;
     display: block;
+    height: auto !important;
+    margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
   }
@@ -3145,12 +3163,16 @@ textarea {
   }
 
   .delivery-document {
+    display: flex !important;
     min-height: calc(297mm - 20mm);
-    width: 100%;
-    max-width: none;
-    border: 0;
-    box-shadow: none;
-    padding: 0;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    position: relative !important;
   }
 
   .delivery-document-break {

@@ -134,6 +134,7 @@ export function normalizeTransactions(value: unknown): Transaction[] {
         requester: toStringValue(item.requester).trim(),
         createdBy: toStringValue(item.createdBy).trim(),
         approver: toStringValue(item.approver).trim(),
+        approvedAt: Math.max(0, toNumberValue(item.approvedAt)),
         note: toStringValue(item.note).trim(),
         createdAt,
         status: toTransactionStatus(item.status),

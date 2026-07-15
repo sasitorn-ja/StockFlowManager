@@ -34,6 +34,7 @@ type GroupedRequisition = {
   requester: string;
   createdBy: string;
   approver?: string;
+  approvedAt?: number;
   note?: string;
   date: string;
   createdAt: number;
@@ -133,6 +134,7 @@ function RequisitionTrackerContent() {
         requester: t.requester || "-",
         createdBy: t.createdBy || "",
         approver: t.approver || "",
+        approvedAt: t.approvedAt || 0,
         note: t.note || "-",
         date: t.date,
         createdAt: t.createdAt,
@@ -143,6 +145,7 @@ function RequisitionTrackerContent() {
       };
 
       current.items.push(t);
+      current.approvedAt = Math.max(current.approvedAt || 0, t.approvedAt || 0);
       current.totalQuantity += t.quantity;
       current.totalCost += t.quantity * (t.costPrice || t.price || 0);
       
@@ -290,10 +293,17 @@ function RequisitionTrackerContent() {
       });
 
       if (res.ok) {
+        const data = await res.json().catch(() => null);
         patchIssueStatus(issueKey, newStatus, {
           approver:
-            typeof extraBody.approver === "string" && extraBody.approver.trim()
-              ? extraBody.approver.trim()
+            typeof data?.approver === "string" && data.approver.trim()
+              ? data.approver.trim()
+              : typeof extraBody.approver === "string" && extraBody.approver.trim()
+                ? extraBody.approver.trim()
+                : undefined,
+          approvedAt:
+            typeof data?.approvedAt === "number" && data.approvedAt > 0
+              ? data.approvedAt
               : undefined,
         });
       } else {
@@ -814,6 +824,17 @@ function RequisitionTrackerContent() {
                                   {req.approver && (
                                     <span className="block text-[10px] text-slate-400 font-normal">โดย: {req.approver}</span>
                                   )}
+                                  {req.approvedAt ? (
+                                    <span className="block text-[10px] text-slate-400 font-normal">
+                                      เวลาอนุมัติ: {new Date(req.approvedAt).toLocaleString("th-TH", {
+                                        day: "2-digit",
+                                        month: "short",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                  ) : null}
                                 </div>
                                 {req.status !== "pending" && req.status !== "cancelled" ? (
                                   <CheckCircle2 size={16} className="text-emerald-500 shrink-0 ml-2" />

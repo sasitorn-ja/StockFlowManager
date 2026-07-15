@@ -425,12 +425,10 @@ export default function OverviewPage() {
   const movementChartPoints = useMemo(() => {
     return enumerateDateRange(overviewDateFrom, overviewDateTo).map((date) => {
       const dayTransactions = rangeTransactions.filter((item) => item.date === date);
-      const stockIn = dayTransactions
-        .filter((item) => item.type === "in")
-        .reduce((sum, item) => sum + item.quantity, 0);
-      const stockOut = dayTransactions
-        .filter((item) => item.type === "out" && item.status !== "cancelled")
-        .reduce((sum, item) => sum + item.quantity, 0);
+      const stockIn = dayTransactions.filter((item) => item.type === "in").length;
+      const stockOut = dayTransactions.filter(
+        (item) => item.type === "out" && item.status !== "cancelled"
+      ).length;
 
       return {
         date,
@@ -462,6 +460,18 @@ export default function OverviewPage() {
         backgroundColor: "rgba(15,23,42,0.92)",
         borderWidth: 0,
         textStyle: { color: "#fff", fontFamily: "Sarabun, sans-serif" },
+        formatter: (params: any) => {
+          const points = Array.isArray(params) ? params : [];
+          const title = points[0]?.axisValueLabel || "";
+          const rows = points
+            .map((point) => {
+              const value = Number(point.value || 0);
+              return `${point.marker || ""} ${point.seriesName}: ${formatNumber(value)} รายการ`;
+            })
+            .join("<br/>");
+
+          return `${title}<br/>${rows}`;
+        },
       },
       legend: {
         top: 0,
@@ -480,6 +490,8 @@ export default function OverviewPage() {
       },
       yAxis: {
         type: "value",
+        name: "รายการ",
+        nameTextStyle: { color: "#64748b", fontFamily: "Sarabun, sans-serif", fontWeight: 800 },
         minInterval: 1,
         splitLine: { lineStyle: { color: "#edf2f7" } },
         axisLabel: { color: "#64748b", fontFamily: "Sarabun, sans-serif", fontWeight: 700 },
@@ -776,8 +788,8 @@ export default function OverviewPage() {
         <article className="overview-simple-card overview-chart-panel">
           <div className="overview-simple-card-heading">
             <div>
-              <h3>รับเข้า / เบิกจ่าย</h3>
-              <p>{formatDate(overviewDateFrom)} - {formatDate(overviewDateTo)}</p>
+              <h3>รับเข้า / เบิกจ่าย (จำนวนรายการ)</h3>
+              <p>{formatDate(overviewDateFrom)} - {formatDate(overviewDateTo)} · นับ 1 รายการต่อ 1 ครั้ง ไม่ใช่จำนวนหน่วยสินค้า</p>
             </div>
           </div>
           <EChart option={movementChartOption} className="overview-echart-movement" />

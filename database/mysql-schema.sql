@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   requester VARCHAR(255),
   `createdBy` VARCHAR(255),
   approver VARCHAR(255),
+  `approvedAt` BIGINT DEFAULT 0,
   note TEXT,
   `createdAt` BIGINT,
   status VARCHAR(50) DEFAULT 'confirmed'

@@ -10,7 +10,7 @@ type TransactionContextValue = {
   transactions: Transaction[];
   loading: boolean;
   refresh: () => Promise<void>;
-  patchIssueStatus: (issueKey: string, nextStatus: Transaction["status"], updates?: Partial<Pick<Transaction, "approver">>) => void;
+  patchIssueStatus: (issueKey: string, nextStatus: Transaction["status"], updates?: Partial<Pick<Transaction, "approver" | "approvedAt">>) => void;
 };
 
 const TransactionContext = createContext<TransactionContextValue | null>(null);
@@ -35,7 +35,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const patchIssueStatus = useCallback(
-    (issueKey: string, nextStatus: Transaction["status"], updates?: Partial<Pick<Transaction, "approver">>) => {
+    (issueKey: string, nextStatus: Transaction["status"], updates?: Partial<Pick<Transaction, "approver" | "approvedAt">>) => {
       setTransactions((current) =>
         current.map((transaction) =>
           transaction.issueKey === issueKey
@@ -43,6 +43,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
                 ...transaction,
                 status: nextStatus,
                 approver: updates?.approver ?? transaction.approver,
+                approvedAt: updates?.approvedAt ?? transaction.approvedAt,
               }
             : transaction
         )

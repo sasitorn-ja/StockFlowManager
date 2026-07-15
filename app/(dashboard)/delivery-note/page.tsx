@@ -24,6 +24,7 @@ export type IssueDeliveryDocument = {
     beforeBalance: number;
     afterBalance: number;
     costValue: number;
+    storageLocation: string;
   }[];
   beforeBalance: number;
   afterBalance: number;
@@ -70,12 +71,9 @@ function DeliveryNoteSection({
     );
   }
 
-  const documentTransactions =
-    deliveryDocument.transactions?.length > 0
-      ? deliveryDocument.transactions
-      : [deliveryDocument.transaction];
   const requesterName = deliveryDocument.transaction.requester || "-";
   const createdByName = deliveryDocument.transaction.createdBy || deliveryDocument.transaction.requester || "-";
+  const approverName = deliveryDocument.transaction.approver || "-";
   function handlePrint() {
     window.print();
   }
@@ -112,9 +110,9 @@ function DeliveryNoteSection({
 
         <div className="delivery-document-meta">
           <div>
-            <p>จาก คลังสินค้า</p>
+            <p>จาก ระบบ CPAC SB&amp;M Inventory Management</p>
             <p>ผู้ขอเบิกสินค้า {requesterName}</p>
-            <p>คนคีย์ใบเบิก {createdByName}</p>
+            <p>ผู้อนุมัติ {approverName}</p>
           </div>
           <div className="text-right">
             <p>
@@ -129,22 +127,20 @@ function DeliveryNoteSection({
             <thead>
               <tr>
                 <th>ลำดับ</th>
-                <th>รหัสสินค้า</th>
-                <th>ชื่อสินค้า</th>
-                <th>วันหมดอายุ</th>
                 <th>จำนวน</th>
+                <th>ชื่อรายการ</th>
                 <th>หน่วย</th>
+                <th>ที่เก็บ</th>
               </tr>
             </thead>
             <tbody>
-              {documentTransactions.map((transaction, index) => (
-                <tr key={`delivery-row-${transaction.id || index + 1}`}>
+              {deliveryDocument.rows.map((row, index) => (
+                <tr key={`delivery-row-${row.transaction.id || index + 1}`}>
                   <td>{index + 1}</td>
-                  <td>{transaction.sku || "-"}</td>
-                  <td>{transaction.name}</td>
-                  <td>{transaction.expiryDate ? formatDate(transaction.expiryDate) : "-"}</td>
-                  <td className="text-right">{formatNumber(transaction.quantity)}</td>
-                  <td>{transaction.unit}</td>
+                  <td className="text-right">{formatNumber(row.transaction.quantity)}</td>
+                  <td>{row.transaction.name}</td>
+                  <td>{row.transaction.unit}</td>
+                  <td>{row.storageLocation}</td>
                 </tr>
               ))}
             </tbody>
@@ -162,7 +158,7 @@ function DeliveryNoteSection({
         <section className="delivery-summary-grid">
           <div>
             <p>ผู้จัดของ / แอดมิน ..............................................</p>
-            <p>ผู้อนุมัติ {deliveryDocument.transaction.approver || "................................"}</p>
+            <p>คนคีย์ใบเบิก {createdByName}</p>
           </div>
           <div>
             <p>ผู้รับสินค้า {requesterName}</p>
@@ -241,12 +237,21 @@ function DeliveryNoteContent() {
       const currentItem = currentInventory.get(buildItemKey(transaction));
       const afterBalance = currentItem?.balance ?? 0;
       const beforeBalance = afterBalance + transaction.quantity;
+      const storageLocation =
+        transactions.find(
+          (item) =>
+            item.type === "in" &&
+            buildItemKey(item) === buildItemKey(transaction) &&
+            (item.expiryDate || "") === (transaction.expiryDate || "") &&
+            String(item.requester || "").trim()
+        )?.requester || "-";
 
       return {
         transaction,
         beforeBalance,
         afterBalance,
         costValue: transaction.quantity * (transaction.costPrice ?? 0),
+        storageLocation,
       };
     });
 

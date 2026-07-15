@@ -55,6 +55,7 @@ async function ensureTableExists() {
           requester VARCHAR(255),
           "createdBy" VARCHAR(255),
           approver VARCHAR(255),
+          "approvedAt" BIGINT DEFAULT 0,
           note TEXT,
           "createdAt" BIGINT,
           status VARCHAR(50) DEFAULT 'confirmed'
@@ -63,6 +64,7 @@ async function ensureTableExists() {
 
       await ensureColumn("transactions", "status", "VARCHAR(50) DEFAULT 'confirmed'");
       await ensureColumn("transactions", "createdBy", "VARCHAR(255) DEFAULT ''");
+      await ensureColumn("transactions", "approvedAt", "BIGINT DEFAULT 0");
       await ensureColumnDefinition("transactions", "imageDataUrl", "LONGTEXT");
       await tx`UPDATE transactions SET quantity = FLOOR(quantity) WHERE quantity <> FLOOR(quantity);`;
       await ensureColumnDefinition("transactions", "quantity", "BIGINT NOT NULL DEFAULT 0");
@@ -120,14 +122,14 @@ export async function GET() {
         CAST(price AS FLOAT) as price, 
         CAST("costPrice" AS FLOAT) as "costPrice", 
         "costCurrency", date, "expiryDate", "issueKey", 
-        requester, "createdBy", approver, note, "createdAt", status
+        requester, "createdBy", approver, "approvedAt", note, "createdAt", status
       FROM transactions 
       ORDER BY "createdAt" DESC;
     ` : actor.role === "manager" ? await sql`
       SELECT id, name, sku, category, CASE WHEN type = 'in' THEN "imageDataUrl" ELSE '' END AS "imageDataUrl", "productImportType", unit, type,
         CAST(quantity AS FLOAT) quantity, CAST(price AS FLOAT) price,
         CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "expiryDate",
-        "issueKey", requester, "createdBy", approver, note, "createdAt", status
+        "issueKey", requester, "createdBy", approver, "approvedAt", note, "createdAt", status
       FROM transactions
       WHERE type = 'in'
         OR requester = ${actor.name}
@@ -138,7 +140,7 @@ export async function GET() {
       SELECT id, name, sku, category, CASE WHEN type = 'in' THEN "imageDataUrl" ELSE '' END AS "imageDataUrl", "productImportType", unit, type,
         CAST(quantity AS FLOAT) quantity, CAST(price AS FLOAT) price,
         CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "expiryDate",
-        "issueKey", requester, "createdBy", approver, note, "createdAt", status
+        "issueKey", requester, "createdBy", approver, "approvedAt", note, "createdAt", status
       FROM transactions
       WHERE type = 'in'
         OR requester = ${actor.name}
@@ -246,7 +248,7 @@ export async function PUT(request: Request) {
     // Action 3: Update status for an entire issueKey batch
     if (action === "update_status" && issueKey && status) {
       const requisitionRows = await sql`
-        SELECT requester, "createdBy", approver, status
+        SELECT requester, "createdBy", approver, "approvedAt", status
         FROM transactions WHERE "issueKey" = ${issueKey} LIMIT 1
       `;
       const requisition = requisitionRows[0];
@@ -266,7 +268,18 @@ export async function PUT(request: Request) {
         (status === "cancelled" && currentStatus === "pending" && (isOwner || actor.role === "admin"));
       if (!allowed) return NextResponse.json({ error: "ไม่สามารถเปลี่ยนสถานะในขั้นตอนนี้ได้" }, { status: 403 });
 
-      if (body.approver) {
+      const approvedAt = status === "approved" ? Date.now() : Number(requisition.approvedAt || 0);
+      const nextApprover = status === "approved"
+        ? String(body.approver || actor.name || "").trim()
+        : String(body.approver || requisition.approver || "").trim();
+
+      if (status === "approved") {
+        await sql`
+          UPDATE transactions
+          SET status = ${status}, approver = ${nextApprover}, "approvedAt" = ${approvedAt}
+          WHERE "issueKey" = ${issueKey}
+        `;
+      } else if (body.approver) {
         await sql`
           UPDATE transactions
           SET status = ${status}, approver = ${body.approver}
@@ -285,13 +298,14 @@ export async function PUT(request: Request) {
         actorName: actor.name,
         requester: requisition.requester,
         createdBy: requisition.createdBy,
-        approver: body.approver || requisition.approver,
+        approver: nextApprover,
       });
       return NextResponse.json({
         success: true,
         issueKey,
         status,
-        approver: body.approver || requisition.approver || "",
+        approver: nextApprover,
+        approvedAt,
       });
     }
 
