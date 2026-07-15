@@ -1069,26 +1069,29 @@ export default function ReceivePage() {
             <div className="receive-form-grid">
               <label>
                 <span>รายการสินค้า *</span>
-                <input
+                <ComboboxInput
                   className={showMissingProductError ? "receive-input-error" : ""}
                   value={form.name}
-                  onChange={(event) => handleReceiveProductNameChange(event.target.value)}
-                  list="receive-product-name-suggestions"
+                  onValueChange={handleReceiveProductNameChange}
+                  options={filteredReceiveProductSuggestions.map((item) => ({
+                    value: item.name,
+                    label: item.sku ? `${item.name} (${item.sku} · ${item.unit})` : `${item.name} (${item.unit})`,
+                  }))}
                   placeholder={
                     canCreateNewProduct
                       ? "พิมพ์ชื่อสินค้าได้ทันที"
                       : "พิมพ์เพื่อค้นหาสินค้าเดิม"
                   }
+                  portalled={false}
+                  searchPlaceholder={
+                    canCreateNewProduct
+                      ? "พิมพ์ชื่อสินค้าใหม่ หรือค้นหาจากรายการเดิม..."
+                      : "ค้นหาสินค้าเดิมในระบบ..."
+                  }
+                  emptyText="ไม่พบสินค้าที่ตรงกับเงื่อนไข"
+                  allowCustomValue={canCreateNewProduct}
                   disabled={!isCategoryReady}
-                  autoComplete="off"
                 />
-                <datalist id="receive-product-name-suggestions">
-                  {filteredReceiveProductSuggestions.map((item) => (
-                    <option key={item.key} value={item.name}>
-                      {item.sku ? `${item.sku} · ${item.unit}` : item.unit}
-                    </option>
-                  ))}
-                </datalist>
                 {!canCreateNewProduct ? (
                   showMissingProductError ? (
                     <small className="receive-field-error">ไม่มีสินค้านี้อยู่ในระบบ</small>
@@ -1176,7 +1179,7 @@ export default function ReceivePage() {
                     value: item,
                     label: item,
                   }))}
-                  placeholder="เช่น A01 - ลานวางแผ่นพื้น"
+                  placeholder="โปรดเลือกจุดเก็บ"
                   portalled={false}
                   searchPlaceholder="ค้นหาหรือพิมพ์จุดเก็บ..."
                   disabled={!isCategoryReady}
