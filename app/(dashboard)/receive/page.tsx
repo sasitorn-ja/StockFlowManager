@@ -37,6 +37,7 @@ import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared"
 type OverviewFilter = "all" | ProductImportType;
 type ReceiveView = "receipts" | "inventory";
 type UserRole = "employee" | "manager" | "admin";
+type ReceiveComboboxKey = "productImportType" | "category" | "product" | "costCurrency" | "storageLocation";
 type ReceiveProductSuggestion = {
   key: string;
   name: string;
@@ -99,6 +100,7 @@ export default function ReceivePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoRecordTime, setAutoRecordTime] = useState(Date.now());
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
+  const [openReceiveCombobox, setOpenReceiveCombobox] = useState<ReceiveComboboxKey | null>(null);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
@@ -279,13 +281,6 @@ export default function ReceivePage() {
         });
       });
 
-    categoryCatalog.forEach((category) => {
-      const normalizedCategory = normalizeCategoryValue(category);
-      if (category.trim() && normalizedCategory && !groupedCategories.has(normalizedCategory)) {
-        groupedCategories.set(normalizedCategory, { category: category.trim(), productKeys: new Set() });
-      }
-    });
-
     return Array.from(groupedCategories.entries())
       .map(([normalizedCategory, entry]) => ({
         category: entry.category,
@@ -293,7 +288,7 @@ export default function ReceivePage() {
         productCount: entry.productKeys.size,
       }))
       .sort((a, b) => a.category.localeCompare(b.category, "th"));
-  }, [categoryCatalog, form.productImportType, receiveProductSuggestions]);
+  }, [form.productImportType, receiveProductSuggestions]);
   const receiveStorageLocationSuggestions = useMemo(() => {
     return Array.from(
       new Set(
@@ -416,7 +411,17 @@ export default function ReceivePage() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function handleReceiveComboboxOpenChange(key: ReceiveComboboxKey, open: boolean) {
+    if (open) {
+      setOpenReceiveCombobox(key);
+      return;
+    }
+
+    setOpenReceiveCombobox((current) => (current === key ? null : current));
+  }
+
   function handleProductImportTypeChange(value: ProductImportType) {
+    setOpenReceiveCombobox(null);
     setForm((current) => ({
       ...current,
       productImportType: value,
@@ -545,6 +550,7 @@ export default function ReceivePage() {
   }
 
   function handleReceiveCategorySelect(category: string) {
+    setOpenReceiveCombobox(null);
     if (!category) {
       setForm((current) => ({
         ...current,
@@ -640,6 +646,7 @@ export default function ReceivePage() {
     );
 
     if (matchedCategory) {
+      setOpenReceiveCombobox(null);
       handleReceiveCategorySelect(matchedCategory.category);
       return;
     }
@@ -1193,6 +1200,8 @@ export default function ReceivePage() {
                 <ComboboxInput
                   value={form.productImportType}
                   onValueChange={(value) => handleProductImportTypeChange(value as ProductImportType)}
+                  open={openReceiveCombobox === "productImportType"}
+                  onOpenChange={(open) => handleReceiveComboboxOpenChange("productImportType", open)}
                   options={productImportTypeOptions.map((option) => ({
                     value: option.value,
                     label: option.label,
@@ -1210,6 +1219,8 @@ export default function ReceivePage() {
                   className={showMissingCategoryError ? "receive-input-error" : ""}
                   value={form.category}
                   onValueChange={handleReceiveCategoryChange}
+                  open={openReceiveCombobox === "category"}
+                  onOpenChange={(open) => handleReceiveComboboxOpenChange("category", open)}
                   options={receiveCategorySuggestions.map(({ category, productCount }) => ({
                     value: category,
                     label: `${category} ${productCount > 0 ? `${formatNumber(productCount)} รายการ` : "0 รายการ"}`,
@@ -1246,6 +1257,8 @@ export default function ReceivePage() {
                   className={showMissingProductError ? "receive-input-error" : ""}
                   value={form.name}
                   onValueChange={handleReceiveProductNameChange}
+                  open={openReceiveCombobox === "product"}
+                  onOpenChange={(open) => handleReceiveComboboxOpenChange("product", open)}
                   options={filteredReceiveProductSuggestions.map((item) => ({
                     value: item.name,
                     label: item.sku ? `${item.name} (${item.sku} · ${item.unit})` : `${item.name} (${item.unit})`,
@@ -1335,6 +1348,8 @@ export default function ReceivePage() {
                     onValueChange={(value) =>
                       updateForm("costCurrency", value as CostCurrency)
                     }
+                    open={openReceiveCombobox === "costCurrency"}
+                    onOpenChange={(open) => handleReceiveComboboxOpenChange("costCurrency", open)}
                     disabled={!isCategoryReady}
                     options={costCurrencyOptions.map((option) => ({
                       value: option.value,
@@ -1352,6 +1367,8 @@ export default function ReceivePage() {
                 <ComboboxInput
                   value={form.requester}
                   onValueChange={(value) => updateForm("requester", value)}
+                  open={openReceiveCombobox === "storageLocation"}
+                  onOpenChange={(open) => handleReceiveComboboxOpenChange("storageLocation", open)}
                   options={receiveStorageLocationSuggestions.map((item) => ({
                     value: item,
                     label: item,

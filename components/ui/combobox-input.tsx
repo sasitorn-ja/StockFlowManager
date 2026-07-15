@@ -25,7 +25,9 @@ type ComboboxInputProps = {
   className?: string;
   disabled?: boolean;
   emptyText?: string;
+  onOpenChange?: (open: boolean) => void;
   onValueChange: (value: string) => void;
+  open?: boolean;
   options: ComboboxInputOption[];
   placeholder?: string;
   portalled?: boolean;
@@ -38,16 +40,19 @@ export function ComboboxInput({
   className,
   disabled = false,
   emptyText = "ไม่พบรายการที่ค้นหา",
+  onOpenChange,
   onValueChange,
+  open: controlledOpen,
   options,
   placeholder = "เลือกหรือพิมพ์ข้อมูล",
   portalled = true,
   searchPlaceholder = "ค้นหาหรือพิมพ์ค่าใหม่...",
   value,
 }: ComboboxInputProps) {
-  const [open, setOpen] = React.useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const open = controlledOpen ?? uncontrolledOpen;
   const activeOption = options.find((option) => option.value === value);
   const trimmedSearchValue = searchValue.trim();
   const hasExactOption = options.some(
@@ -55,7 +60,15 @@ export function ComboboxInput({
   );
 
   function handleOpenChange(nextOpen: boolean) {
-    setOpen(nextOpen);
+    if (disabled && nextOpen) {
+      return;
+    }
+
+    if (controlledOpen === undefined) {
+      setUncontrolledOpen(nextOpen);
+    }
+    onOpenChange?.(nextOpen);
+
     if (nextOpen) {
       setSearchValue("");
     }
@@ -66,6 +79,12 @@ export function ComboboxInput({
     const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [open]);
+
+  React.useEffect(() => {
+    if (disabled && open) {
+      handleOpenChange(false);
+    }
+  }, [disabled, open]);
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange} modal>
@@ -113,7 +132,7 @@ export function ComboboxInput({
                   value={`__custom__ ${trimmedSearchValue}`}
                   onSelect={() => {
                     onValueChange(trimmedSearchValue);
-                    setOpen(false);
+                    handleOpenChange(false);
                   }}
                 >
                   <Check size={16} className="shrink-0 opacity-0" />
@@ -126,7 +145,7 @@ export function ComboboxInput({
                   value={`${option.label} ${option.value}`}
                   onSelect={() => {
                     onValueChange(option.value);
-                    setOpen(false);
+                    handleOpenChange(false);
                   }}
                 >
                   <Check
