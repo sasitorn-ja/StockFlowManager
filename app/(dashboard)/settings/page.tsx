@@ -2,7 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Archive, Pencil, RotateCcw, Search } from "lucide-react";
+import { Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import {
   getClientMasterProducts,
@@ -170,6 +170,37 @@ export default function SettingsPage() {
     refresh();
   }
 
+  async function handleProductDelete(product: ProductMaster) {
+    const shouldDelete = window.confirm(
+      `ต้องการลบสินค้า "${product.name}" ออกจากรายการสินค้าใช่หรือไม่\n\nระบบจะซ่อนสินค้านี้จาก dropdown หน้า รับเข้า/เบิกจ่าย แต่ยังเก็บประวัติรับเข้า-เบิกจ่ายเดิมไว้ครบ`
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setMasterProducts((current) =>
+      current.map((item) => (item.id === product.id ? { ...item, isActive: false } : item))
+    );
+
+    const response = await fetch(withBasePath(`/api/master-products?id=${encodeURIComponent(product.id)}`), {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      setMasterProducts((current) =>
+        current.map((item) => (item.id === product.id ? { ...item, isActive: product.isActive } : item))
+      );
+      const detail = await response.json().catch(() => null);
+      console.error("Unable to delete product", detail);
+      window.alert("ไม่สามารถลบสินค้าได้");
+      return;
+    }
+
+    await refreshProducts();
+    refresh();
+  }
+
   async function handleProductEditSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -312,7 +343,7 @@ export default function SettingsPage() {
                 </td>
                 <td>
                   {!product.isActive ? (
-                    <span className="stock-pill stock-pill-muted">ปิดใช้งาน</span>
+                    <span className="stock-pill stock-pill-muted">ถูกลบ</span>
                   ) : (
                     <span
                       className={`stock-pill ${
@@ -351,11 +382,11 @@ export default function SettingsPage() {
                         type="button"
                         variant="secondary"
                         size="sm"
-                        className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
-                        onClick={() => handleProductActiveChange(product, false)}
+                        className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                        onClick={() => handleProductDelete(product)}
                       >
-                        <Archive size={14} />
-                        ปิดใช้
+                        <Trash2 size={14} />
+                        ลบ
                       </Button>
                     ) : (
                       <Button
@@ -366,7 +397,7 @@ export default function SettingsPage() {
                         onClick={() => handleProductActiveChange(product, true)}
                       >
                         <RotateCcw size={14} />
-                        เปิดใช้งาน
+                        กู้คืน
                       </Button>
                     )}
                   </div>
