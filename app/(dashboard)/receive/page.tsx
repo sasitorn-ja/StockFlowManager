@@ -16,12 +16,16 @@ import {
 } from "@/components/ui/dialog";
 import {
   buildInventoryMap,
+  buildInventoryLotMap,
+  buildItemKey,
   createEmptyForm,
   createTransactionId,
   getLocalDateValue,
   formatDate,
   formatNumber,
   formatCurrencyWithLabel,
+  getProductImportTypeLabel,
+  getStockTargetStatus,
   sanitizeSku,
   matchesMasterProduct,
 } from "@/lib/stock-flow/utils";
@@ -31,6 +35,7 @@ import { useTransactions } from "../TransactionContext";
 import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
 type OverviewFilter = "all" | ProductImportType;
+type ReceiveView = "receipts" | "inventory";
 type UserRole = "employee" | "manager" | "admin";
 type ReceiveProductSuggestion = {
   key: string;
@@ -87,6 +92,7 @@ export default function ReceivePage() {
   const [categoryCatalog, setCategoryCatalog] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [receiveFilter, setReceiveFilter] = useState<OverviewFilter>("all");
+  const [activeView, setActiveView] = useState<ReceiveView>("receipts");
   const [form, setForm] = useState<FormState>(createEmptyForm);
   const [isReceivePanelOpen, setIsReceivePanelOpen] = useState(false);
   const [receiveImagePreview, setReceiveImagePreview] = useState<{ src: string; title: string } | null>(null);
@@ -95,6 +101,67 @@ export default function ReceivePage() {
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
+
+  const lotLabels = useMemo(() => {
+    const lots = Array.from(buildInventoryLotMap(transactions).values()).sort(
+      (a, b) =>
+        getProductImportTypeLabel(a.productImportType).localeCompare(
+          getProductImportTypeLabel(b.productImportType),
+          "th"
+        ) ||
+        a.name.localeCompare(b.name, "th") ||
+        a.receivedDate.localeCompare(b.receivedDate) ||
+        a.expiryDate.localeCompare(b.expiryDate) ||
+        a.createdAt - b.createdAt
+    );
+    const counters = new Map<string, number>();
+    const labels = new Map<string, string>();
+
+    lots.forEach((lot) => {
+      const sequence = (counters.get(lot.baseItemKey) ?? 0) + 1;
+      counters.set(lot.baseItemKey, sequence);
+      labels.set(lot.key, `ล็อต ${sequence}`);
+    });
+
+    return labels;
+  }, [transactions]);
+
+  const inventoryRows = useMemo(() => {
+    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+
+    return inventory
+      .filter((item) => {
+        if (receiveFilter !== "all" && item.productImportType !== receiveFilter) {
+          return false;
+        }
+
+        const haystack = `${item.name} ${item.sku} ${item.category}`.toLowerCase();
+        return haystack.includes(normalizedSearchTerm);
+      })
+      .map((item) => {
+        const matchedProduct = masterProducts.find((product) => matchesMasterProduct(item, product));
+        const minStock = matchedProduct?.minStock ?? 0;
+        const maxStock = matchedProduct?.maxStock ?? 0;
+
+        return {
+          ...item,
+          minStock,
+          maxStock,
+          stockTargetStatus: getStockTargetStatus(item.balance, minStock, maxStock),
+        };
+      })
+      .sort((a, b) => {
+        const statusPriority = { low: 0, high: 1, normal: 2, missing: 3 } as const;
+        return (
+          statusPriority[a.stockTargetStatus] - statusPriority[b.stockTargetStatus] ||
+          getProductImportTypeLabel(a.productImportType).localeCompare(
+            getProductImportTypeLabel(b.productImportType),
+            "th"
+          ) ||
+          a.name.localeCompare(b.name, "th")
+        );
+      });
+  }, [inventory, masterProducts, receiveFilter, searchTerm]);
 
   const receiveTransactions = useMemo(() => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
@@ -109,12 +176,13 @@ export default function ReceivePage() {
           return false;
         }
 
-        const haystack = `${item.name} ${item.sku} ${item.category} ${item.note}`.toLowerCase();
+        const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
+        const haystack = `${item.name} ${item.sku} ${item.category} ${item.note} ${lotLabels.get(lotKey) || ""}`.toLowerCase();
         return haystack.includes(normalizedSearchTerm);
       })
       .slice()
       .sort((a, b) => b.createdAt - a.createdAt);
-  }, [receiveFilter, searchTerm, transactions]);
+  }, [lotLabels, receiveFilter, searchTerm, transactions]);
 
   const receiveProductSuggestions = useMemo<ReceiveProductSuggestion[]>(() => {
     const inactiveMasterProducts = masterProducts.filter((item) => !item.isActive);
@@ -606,23 +674,29 @@ export default function ReceivePage() {
   }
 
   async function handleReceiveExport() {
-    const rows = receiveTransactions.map((item, index) => ({
-      "เลขที่รับเข้า": `${appSettings.receivePrefix || "IN"}-${item.date.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`,
-      "วันที่รับเข้า": formatDate(item.date),
-      "เวลาบันทึก": new Date(item.createdAt).toLocaleTimeString("th-TH", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      "จุดเก็บ / คลังย่อย": item.requester || "-",
-      "รายการสินค้า": item.name,
-      "รหัสสินค้า": item.sku || "-",
-      "จำนวน": item.quantity,
-      "หน่วย": item.unit,
-      "ต้นทุนต่อหน่วย": item.costPrice || item.price || 0,
-      "สกุลเงิน": item.costCurrency || "THB",
-      "มูลค่ารวมตามสกุล": item.quantity * (item.costPrice || item.price || 0),
-      "หมายเหตุ": item.note || "-",
-    }));
+    const rows = receiveTransactions.map((item, index) => {
+      const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
+
+      return {
+        "เลขที่รับเข้า": `${appSettings.receivePrefix || "IN"}-${item.date.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`,
+        "ล็อต": lotLabels.get(lotKey) || "-",
+        "วันที่รับเข้า": formatDate(item.date),
+        "เวลาบันทึก": new Date(item.createdAt).toLocaleTimeString("th-TH", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        "วันหมดอายุ": item.expiryDate ? formatDate(item.expiryDate) : "-",
+        "จุดเก็บ / คลังย่อย": item.requester || "-",
+        "รายการสินค้า": item.name,
+        "รหัสสินค้า": item.sku || "-",
+        "จำนวน": item.quantity,
+        "หน่วย": item.unit,
+        "ต้นทุนต่อหน่วย": item.costPrice || item.price || 0,
+        "สกุลเงิน": item.costCurrency || "THB",
+        "มูลค่ารวมตามสกุล": item.quantity * (item.costPrice || item.price || 0),
+        "หมายเหตุ": item.note || "-",
+      };
+    });
 
     if (rows.length === 0) {
       window.alert("ยังไม่มีรายการรับเข้าสินค้าที่พร้อมส่งออก");
@@ -831,7 +905,8 @@ export default function ReceivePage() {
         <div className="receive-main">
           <div className="receive-header">
             <div>
-              <h2>รับเข้าสินค้า</h2>
+              <h2>คลังสินค้าและรับเข้า</h2>
+              <p>หน้าเดียวสำหรับดูสินค้าในคลังและบันทึกรับเข้าสินค้า</p>
             </div>
             <div className="receive-header-actions">
               <Button type="button" onClick={openReceiveDialog}>
@@ -842,6 +917,22 @@ export default function ReceivePage() {
           </div>
 
           <section className="receive-table-card">
+            <div className="receive-view-tabs" role="tablist" aria-label="มุมมองคลังสินค้า">
+              <button
+                type="button"
+                className={activeView === "receipts" ? "active" : ""}
+                onClick={() => setActiveView("receipts")}
+              >
+                ประวัติรับเข้า
+              </button>
+              <button
+                type="button"
+                className={activeView === "inventory" ? "active" : ""}
+                onClick={() => setActiveView("inventory")}
+              >
+                สินค้าในคลัง
+              </button>
+            </div>
             <div className="receive-table-toolbar">
               <label className="overview-search">
                 <Search size={17} />
@@ -849,7 +940,7 @@ export default function ReceivePage() {
                   type="search"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="ค้นหาเลขที่รับเข้า, รหัสสินค้า, หมวดหมู่..."
+                  placeholder={activeView === "receipts" ? "ค้นหาเลขที่รับเข้า, ล็อต, รหัสสินค้า..." : "ค้นหาชื่อสินค้า รหัส หรือหมวดหมู่..."}
                 />
               </label>
               <div className="overview-table-actions">
@@ -875,112 +966,191 @@ export default function ReceivePage() {
                     ))}
                   </div>
                 </details>
-                <Button type="button" variant="secondary" size="sm" onClick={handleReceiveExport}>
-                  <FileText size={15} />
-                  ส่งออก
-                </Button>
+                {activeView === "receipts" ? (
+                  <Button type="button" variant="secondary" size="sm" onClick={handleReceiveExport}>
+                    <FileText size={15} />
+                    ส่งออก
+                  </Button>
+                ) : null}
               </div>
             </div>
 
             <div className="receive-table-note">
-              แสดงมูลค่าตามสกุลของแต่ละรายการ
-              {receiveCurrencies.length > 1 ? ` · มี ${receiveCurrencies.join(", ")}` : ""}
+              {activeView === "receipts"
+                ? `แสดงล็อตและมูลค่าตามสกุลของแต่ละรายการ${receiveCurrencies.length > 1 ? ` · มี ${receiveCurrencies.join(", ")}` : ""}`
+                : `แสดงสินค้าในคลัง ${formatNumber(inventoryRows.length)} รายการ พร้อมสถานะ min / max`}
             </div>
 
             <div className="overview-table-wrap">
-              <table className="overview-table receive-table">
-                <thead>
-                  <tr>
-                    <th>เลขที่รับเข้า</th>
-                    <th>รูปภาพสินค้า</th>
-                    <th>วันที่รับเข้า / เวลาบันทึก</th>
-                    <th>จุดเก็บ / คลังย่อย</th>
-                    <th>รายการสินค้า</th>
-                    <th>จำนวนรายการ</th>
-                    <th>ต้นทุนต่อหน่วย</th>
-                    <th>มูลค่ารวมตามสกุล</th>
-                    <th>หมายเหตุ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {receiveTransactions.length > 0 ? (
-                    receiveTransactions.map((item, index) => {
-                      const receiveNo = `${appSettings.receivePrefix || "IN"}-${item.date.replaceAll("-", "")}-${String(
-                        index + 1
-                      ).padStart(3, "0")}`;
-                      const totalValue = item.quantity * (item.costPrice || item.price || 0);
+              {activeView === "receipts" ? (
+                <table className="overview-table receive-table">
+                  <thead>
+                    <tr>
+                      <th>เลขที่รับเข้า / ล็อต</th>
+                      <th>รูปภาพสินค้า</th>
+                      <th>วันที่รับเข้า / เวลาบันทึก</th>
+                      <th>จุดเก็บ / คลังย่อย</th>
+                      <th>รายการสินค้า</th>
+                      <th>จำนวนรายการ</th>
+                      <th>ต้นทุนต่อหน่วย</th>
+                      <th>มูลค่ารวมตามสกุล</th>
+                      <th>หมายเหตุ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {receiveTransactions.length > 0 ? (
+                      receiveTransactions.map((item, index) => {
+                        const receiveNo = `${appSettings.receivePrefix || "IN"}-${item.date.replaceAll("-", "")}-${String(
+                          index + 1
+                        ).padStart(3, "0")}`;
+                        const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
+                        const lotLabel = lotLabels.get(lotKey) || "-";
+                        const totalValue = item.quantity * (item.costPrice || item.price || 0);
 
-                      return (
-                        <tr key={`receive-${item.id}`}>
-                          <td className="sku-cell">{receiveNo}</td>
-                          <td>
-                            {item.imageDataUrl ? (
-                              <button
-                                type="button"
-                                className="receive-image-trigger"
-                                onClick={() =>
-                                  setReceiveImagePreview({
-                                    src: item.imageDataUrl as string,
-                                    title: item.name || receiveNo,
-                                  })
-                                }
-                                aria-label={`ดูรูปสินค้า ${item.name || receiveNo}`}
-                              >
-                                <img
-                                  src={item.imageDataUrl}
-                                  alt={item.name || receiveNo}
-                                  className="receive-table-image"
-                                />
-                              </button>
-                            ) : (
-                              <span className="text-slate-400">-</span>
-                            )}
-                          </td>
-                          <td>
-                            <strong>{formatDate(item.date)}</strong>
-                            <span>
-                              บันทึก{" "}
-                              {new Date(item.createdAt).toLocaleTimeString("th-TH", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </td>
-                          <td>{item.requester || "-"}</td>
+                        return (
+                          <tr key={`receive-${item.id}`}>
+                            <td>
+                              <strong className="sku-cell">{receiveNo}</strong>
+                              <span>{lotLabel}{item.expiryDate ? ` · หมดอายุ ${formatDate(item.expiryDate)}` : " · ไม่มีวันหมดอายุ"}</span>
+                            </td>
+                            <td>
+                              {item.imageDataUrl ? (
+                                <button
+                                  type="button"
+                                  className="receive-image-trigger"
+                                  onClick={() =>
+                                    setReceiveImagePreview({
+                                      src: item.imageDataUrl as string,
+                                      title: item.name || receiveNo,
+                                    })
+                                  }
+                                  aria-label={`ดูรูปสินค้า ${item.name || receiveNo}`}
+                                >
+                                  <img
+                                    src={item.imageDataUrl}
+                                    alt={item.name || receiveNo}
+                                    className="receive-table-image"
+                                  />
+                                </button>
+                              ) : (
+                                <span className="text-slate-400">-</span>
+                              )}
+                            </td>
+                            <td>
+                              <strong>{formatDate(item.date)}</strong>
+                              <span>
+                                บันทึก{" "}
+                                {new Date(item.createdAt).toLocaleTimeString("th-TH", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </td>
+                            <td>{item.requester || "-"}</td>
+                            <td>
+                              <strong>{item.name}</strong>
+                              <span>{item.sku || "-"}</span>
+                            </td>
+                            <td>{formatNumber(item.quantity)}</td>
+                            <td>
+                              <strong>{formatCurrencyWithLabel(item.costPrice || item.price || 0, item.costCurrency)}</strong>
+                              <span>ต่อ {item.unit}</span>
+                            </td>
+                            <td>
+                              <strong>{formatCurrencyWithLabel(totalValue, item.costCurrency)}</strong>
+                              <span>{formatNumber(item.quantity)} {item.unit}</span>
+                            </td>
+                            <td>{item.note || "-"}</td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={9}>
+                          <div className="empty-state">ยังไม่มีรายการรับเข้าสินค้า</div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="overview-table receive-table inventory-inline-table">
+                  <thead>
+                    <tr>
+                      <th>สินค้า</th>
+                      <th>ประเภท / หมวดหมู่</th>
+                      <th>คงเหลือ</th>
+                      <th>รับเข้า / เบิกจ่าย</th>
+                      <th>min / max</th>
+                      <th>สถานะ</th>
+                      <th>หมดอายุใกล้สุด</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventoryRows.length > 0 ? (
+                      inventoryRows.map((item) => (
+                        <tr key={`inventory-${item.key}`}>
                           <td>
                             <strong>{item.name}</strong>
-                            <span>{item.sku || "-"}</span>
-                          </td>
-                          <td>{formatNumber(item.quantity)}</td>
-                          <td>
-                            <strong>{formatCurrencyWithLabel(item.costPrice || item.price || 0, item.costCurrency)}</strong>
-                            <span>ต่อ {item.unit}</span>
+                            <span>{item.sku || "ไม่มีรหัสสินค้า"} · {item.unit}</span>
                           </td>
                           <td>
-                            <strong>{formatCurrencyWithLabel(totalValue, item.costCurrency)}</strong>
-                            <span>{formatNumber(item.quantity)} {item.unit}</span>
+                            <strong>{getProductImportTypeLabel(item.productImportType)}</strong>
+                            <span>{item.category}</span>
                           </td>
-                          <td>{item.note || "-"}</td>
+                          <td>
+                            <strong>{formatNumber(item.balance)} {item.unit}</strong>
+                            <span>คงเหลือปัจจุบัน</span>
+                          </td>
+                          <td>
+                            <strong>เข้า {formatNumber(item.totalIn)} / ออก {formatNumber(item.totalOut)}</strong>
+                            <span>รวมทุกความเคลื่อนไหว</span>
+                          </td>
+                          <td>
+                            <strong>{formatNumber(item.minStock)} / {formatNumber(item.maxStock)}</strong>
+                            <span>{item.unit}</span>
+                          </td>
+                          <td>
+                            <span className={`stock-pill ${
+                              item.stockTargetStatus === "low"
+                                ? "stock-pill-danger"
+                                : item.stockTargetStatus === "high"
+                                  ? "stock-pill-warn"
+                                  : item.stockTargetStatus === "normal"
+                                    ? "stock-pill-ok"
+                                    : ""
+                            }`}>
+                              {item.stockTargetStatus === "low"
+                                ? "ต่ำกว่า min"
+                                : item.stockTargetStatus === "high"
+                                  ? "สูงกว่า max"
+                                  : item.stockTargetStatus === "normal"
+                                    ? "อยู่ในช่วง"
+                                    : "ยังไม่ตั้งค่า"}
+                            </span>
+                          </td>
+                          <td>{item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}</td>
                         </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={9}>
-                        <div className="empty-state">ยังไม่มีรายการรับเข้าสินค้า</div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7}>
+                          <div className="empty-state">ไม่พบสินค้าในคลังที่ตรงกับตัวกรอง</div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
 
             <div className="overview-pagination">
               <span>
-                แสดง 1 - {Math.min(receiveTransactions.length, 10)} จาก{" "}
-                {formatNumber(receiveTransactions.length)} รายการ
+                {activeView === "receipts"
+                  ? `แสดง 1 - ${Math.min(receiveTransactions.length, 10)} จาก ${formatNumber(receiveTransactions.length)} รายการ`
+                  : `แสดงสินค้าในคลัง ${formatNumber(inventoryRows.length)} รายการ`}
               </span>
-              <div>
+              {activeView === "receipts" ? <div>
                 <button type="button">‹</button>
                 <button type="button" className="active">
                   1
@@ -988,7 +1158,7 @@ export default function ReceivePage() {
                 <button type="button">2</button>
                 <button type="button">3</button>
                 <button type="button">›</button>
-              </div>
+              </div> : null}
             </div>
           </section>
         </div>

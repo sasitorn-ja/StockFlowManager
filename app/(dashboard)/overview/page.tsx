@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, ClipboardPlus, Clock3, Database, PackageCheck, PackageMinus } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
-import { getClientMasterProducts, getClientSession } from "@/lib/dashboard-client-cache";
+import { getClientAppSettings, getClientMasterProducts, getClientSession } from "@/lib/dashboard-client-cache";
 import {
   addDays,
   buildInventoryMap,
@@ -13,11 +13,13 @@ import {
   formatNumber,
   getStockTargetStatus,
   getLocalDateValue,
+  isExpiringSoon,
   matchesMasterProduct,
 } from "@/lib/stock-flow/utils";
 import type { ProductMaster, Transaction } from "@/types/stock-flow";
 import { getRequisitionStatusLabel } from "@/lib/stock-flow/status";
 import { useTransactions } from "../TransactionContext";
+import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
 type UserRole = "employee" | "manager" | "admin";
 
@@ -39,6 +41,45 @@ type RequisitionSummary = {
   status: Transaction["status"];
 };
 
+type EChartProps = {
+  option: Record<string, unknown>;
+  className?: string;
+};
+
+function EChart({ option, className = "" }: EChartProps) {
+  const chartRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let chart: { setOption: (option: Record<string, unknown>, replace?: boolean) => void; resize: () => void; dispose: () => void } | null = null;
+    let isDisposed = false;
+
+    async function mountChart() {
+      const echarts = await import("echarts");
+      if (!chartRef.current || isDisposed) return;
+
+      chart = echarts.init(chartRef.current);
+      chart.setOption(option, true);
+      const resizeChart = () => chart?.resize();
+      window.addEventListener("resize", resizeChart);
+
+      return () => window.removeEventListener("resize", resizeChart);
+    }
+
+    let cleanupResize: (() => void) | undefined;
+    mountChart().then((cleanup) => {
+      cleanupResize = cleanup;
+    });
+
+    return () => {
+      isDisposed = true;
+      cleanupResize?.();
+      chart?.dispose();
+    };
+  }, [option]);
+
+  return <div ref={chartRef} className={`overview-echart ${className}`} />;
+}
+
 function clampDate(value: string, min: string, max: string) {
   if (value < min) return min;
   if (value > max) return max;
@@ -47,6 +88,33 @@ function clampDate(value: string, min: string, max: string) {
 
 function canViewStockOverviewRole(role: UserRole) {
   return role === "admin" || role === "manager";
+}
+
+function getCurrentMonthStartDate() {
+  return `${getLocalDateValue().slice(0, 8)}01`;
+}
+
+function formatLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function enumerateDateRange(from: string, to: string) {
+  const dates: string[] = [];
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return dates;
+  }
+
+  for (let current = start; current <= end; current.setDate(current.getDate() + 1)) {
+    dates.push(formatLocalDateKey(current));
+  }
+
+  return dates;
 }
 
 function groupRequisitions(transactions: Transaction[]) {
@@ -82,9 +150,10 @@ export default function OverviewPage() {
   const { transactions } = useTransactions();
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
-  const [overviewDateFrom, setOverviewDateFrom] = useState(() => addDays(getLocalDateValue(), -6));
+  const [overviewDateFrom, setOverviewDateFrom] = useState(getCurrentMonthStartDate);
   const [overviewDateTo, setOverviewDateTo] = useState(getLocalDateValue);
   const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
+  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
 
   const userRole = currentUser?.role ?? "employee";
   const canViewStockOverview = canViewStockOverviewRole(userRole);
@@ -102,6 +171,9 @@ export default function OverviewPage() {
     getClientMasterProducts()
       .then((products) => setMasterProducts(products))
       .catch(() => setMasterProducts([]));
+    getClientAppSettings()
+      .then((settings) => setAppSettings(settings))
+      .catch(() => setAppSettings(defaultAppSettings));
   }, []);
 
   useEffect(() => {
@@ -110,19 +182,23 @@ export default function OverviewPage() {
     }
   }, [canViewStockOverview, isCheckingSession, router]);
 
-  const earliestAllowedOverviewDateFrom = useMemo(
-    () => transactions.map((item) => item.date).filter(Boolean).sort()[0] || getLocalDateValue(),
+  const overviewDateFloor = useMemo(
+    () => {
+      const fallbackFloor = addDays(getLocalDateValue(), -365);
+      const firstTransactionDate = transactions.map((item) => item.date).filter(Boolean).sort()[0];
+      return firstTransactionDate && firstTransactionDate < fallbackFloor ? firstTransactionDate : fallbackFloor;
+    },
     [transactions]
   );
 
   useEffect(() => {
-    if (overviewDateFrom < earliestAllowedOverviewDateFrom) {
-      setOverviewDateFrom(earliestAllowedOverviewDateFrom);
+    if (overviewDateFrom > overviewDateTo) {
+      setOverviewDateFrom(overviewDateTo);
     }
-  }, [earliestAllowedOverviewDateFrom, overviewDateFrom]);
+  }, [overviewDateFrom, overviewDateTo]);
 
   const handleOverviewDateFromChange = (value: string) => {
-    setOverviewDateFrom(clampDate(value, earliestAllowedOverviewDateFrom, overviewDateTo));
+    setOverviewDateFrom(clampDate(value, overviewDateFloor, overviewDateTo));
   };
 
   const handleOverviewDateToChange = (value: string) => {
@@ -205,6 +281,14 @@ export default function OverviewPage() {
     [inventoryWithTargets]
   );
 
+  const expiringItems = useMemo(
+    () =>
+      inventory
+        .filter((item) => item.balance > 0 && isExpiringSoon(item.nearestExpiryDate, Number(appSettings.expiryWarningDays || 90)))
+        .sort((a, b) => a.nearestExpiryDate.localeCompare(b.nearestExpiryDate)),
+    [appSettings.expiryWarningDays, inventory]
+  );
+
   const lowStockInventory = useMemo(
     () =>
       lowStockItems.slice(0, 5),
@@ -252,8 +336,8 @@ export default function OverviewPage() {
         {
           label: "เบิกวันนี้",
           value: formatNumber(ownStockOutToday),
-          unit: "หน่วย",
-          helper: formatDate(overviewDateTo),
+          unit: "จำนวนสินค้า",
+          helper: "ไม่ใช่จำนวนรายการสินค้า",
           icon: PackageMinus,
           tone: "orange" as const,
         },
@@ -278,16 +362,16 @@ export default function OverviewPage() {
       {
         label: "รับเข้าวันนี้",
         value: formatNumber(stockInToday),
-        unit: "หน่วย",
-        helper: formatDate(overviewDateTo),
+        unit: "จำนวนสินค้า",
+        helper: "ไม่ใช่จำนวนรายการสินค้า",
         icon: ClipboardPlus,
         tone: "emerald" as const,
       },
       {
         label: "เบิกจ่ายวันนี้",
         value: formatNumber(stockOutToday),
-        unit: "หน่วย",
-        helper: formatDate(overviewDateTo),
+        unit: "จำนวนสินค้า",
+        helper: "ไม่ใช่จำนวนรายการสินค้า",
         icon: PackageMinus,
         tone: "orange" as const,
       },
@@ -300,9 +384,20 @@ export default function OverviewPage() {
         tone: "amber" as const,
         valueTone: "danger" as const,
       },
+      {
+        label: "ใกล้หมด/หมดอายุ",
+        value: formatNumber(expiringItems.length),
+        unit: "รายการ",
+        helper: `ภายใน ${formatNumber(Number(appSettings.expiryWarningDays || 90))} วัน`,
+        icon: Clock3,
+        tone: "violet" as const,
+        valueTone: expiringItems.length > 0 ? ("danger" as const) : undefined,
+      },
     ];
   }, [
+    appSettings.expiryWarningDays,
     canViewStockOverview,
+    expiringItems.length,
     inventory,
     lowStockItems.length,
     overviewDateTo,
@@ -325,6 +420,125 @@ export default function OverviewPage() {
         0
       ),
     [inventory]
+  );
+
+  const movementChartPoints = useMemo(() => {
+    return enumerateDateRange(overviewDateFrom, overviewDateTo).map((date) => {
+      const dayTransactions = rangeTransactions.filter((item) => item.date === date);
+      const stockIn = dayTransactions
+        .filter((item) => item.type === "in")
+        .reduce((sum, item) => sum + item.quantity, 0);
+      const stockOut = dayTransactions
+        .filter((item) => item.type === "out" && item.status !== "cancelled")
+        .reduce((sum, item) => sum + item.quantity, 0);
+
+      return {
+        date,
+        label: new Date(`${date}T00:00:00`).toLocaleDateString("th-TH", {
+          day: "2-digit",
+          month: "short",
+        }),
+        stockIn,
+        stockOut,
+      };
+    });
+  }, [overviewDateFrom, overviewDateTo, rangeTransactions]);
+
+  const stockStatusSummary = useMemo(() => {
+    return {
+      low: lowStockItems.length,
+      high: highStockItems.length,
+      normal: inventoryWithTargets.filter((item) => item.stockTargetStatus === "normal").length,
+      missing: inventoryWithTargets.filter((item) => item.stockTargetStatus === "missing").length,
+    };
+  }, [highStockItems.length, inventoryWithTargets, lowStockItems.length]);
+
+  const movementChartOption = useMemo(
+    () => ({
+      animationDuration: 450,
+      color: ["#0b63bd", "#f97316"],
+      tooltip: {
+        trigger: "axis",
+        backgroundColor: "rgba(15,23,42,0.92)",
+        borderWidth: 0,
+        textStyle: { color: "#fff", fontFamily: "Sarabun, sans-serif" },
+      },
+      legend: {
+        top: 0,
+        right: 0,
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: "#64748b", fontFamily: "Sarabun, sans-serif", fontWeight: 700 },
+      },
+      grid: { top: 38, right: 12, bottom: 28, left: 42 },
+      xAxis: {
+        type: "category",
+        data: movementChartPoints.map((item) => item.label),
+        axisTick: { show: false },
+        axisLine: { lineStyle: { color: "#dbe7f5" } },
+        axisLabel: { color: "#64748b", fontFamily: "Sarabun, sans-serif", fontWeight: 700 },
+      },
+      yAxis: {
+        type: "value",
+        minInterval: 1,
+        splitLine: { lineStyle: { color: "#edf2f7" } },
+        axisLabel: { color: "#64748b", fontFamily: "Sarabun, sans-serif", fontWeight: 700 },
+      },
+      series: [
+        {
+          name: "รับเข้า",
+          type: "bar",
+          barMaxWidth: 26,
+          data: movementChartPoints.map((item) => item.stockIn),
+          itemStyle: { borderRadius: [7, 7, 0, 0] },
+        },
+        {
+          name: "เบิกจ่าย",
+          type: "bar",
+          barMaxWidth: 26,
+          data: movementChartPoints.map((item) => item.stockOut),
+          itemStyle: { borderRadius: [7, 7, 0, 0] },
+        },
+      ],
+    }),
+    [movementChartPoints]
+  );
+
+  const stockStatusChartOption = useMemo(
+    () => ({
+      animationDuration: 450,
+      color: ["#16a34a", "#dc2626", "#f59e0b", "#94a3b8"],
+      tooltip: {
+        trigger: "item",
+        backgroundColor: "rgba(15,23,42,0.92)",
+        borderWidth: 0,
+        textStyle: { color: "#fff", fontFamily: "Sarabun, sans-serif" },
+      },
+      legend: {
+        bottom: 0,
+        left: "center",
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: "#64748b", fontFamily: "Sarabun, sans-serif", fontWeight: 700 },
+      },
+      series: [
+        {
+          name: "สถานะสต๊อก",
+          type: "pie",
+          radius: ["52%", "74%"],
+          center: ["50%", "44%"],
+          avoidLabelOverlap: true,
+          label: { formatter: "{b}\n{c}", color: "#0f172a", fontFamily: "Sarabun, sans-serif", fontWeight: 800 },
+          data: [
+            { value: stockStatusSummary.normal, name: "ปกติ" },
+            { value: stockStatusSummary.low, name: "ต่ำกว่า min" },
+            { value: stockStatusSummary.high, name: "สูงกว่า max" },
+            { value: stockStatusSummary.missing, name: "ยังไม่ตั้งค่า" },
+          ],
+        },
+      ],
+    }),
+    [stockStatusSummary]
   );
 
   const mostIssuedProducts = useMemo(() => {
@@ -505,39 +719,19 @@ export default function OverviewPage() {
 
   return (
     <section id="import" className="overview-page">
-      <section className="overview-summary-row">
-        <div className="overview-kpi-grid">
-          {overviewStats.map((stat) => {
-            const Icon = stat.icon as any;
-            return (
-              <article key={stat.label} className="overview-kpi-card">
-                {Icon && (
-                  <div className={`overview-kpi-icon overview-kpi-icon-${stat.tone}`}>
-                    <Icon size={22} />
-                  </div>
-                )}
-                <div>
-                  <p>{stat.label}</p>
-                  <strong className={stat.valueTone === "danger" ? "text-red-600" : ""}>
-                    {stat.value}
-                  </strong>
-                  {stat.unit ? <span>{stat.unit}</span> : null}
-                </div>
-                <small>{stat.helper}</small>
-              </article>
-            );
-          })}
+      <section className="overview-simple-header">
+        <div>
+          <h2>Dashboard</h2>
+          <p>ดูเฉพาะตัวเลขหลัก สถานะสต๊อก และงานที่ต้องจัดการ</p>
         </div>
-
-        <div className="overview-date-card">
-          <div className="overview-date-card-label">ช่วงวันที่</div>
+        <div className="overview-simple-filter">
           <div className="overview-date-range">
             <label className="overview-date-input">
               <span>จากวันที่</span>
               <input
                 type="date"
                 value={overviewDateFrom}
-                min={earliestAllowedOverviewDateFrom}
+                min={overviewDateFloor}
                 max={overviewDateTo}
                 onChange={(event) => handleOverviewDateFromChange(event.target.value)}
               />
@@ -557,286 +751,103 @@ export default function OverviewPage() {
         </div>
       </section>
 
-      <section className="overview-focus-grid">
-        <article className={`overview-action-card ${lowStockItems.length > 0 ? "overview-action-card-alert" : ""}`}>
-          <div className="overview-action-heading">
-            <div className="overview-action-icon">
-              <AlertTriangle size={22} />
-            </div>
+      <section className="overview-simple-kpis">
+        {overviewStats.map((stat) => {
+          const Icon = stat.icon as any;
+          return (
+            <article key={stat.label}>
+              <div className={`overview-kpi-icon overview-kpi-icon-${stat.tone}`}>
+                <Icon size={21} />
+              </div>
+              <div>
+                <span>{stat.label}</span>
+                <strong className={stat.valueTone === "danger" ? "text-red-600" : ""}>
+                  {stat.value}
+                </strong>
+                <small>{stat.unit}</small>
+                <em>{stat.helper}</em>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="overview-simple-grid">
+        <article className="overview-simple-card overview-chart-panel">
+          <div className="overview-simple-card-heading">
             <div>
-              <span>Action required</span>
-              <h3>เติมสต็อกก่อนของขาด</h3>
-              <p>สินค้าเหลือน้อยกว่าจำนวนขั้นต่ำที่ตั้งไว้รายสินค้า</p>
+              <h3>รับเข้า / เบิกจ่าย</h3>
+              <p>{formatDate(overviewDateFrom)} - {formatDate(overviewDateTo)}</p>
             </div>
           </div>
+          <EChart option={movementChartOption} className="overview-echart-movement" />
+        </article>
 
-          <div className="overview-action-metric">
-            <strong>{formatNumber(lowStockItems.length)}</strong>
-            <span>รายการต้องเติม</span>
+        <article className="overview-simple-card overview-chart-panel">
+          <div className="overview-simple-card-heading">
+            <div>
+              <h3>สถานะสต๊อก</h3>
+              <p>เทียบ min / max ของสินค้า</p>
+            </div>
           </div>
+          <EChart option={stockStatusChartOption} className="overview-echart-status" />
+        </article>
+      </section>
 
-          <div className="overview-action-list">
+      <section className="overview-simple-grid overview-simple-grid-lists">
+        <article className="overview-simple-card">
+          <div className="overview-simple-card-heading">
+            <div>
+              <h3>ต้องเติมสต๊อก</h3>
+              <p>{lowStockItems.length > 0 ? `${formatNumber(lowStockItems.length)} รายการต่ำกว่า min` : "ไม่มีรายการต่ำกว่า min"}</p>
+            </div>
+            <Link href="/receive">รับเข้า</Link>
+          </div>
+          <div className="overview-simple-list">
             {lowStockInventory.length > 0 ? (
               lowStockInventory.map((item) => (
-                <div className="overview-action-item" key={item.key}>
+                <div className="overview-priority-item" key={item.key}>
                   <div>
                     <strong>{item.name}</strong>
                     <span>{item.sku || "-"} · min {formatNumber(item.minStock)} {item.unit}</span>
                   </div>
-                  <b>{formatNumber(item.balance)} {item.unit}</b>
-                </div>
-              ))
-            ) : (
-              <div className="overview-action-empty">
-                <CheckCircle2 size={22} />
-                <span>ไม่มีสินค้าต่ำกว่า min ตอนนี้</span>
-              </div>
-            )}
-          </div>
-
-          <Link className="overview-action-link" href="/receive">
-            รับสินค้าเข้าคลัง <ArrowRight size={15} />
-          </Link>
-        </article>
-
-        <article className="overview-movement-card">
-          <div className="overview-section-heading">
-            <div>
-              <h3>ความเคลื่อนไหวช่วงนี้</h3>
-              <p>{formatDate(overviewDateFrom)} - {formatDate(overviewDateTo)}</p>
-            </div>
-          </div>
-
-          <div className="overview-movement-grid">
-            <div>
-              <span>รับเข้า</span>
-              <strong>{formatNumber(totalStockIn)}</strong>
-              <small>หน่วย</small>
-            </div>
-            <div>
-              <span>เบิกจ่าย</span>
-              <strong>{formatNumber(totalStockOut)}</strong>
-              <small>หน่วย</small>
-            </div>
-            <div>
-              <span>มูลค่าสต็อก</span>
-              <strong>฿{formatNumber(estimatedInventoryValue)}</strong>
-              <small>ประมาณการ</small>
-            </div>
-          </div>
-
-          <div className="overview-section-heading overview-section-heading-compact">
-            <div>
-              <h3>สินค้าเบิกบ่อย</h3>
-              <p>ช่วยดูว่าควรเติมของตัวไหนก่อน</p>
-            </div>
-          </div>
-
-          <div className="overview-priority-list">
-            {mostIssuedProducts.length > 0 ? (
-              mostIssuedProducts.map((item) => (
-                <div className="overview-priority-item" key={item.key}>
                   <div>
-                    <strong>{item.name}</strong>
-                    <span>{item.sku || "-"} · คงเหลือ {formatNumber(item.balance)} {item.unit}</span>
-                  </div>
-                  <div>
-                    <strong>{formatNumber(item.totalQuantity)} {item.unit}</strong>
-                    <span>{formatNumber(item.issueCount)} ครั้ง</span>
+                    <strong>{formatNumber(item.balance)} {item.unit}</strong>
+                    <span>คงเหลือ</span>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="overview-soft-empty">ยังไม่มีข้อมูลการเบิกในช่วงวันที่เลือก</div>
-            )}
-          </div>
-
-          <div className="overview-section-heading overview-section-heading-compact">
-            <div>
-              <h3>สินค้ารับเข้าเยอะ</h3>
-              <p>ใช้ดูว่าช่วงนี้สินค้าไหนเข้าคลังมากเป็นพิเศษ</p>
-            </div>
-          </div>
-
-          <div className="overview-priority-list">
-            {mostReceivedProducts.length > 0 ? (
-              mostReceivedProducts.map((item) => (
-                <div className="overview-priority-item" key={`received-${item.key}`}>
-                  <div>
-                    <strong>{item.name}</strong>
-                    <span>{item.sku || "-"} · คงเหลือ {formatNumber(item.balance)} {item.unit}</span>
-                  </div>
-                  <div>
-                    <strong>{formatNumber(item.totalQuantity)} {item.unit}</strong>
-                    <span>{formatNumber(item.receiveCount)} ครั้ง</span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="overview-soft-empty">ยังไม่มีข้อมูลการรับเข้าในช่วงวันที่เลือก</div>
+              <div className="overview-soft-empty">สต๊อกอยู่ในเกณฑ์ ไม่มีรายการต้องเติมตอนนี้</div>
             )}
           </div>
         </article>
-      </section>
 
-      <section className="overview-bottom-grid">
-        {canViewStockOverview ? (
-          <article className="overview-list-card">
-            <div className="overview-section-heading">
-              <div>
-                <h3>สต๊อกรายสินค้า</h3>
-                <p>ดูคงเหลือเทียบกับ min / max รายสินค้า พร้อมปริมาณรับเข้าและเบิกจ่ายในช่วงวันที่เลือก</p>
-              </div>
+        <article className="overview-simple-card">
+          <div className="overview-simple-card-heading">
+            <div>
+              <h3>ใบเบิกรออนุมัติ</h3>
+              <p>{visibleRequisitions.length > 0 ? `${formatNumber(visibleRequisitions.length)} ใบล่าสุด` : "ไม่มีใบเบิกรออนุมัติ"}</p>
             </div>
-
-            <div className="overview-stock-table-wrap">
-              <table className="overview-stock-table">
-                <thead>
-                  <tr>
-                    <th>สินค้า</th>
-                    <th>รับเข้า</th>
-                    <th>เบิกจ่าย</th>
-                    <th>คงเหลือ / min-max</th>
-                    <th>ภาพรวมสต๊อก</th>
-                    <th>สถานะ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stockReviewRows.map((item) => (
-                    <tr key={item.key}>
-                      <td>
-                        <div className="overview-stock-product">
-                          <strong>{item.name}</strong>
-                          <span>{item.sku || "-"} · {item.unit}</span>
-                        </div>
-                      </td>
-                      <td className="text-right">{formatNumber(item.rangeIn)}</td>
-                      <td className="text-right">{formatNumber(item.rangeOut)}</td>
-                      <td>
-                        <div className="overview-stock-amount">
-                          <strong>{formatNumber(item.balance)} {item.unit}</strong>
-                          <span>min {formatNumber(item.minStock)} / max {formatNumber(item.maxStock)}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="overview-stock-meter">
-                          <div className="overview-stock-meter-track">
-                            <div className="overview-stock-meter-fill" style={{ width: `${item.progressPercent}%` }} />
-                            <span className="overview-stock-meter-min" style={{ left: `${item.minPercent}%` }} />
-                            {item.maxStock > 0 ? (
-                              <span className="overview-stock-meter-max" style={{ left: `${item.maxPercent}%` }} />
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span
-                          className={`stock-pill ${
-                            item.stockTargetStatus === "low"
-                              ? "stock-pill-danger"
-                              : item.stockTargetStatus === "high"
-                                ? "stock-pill-warn"
-                                : item.stockTargetStatus === "normal"
-                                  ? "stock-pill-ok"
-                                  : ""
-                          }`}
-                        >
-                          {item.stockTargetStatus === "low"
-                            ? "ต่ำกว่า min"
-                            : item.stockTargetStatus === "high"
-                              ? "สูงกว่า max"
-                              : item.stockTargetStatus === "normal"
-                                ? "อยู่ในช่วง"
-                                : "ยังไม่ตั้งค่า"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </article>
-        ) : (
-          <article className="overview-list-card">
-            <div className="overview-section-heading">
-              <div>
-                <h3>สิทธิ์การมองเห็น</h3>
-                <p>บัญชีพนักงานเห็นเฉพาะงานของตัวเอง</p>
-              </div>
-            </div>
-            <div className="overview-soft-empty">
-              ข้อมูลคงคลังรวม รายการใกล้หมด และใบเบิกของผู้อื่นจะแสดงเฉพาะผู้จัดการและผู้ดูแลระบบ
-            </div>
-          </article>
-        )}
-
-        <article className="overview-list-card">
-          {canViewStockOverview ? (
-            <div className="overview-secondary-block">
-              <div className="overview-section-heading">
-                <div>
-                  <h3>{highStockInventory.length > 0 ? "สินค้าสูงกว่า max" : "สินค้าคงเหลือสูงสุด"}</h3>
-                  <p>{highStockInventory.length > 0 ? "รายการที่คงเหลือมากกว่าจำนวนสูงสุดที่ตั้งไว้" : "ใช้ดูของที่ค้างคลังหรือมีโอกาสสต็อกมากเกินไป"}</p>
-                </div>
-              </div>
-
-              <div className="overview-priority-list">
-                {(highStockInventory.length > 0 ? highStockInventory : highestBalanceInventory).length > 0 ? (
-                  (highStockInventory.length > 0 ? highStockInventory : highestBalanceInventory).map((item) => (
-                    <div className="overview-priority-item" key={item.key}>
-                      <div>
-                        <strong>{item.name}</strong>
-                        <span>
-                          {item.sku || "-"}
-                          {highStockInventory.length > 0
-                            ? ` · max ${formatNumber(item.maxStock)} ${item.unit}`
-                            : ` · รับเข้า ${formatNumber(item.totalIn)} · เบิก ${formatNumber(item.totalOut)}`}
-                        </span>
-                      </div>
-                      <div>
-                        <strong>{formatNumber(item.balance)} {item.unit}</strong>
-                        <span>{highStockInventory.length > 0 ? "คงเหลือเกินเป้า" : "คงเหลือ"}</span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="overview-soft-empty">ยังไม่มีสินค้าคงเหลือในคลัง</div>
-                )}
-              </div>
-            </div>
-          ) : null}
-
-          <div className={canViewStockOverview ? "overview-secondary-block" : undefined}>
-            <div className="overview-section-heading">
-              <div>
-                <h3>{canViewStockOverview ? "รอผู้จัดการอนุมัติ" : "ใบเบิกล่าสุดของฉัน"}</h3>
-              </div>
-              <Link href="/approve">ดูทั้งหมด</Link>
-            </div>
-
-            <div className="overview-pending-list">
-              {visibleRequisitions.length > 0 ? (
-                visibleRequisitions.map((requisition) => (
-                  <div className="overview-pending-item" key={requisition.issueKey}>
-                    <div>
-                      <strong>{requisition.issueKey}</strong>
-                      <span>
-                        {formatDate(requisition.date)}
-                        {canViewStockOverview ? ` · ผู้ขอ ${requisition.requester}` : ` · ${requisition.status || "completed"}`}
-                      </span>
-                    </div>
-                    <div>
-                      <strong>{formatNumber(requisition.itemCount)}</strong>
-                      <span>{formatNumber(requisition.totalQuantity)} หน่วย</span>
-                    </div>
+            <Link href="/approve">ดูทั้งหมด</Link>
+          </div>
+          <div className="overview-simple-list">
+            {visibleRequisitions.length > 0 ? (
+              visibleRequisitions.map((requisition) => (
+                <div className="overview-priority-item" key={requisition.issueKey}>
+                  <div>
+                    <strong>{requisition.issueKey}</strong>
+                    <span>{formatDate(requisition.date)} · ผู้ขอ {requisition.requester}</span>
                   </div>
-                ))
-              ) : (
-                <div className="overview-soft-empty">
-                  {canViewStockOverview ? "ไม่มีใบเบิกรอผู้จัดการอนุมัติ" : "ยังไม่มีใบเบิกของคุณในช่วงวันที่เลือก"}
+                  <div>
+                    <strong>{formatNumber(requisition.itemCount)}</strong>
+                    <span>{formatNumber(requisition.totalQuantity)} หน่วย</span>
+                  </div>
                 </div>
-              )}
-            </div>
+              ))
+            ) : (
+              <div className="overview-soft-empty">ไม่มีใบเบิกรอผู้จัดการอนุมัติ</div>
+            )}
           </div>
         </article>
       </section>

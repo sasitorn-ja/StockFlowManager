@@ -2,7 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Search, Trash2 } from "lucide-react";
+import { Archive, Pencil, RotateCcw, Search } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import {
   getClientMasterProducts,
@@ -131,41 +131,38 @@ export default function SettingsPage() {
     setMasterProducts(products);
   }
 
-  async function handleDeleteProduct(product: ProductMaster) {
-    const shouldDelete = window.confirm(
-      `ต้องการปิดใช้งานสินค้า "${product.name}" ใช่หรือไม่\n\nสินค้านี้จะไม่แสดงในหน้าเบิก แต่ประวัติรับเข้า-เบิกจ่ายจะยังอยู่ครบ`
+  async function handleProductActiveChange(product: ProductMaster, nextIsActive: boolean) {
+    const shouldUpdate = window.confirm(
+      nextIsActive
+        ? `ต้องการเปิดใช้งานสินค้า "${product.name}" ใช่หรือไม่\n\nสินค้านี้จะกลับไปแสดงในหน้าเบิกและหน้ารับเข้า`
+        : `ต้องการปิดใช้งานสินค้า "${product.name}" ใช่หรือไม่\n\nเป็นการซ่อนสินค้า ไม่ใช่ลบข้อมูล ประวัติรับเข้า-เบิกจ่ายจะยังอยู่ครบ`
     );
 
-    if (!shouldDelete) {
+    if (!shouldUpdate) {
       return;
     }
+
+    setMasterProducts((current) =>
+      current.map((item) => (item.id === product.id ? { ...item, isActive: nextIsActive } : item))
+    );
 
     const response = await fetch(withBasePath("/api/master-products"), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id: product.id,
-        name: product.name,
-        sku: product.sku,
-        category: product.category,
-        productImportType: product.productImportType,
-        imageDataUrl: product.imageDataUrl || "",
-        unit: product.unit,
-        price: product.price,
-        costPrice: product.costPrice,
-        costCurrency: product.costCurrency,
-        minStock: product.minStock,
-        maxStock: product.maxStock,
-        defaultStorageLocation: product.defaultStorageLocation || "",
-        defaultExpiryDate: product.defaultExpiryDate || "",
-        vendor: product.vendor || "",
-        note: product.note || "",
-        isActive: false,
+        action: "set_active",
+        isActive: nextIsActive,
       }),
     });
 
     if (!response.ok) {
-      window.alert("ไม่สามารถปิดใช้งานสินค้าได้");
+      setMasterProducts((current) =>
+        current.map((item) => (item.id === product.id ? { ...item, isActive: product.isActive } : item))
+      );
+      const detail = await response.json().catch(() => null);
+      console.error("Unable to update product active state", detail);
+      window.alert(nextIsActive ? "ไม่สามารถเปิดใช้งานสินค้าได้" : "ไม่สามารถปิดใช้งานสินค้าได้");
       return;
     }
 
@@ -295,7 +292,7 @@ export default function SettingsPage() {
             columnCount={6}
           >
             {filteredProducts.map((product) => (
-              <tr key={product.id}>
+              <tr key={product.id} className={!product.isActive ? "opacity-70" : undefined}>
                 <td>
                   <strong className="font-semibold text-[var(--text-strong)]">{product.name}</strong>
                   <div className="text-[12px] text-[var(--text-muted)]">
@@ -314,25 +311,29 @@ export default function SettingsPage() {
                   </div>
                 </td>
                 <td>
-                  <span
-                    className={`stock-pill ${
-                      product.stockTargetStatus === "low"
-                        ? "stock-pill-danger"
+                  {!product.isActive ? (
+                    <span className="stock-pill stock-pill-muted">ปิดใช้งาน</span>
+                  ) : (
+                    <span
+                      className={`stock-pill ${
+                        product.stockTargetStatus === "low"
+                          ? "stock-pill-danger"
+                          : product.stockTargetStatus === "high"
+                            ? "stock-pill-warn"
+                            : product.stockTargetStatus === "normal"
+                              ? "stock-pill-ok"
+                              : ""
+                      }`}
+                    >
+                      {product.stockTargetStatus === "low"
+                        ? "ต่ำกว่า min"
                         : product.stockTargetStatus === "high"
-                          ? "stock-pill-warn"
+                          ? "สูงกว่า max"
                           : product.stockTargetStatus === "normal"
-                            ? "stock-pill-ok"
-                            : ""
-                    }`}
-                  >
-                    {product.stockTargetStatus === "low"
-                      ? "ต่ำกว่า min"
-                      : product.stockTargetStatus === "high"
-                        ? "สูงกว่า max"
-                        : product.stockTargetStatus === "normal"
-                          ? "อยู่ในช่วง"
-                          : "ยังไม่ตั้งค่า"}
-                  </span>
+                            ? "อยู่ในช่วง"
+                            : "ยังไม่ตั้งค่า"}
+                    </span>
+                  )}
                 </td>
                 <td>
                   <div className="flex flex-wrap items-center gap-2">
@@ -345,15 +346,29 @@ export default function SettingsPage() {
                       <Pencil size={14} />
                       แก้ไข
                     </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleDeleteProduct(product)}
-                    >
-                      <Trash2 size={14} />
-                      ปิดใช้งาน
-                    </Button>
+                    {product.isActive ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
+                        onClick={() => handleProductActiveChange(product, false)}
+                      >
+                        <Archive size={14} />
+                        ปิดใช้
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+                        onClick={() => handleProductActiveChange(product, true)}
+                      >
+                        <RotateCcw size={14} />
+                        เปิดใช้งาน
+                      </Button>
+                    )}
                   </div>
                 </td>
               </tr>

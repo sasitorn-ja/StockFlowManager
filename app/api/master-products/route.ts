@@ -411,6 +411,16 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === "set_active") {
+      await sql`
+        UPDATE products
+        SET "isActive" = ${body.isActive !== false}, "updatedAt" = ${Date.now()}
+        WHERE id = ${id};
+      `;
+
+      return NextResponse.json({ success: true });
+    }
+
     if (action === "set_active_by_key") {
       const product = normalizeProductPayload(body);
       if (!product.name || !product.unit) {

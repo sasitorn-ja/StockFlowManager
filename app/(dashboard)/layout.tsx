@@ -55,8 +55,7 @@ const navigationGroups = [
     label: "บริหารคลังสินค้า",
     icon: Database,
     items: [
-      { label: "สินค้าในคลัง", href: "/items", icon: Database, roles: ["admin"] },
-      { label: "รับสินค้าเข้าคลัง", href: "/receive", icon: ClipboardPlus, roles: ["admin"] },
+      { label: "คลังสินค้าและรับเข้า", href: "/receive", icon: ClipboardPlus, roles: ["admin"] },
       { label: "สินค้าใกล้หมด/หมดอายุ", href: "/expiring", icon: Clock3, roles: ["admin"] },
     ] satisfies NavigationItem[],
   },

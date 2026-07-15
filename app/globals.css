@@ -548,6 +548,152 @@ textarea {
     @apply grid gap-3 rounded-none p-0;
   }
 
+  .overview-command-center {
+    background: #ffffff;
+    border: 1px solid rgba(214, 229, 247, 0.92);
+    @apply flex flex-col gap-3 rounded-xl p-4 md:flex-row md:items-center md:justify-between;
+  }
+
+  .overview-command-center span {
+    color: #0b63bd;
+    @apply text-[11px] font-black uppercase tracking-[0.08em];
+  }
+
+  .overview-command-center h2 {
+    color: var(--text-strong);
+    @apply mt-1 text-xl font-black leading-tight md:text-2xl;
+  }
+
+  .overview-command-center p {
+    color: var(--text-muted);
+    @apply mt-1 max-w-3xl text-[13px] font-semibold leading-5;
+  }
+
+  .overview-command-actions {
+    @apply flex shrink-0 flex-wrap gap-2;
+  }
+
+  .overview-command-actions a {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #0b63bd;
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-[12px] font-extrabold transition-colors;
+  }
+
+  .overview-command-actions a:first-child {
+    background: #0b63bd;
+    border-color: #0b63bd;
+    color: #ffffff;
+  }
+
+  .overview-command-actions a:hover {
+    filter: brightness(0.98);
+  }
+
+  .overview-simple-header {
+    background: #ffffff;
+    border: 1px solid rgba(214, 229, 247, 0.92);
+    @apply flex flex-col gap-2 rounded-lg px-4 py-3 lg:flex-row lg:items-center lg:justify-between;
+  }
+
+  .overview-simple-header h2 {
+    color: var(--text-strong);
+    @apply text-xl font-black leading-tight;
+  }
+
+  .overview-simple-header p {
+    color: var(--text-muted);
+    @apply mt-1 text-[13px] font-semibold leading-5;
+  }
+
+  .overview-simple-filter {
+    @apply min-w-0 lg:w-[380px];
+  }
+
+  .overview-simple-kpis {
+    @apply grid gap-2 md:grid-cols-2 xl:grid-cols-5;
+  }
+
+  .overview-simple-kpis article {
+    background: #ffffff;
+    border: 1px solid rgba(214, 229, 247, 0.92);
+    @apply flex min-h-[76px] items-center gap-2.5 rounded-lg px-3 py-2.5;
+  }
+
+  .overview-simple-kpis article > div:last-child {
+    @apply min-w-0;
+  }
+
+  .overview-simple-kpis span,
+  .overview-simple-kpis small {
+    color: var(--text-muted);
+    @apply block text-[12px] font-bold;
+  }
+
+  .overview-simple-kpis em {
+    color: #8aa0ba;
+    @apply mt-0.5 block text-[10px] font-bold not-italic;
+  }
+
+  .overview-simple-kpis strong {
+    color: var(--text-strong);
+    @apply mr-1 text-2xl font-black leading-none;
+  }
+
+  .overview-simple-grid {
+    @apply grid gap-2 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)];
+  }
+
+  .overview-simple-grid-lists {
+    @apply xl:grid-cols-2;
+  }
+
+  .overview-simple-card {
+    background: #ffffff;
+    border: 1px solid rgba(214, 229, 247, 0.92);
+    @apply rounded-lg p-3;
+  }
+
+  .overview-simple-card-heading {
+    @apply mb-2 flex items-start justify-between gap-3;
+  }
+
+  .overview-simple-card-heading h3 {
+    color: var(--text-strong);
+    @apply text-base font-black leading-tight;
+  }
+
+  .overview-simple-card-heading p {
+    color: var(--text-muted);
+    @apply mt-0.5 text-[12px] font-semibold leading-5;
+  }
+
+  .overview-simple-card-heading > a {
+    background: #eff6ff;
+    color: #0b63bd;
+    @apply inline-flex h-8 shrink-0 items-center rounded-md px-3 text-[12px] font-extrabold;
+  }
+
+  .overview-chart-panel {
+    @apply min-w-0;
+  }
+
+  .overview-echart {
+    @apply w-full;
+  }
+
+  .overview-echart-movement {
+    height: 236px;
+  }
+
+  .overview-echart-status {
+    height: 236px;
+  }
+
+  .overview-simple-list {
+    @apply grid gap-1.5;
+  }
+
   .overview-header {
     @apply flex flex-col gap-2;
   }
@@ -1369,6 +1515,11 @@ textarea {
     color: #be123c;
   }
 
+  .stock-pill-muted {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
   .overview-pagination {
     @apply flex flex-col gap-3 p-4 text-[12px] text-[var(--text-muted)] md:flex-row md:items-center md:justify-between;
   }
@@ -1426,6 +1577,30 @@ textarea {
     @apply overflow-hidden rounded-lg;
   }
 
+  .receive-view-tabs {
+    border-bottom: 1px solid var(--border-soft);
+    @apply flex flex-wrap gap-2 px-4 pt-4;
+  }
+
+  .receive-view-tabs button {
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    @apply inline-flex h-9 items-center rounded-t-lg px-4 text-[13px] font-extrabold transition-colors;
+  }
+
+  .receive-view-tabs button:hover {
+    background: #f8fafc;
+    color: var(--text-strong);
+  }
+
+  .receive-view-tabs button.active {
+    background: #ffffff;
+    border-color: var(--border-soft);
+    border-bottom-color: #ffffff;
+    color: #0b63bd;
+    transform: translateY(1px);
+  }
+
   .receive-table-toolbar {
     border-bottom: 1px solid var(--border-soft);
     @apply flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between;
@@ -1433,6 +1608,10 @@ textarea {
 
   .receive-table {
     @apply min-w-[980px];
+  }
+
+  .inventory-inline-table {
+    @apply min-w-[1040px];
   }
 
   .receive-table-note {
