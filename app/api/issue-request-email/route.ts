@@ -8,6 +8,8 @@ type IssueEmailRow = {
   quantity: number;
   sku: string;
   unit: string;
+  costPrice?: number;
+  costCurrency?: string;
 };
 
 type IssueEmailPayload = {
@@ -40,6 +42,20 @@ function formatThaiDate(value: string) {
   }).format(date);
 }
 
+function formatCostPrice(value?: number, currency?: string) {
+  const amount = Number(value ?? 0);
+  const normalizedCurrency = String(currency || "THB").trim().toUpperCase();
+
+  if (!Number.isFinite(amount)) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount).concat(` ${escapeHtml(normalizedCurrency)}`);
+}
+
 function buildEmailHtml(input: {
   appUrl: string;
   approverName: string;
@@ -59,6 +75,7 @@ function buildEmailHtml(input: {
           <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${escapeHtml(item.productImportTypeLabel)}</td>
           <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:right;">${item.quantity}</td>
           <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;">${escapeHtml(item.unit)}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:right;white-space:nowrap;">${formatCostPrice(item.costPrice, item.costCurrency)}</td>
         </tr>
       `
     )
@@ -90,6 +107,7 @@ function buildEmailHtml(input: {
                 <th style="padding:10px 12px;text-align:left;font-size:12px;border-bottom:1px solid #e2e8f0;">ประเภท</th>
                 <th style="padding:10px 12px;text-align:right;font-size:12px;border-bottom:1px solid #e2e8f0;">จำนวน</th>
                 <th style="padding:10px 12px;text-align:left;font-size:12px;border-bottom:1px solid #e2e8f0;">หน่วย</th>
+                <th style="padding:10px 12px;text-align:right;font-size:12px;border-bottom:1px solid #e2e8f0;">ราคาต้นทุน</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>

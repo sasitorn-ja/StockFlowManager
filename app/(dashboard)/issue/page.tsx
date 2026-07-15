@@ -583,13 +583,17 @@ export default function IssuePage() {
             requester: issueRequester.trim(),
             createdBy: issueCreatedBy.trim(),
             note: issueNote.trim(),
-            items: selectedEntries.map(({ item, quantity }) => ({
-              name: item.name,
-              sku: item.sku,
-              quantity,
-              unit: item.unit,
-              productImportTypeLabel: getProductImportTypeLabel(item.productImportType),
-            })),
+            items: allocationPlans.flatMap(({ item, plan }) =>
+              plan.map(({ lot, quantity }) => ({
+                name: item.name,
+                sku: item.sku,
+                quantity,
+                unit: item.unit,
+                productImportTypeLabel: getProductImportTypeLabel(item.productImportType),
+                costPrice: lot.costPrice ?? 0,
+                costCurrency: lot.costCurrency ?? "THB",
+              }))
+            ),
           }),
         });
 

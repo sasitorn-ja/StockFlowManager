@@ -212,14 +212,16 @@ export async function POST(request: Request) {
     const issue = items.find((item) => (item.type || "in") === "out");
     if (issue?.issueKey) {
       const issueStatus = (issue.status || (settings.approvalMode === "off" ? "approved" : "pending")) as TransactionStatus;
-      queueRequisitionNotice({
-        issueKey: issue.issueKey,
-        status: issueStatus,
-        actorName: actor.name,
-        requester: issue.requester || actor.name,
-        createdBy: actor.name,
-        approver: issue.approver || "",
-      });
+      if (issueStatus !== "pending") {
+        queueRequisitionNotice({
+          issueKey: issue.issueKey,
+          status: issueStatus,
+          actorName: actor.name,
+          requester: issue.requester || actor.name,
+          createdBy: actor.name,
+          approver: issue.approver || "",
+        });
+      }
     }
 
     return NextResponse.json({ success: true, count: items.length });
