@@ -11,6 +11,8 @@ import {
   Menu,
   X,
   Bell,
+  PanelLeftClose,
+  PanelLeftOpen,
   PackageCheck,
   Home,
   ClipboardPlus,
@@ -72,20 +74,22 @@ const navigationGroups = [
 const buddyUiStyles = `
   .dashboard-sidebar,
   .dashboard-sidebar-mobile { width: 274px; }
+  .dashboard-shell.sidebar-collapsed .dashboard-sidebar { width: 92px; }
   .dashboard-sidebar {
     background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,251,255,.96));
     border-right: 1px solid rgba(216,229,246,.92);
     box-shadow: 12px 0 34px rgba(15,76,140,.08);
     overflow-x: hidden;
   }
-  .dashboard-main { padding-left: 274px; }
+  .dashboard-main { padding-left: 274px; transition: padding-left .2s ease; }
+  .dashboard-shell.sidebar-collapsed .dashboard-main { padding-left: 92px; }
   .dashboard-sidebar-brand { height: 92px; padding-inline: 18px; }
   .brand-mark {
-    display: inline-flex; width: 58px; height: 58px; align-items: center; justify-content: center;
+    display: inline-flex; width: 50px; height: 50px; align-items: center; justify-content: center;
     border-radius: 18px; background: rgba(238,247,255,.92); overflow: hidden;
   }
   .brand-mark img {
-    width: 52px; height: 52px; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(7,71,161,.14));
+    width: 44px; height: 44px; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(7,71,161,.14));
     transform-origin: 50% 82%;
     animation: buddy-brand-nod 7s ease-in-out infinite;
   }
@@ -100,10 +104,47 @@ const buddyUiStyles = `
   .dashboard-nav-item-active::before { background: #3b82f6; }
   .dashboard-sidebar-buddy { margin: auto 16px 14px; display: grid; justify-items: center; padding-top: 12px; }
   .dashboard-sidebar-buddy img {
-    width: min(184px,76%); height: auto; filter: drop-shadow(0 16px 22px rgba(7,71,161,.14));
+    width: min(132px,62%); height: auto; filter: drop-shadow(0 16px 22px rgba(7,71,161,.14));
     transform-origin: 50% 88%;
     animation: buddy-float 4.8s ease-in-out infinite;
     will-change: transform;
+  }
+  .dashboard-shell.sidebar-collapsed .dashboard-sidebar-brand {
+    padding-inline: 12px;
+  }
+  .dashboard-shell.sidebar-collapsed .brand-mark {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+  }
+  .dashboard-shell.sidebar-collapsed .brand-mark img {
+    width: 36px;
+    height: 36px;
+  }
+  .dashboard-shell.sidebar-collapsed .dashboard-sidebar-buddy img {
+    width: 78px;
+  }
+  .dashboard-shell.sidebar-collapsed .brand-title,
+  .dashboard-shell.sidebar-collapsed .brand-subtitle,
+  .dashboard-shell.sidebar-collapsed .dashboard-nav-group-trigger span,
+  .dashboard-shell.sidebar-collapsed .dashboard-nav-subitem span,
+  .dashboard-shell.sidebar-collapsed .dashboard-sidebar-logout span {
+    display: none;
+  }
+  .dashboard-shell.sidebar-collapsed .dashboard-nav-item {
+    justify-content: center;
+  }
+  .dashboard-shell.sidebar-collapsed .dashboard-nav-chevron,
+  .dashboard-shell.sidebar-collapsed .dashboard-nav-submenu,
+  .dashboard-shell.sidebar-collapsed .dashboard-sidebar-buddy {
+    display: none;
+  }
+  .dashboard-shell.sidebar-collapsed .dashboard-sidebar-logout {
+    padding-inline: 12px;
+  }
+  .dashboard-shell.sidebar-collapsed .dashboard-logout-link {
+    justify-content: center;
+    padding-inline: 0;
   }
   .dashboard-sidebar-buddy:hover img { animation: buddy-wave 1.2s ease-in-out infinite; }
   @keyframes buddy-float {
@@ -137,6 +178,23 @@ const buddyUiStyles = `
   .dashboard-logout-link:hover { background: #eaf4ff; color: #075bd8; }
   .dashboard-header { min-height: 82px; border-bottom: 0; background: linear-gradient(90deg,rgba(255,255,255,.86),rgba(246,251,255,.72)); box-shadow: none; }
   .dashboard-topbar-actions { display: flex; align-items: center; gap: 10px; }
+  .dashboard-sidebar-toggle {
+    display: none;
+    min-height: 46px;
+    min-width: 46px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(216,229,246,.92);
+    border-radius: 12px;
+    background: rgba(255,255,255,.9);
+    box-shadow: 0 10px 24px rgba(15,76,140,.08);
+    color: #0b2d62;
+  }
+  @media (min-width: 1024px) {
+    .dashboard-sidebar-toggle {
+      display: inline-flex;
+    }
+  }
   .dashboard-date-pill,
   .dashboard-notification-button,
   .dashboard-user-card {
@@ -182,6 +240,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
 function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>("employee");
   const { transactions } = useTransactions();
   const pathname = usePathname();
@@ -203,6 +262,11 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       ).size,
     [transactions]
   );
+
+  useEffect(() => {
+    const storedValue = localStorage.getItem("dashboard_sidebar_collapsed");
+    setIsSidebarCollapsed(storedValue === "true");
+  }, []);
 
   useEffect(() => {
     getClientSession()
@@ -228,6 +292,14 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
   function closeMobileMenu() {
     setIsMobileMenuOpen(false);
+  }
+
+  function toggleSidebarCollapsed() {
+    setIsSidebarCollapsed((current) => {
+      const next = !current;
+      localStorage.setItem("dashboard_sidebar_collapsed", String(next));
+      return next;
+    });
   }
 
   useEffect(() => {
@@ -337,7 +409,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   );
 
   return (
-    <main className="dashboard-shell">
+    <main className={`dashboard-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <style dangerouslySetInnerHTML={{ __html: buddyUiStyles }} />
       {isMobileMenuOpen ? (
         <button
@@ -368,6 +440,15 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
               aria-label="เปิดเมนู"
             >
               <Menu aria-hidden="true" size={19} />
+            </button>
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              className="dashboard-sidebar-toggle"
+              aria-label={isSidebarCollapsed ? "แสดงเมนู" : "ซ่อนเมนู"}
+              title={isSidebarCollapsed ? "แสดงเมนู" : "ซ่อนเมนู"}
+            >
+              {isSidebarCollapsed ? <PanelLeftOpen aria-hidden="true" size={19} /> : <PanelLeftClose aria-hidden="true" size={19} />}
             </button>
             <div className="min-w-0">
               <h1 className="truncate text-base font-extrabold text-[var(--text-strong)] md:text-xl">
