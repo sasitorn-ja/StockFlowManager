@@ -143,7 +143,7 @@ function buildAutoAllocationPlan(item: IssueProductItem, quantity: number, alloc
 
 export default function IssuePage() {
   const router = useRouter();
-  const { transactions } = useTransactions();
+  const { transactions, refresh } = useTransactions();
   const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [issueImportTypeFilter, setIssueImportTypeFilter] = useState<OverviewFilter>("all");
@@ -603,6 +603,8 @@ export default function IssuePage() {
           window.alert("บันทึกใบเบิกแล้ว แต่ส่งอีเมลแจ้งอนุมัติไม่สำเร็จ");
         }
       }
+
+      await refresh();
 
       // Add issueKey to local storage my_created_issue_keys to track ownership
       try {

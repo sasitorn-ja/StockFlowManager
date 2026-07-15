@@ -22,7 +22,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(withBasePath("/api/transactions"));
+      const res = await fetch(withBasePath("/api/transactions"), { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setTransactions(normalizeTransactions(data));
