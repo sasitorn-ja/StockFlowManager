@@ -112,6 +112,9 @@ const buddyUiStyles = `
   .dashboard-shell.sidebar-collapsed .dashboard-sidebar-brand {
     padding-inline: 12px;
   }
+  .dashboard-shell.sidebar-collapsed .dashboard-sidebar-brand-inner {
+    justify-content: center;
+  }
   .dashboard-shell.sidebar-collapsed .brand-mark {
     width: 42px;
     height: 42px;
@@ -124,21 +127,8 @@ const buddyUiStyles = `
   .dashboard-shell.sidebar-collapsed .dashboard-sidebar-buddy img {
     width: 78px;
   }
-  .dashboard-shell.sidebar-collapsed .brand-title,
-  .dashboard-shell.sidebar-collapsed .brand-subtitle,
-  .dashboard-shell.sidebar-collapsed .dashboard-nav-item span,
-  .dashboard-shell.sidebar-collapsed .dashboard-nav-group-trigger span,
-  .dashboard-shell.sidebar-collapsed .dashboard-nav-subitem span,
-  .dashboard-shell.sidebar-collapsed .dashboard-sidebar-logout span {
-    display: none;
-  }
   .dashboard-shell.sidebar-collapsed .dashboard-nav-item {
     justify-content: center;
-  }
-  .dashboard-shell.sidebar-collapsed .dashboard-nav-chevron,
-  .dashboard-shell.sidebar-collapsed .dashboard-nav-submenu,
-  .dashboard-shell.sidebar-collapsed .dashboard-sidebar-buddy {
-    display: none;
   }
   .dashboard-shell.sidebar-collapsed .dashboard-sidebar-logout {
     padding-inline: 12px;
@@ -312,20 +302,25 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     }
   }, [pathname]);
 
-  const sidebarContent = (
+  function renderSidebarContent({ collapsed, mobile = false }: { collapsed: boolean; mobile?: boolean }) {
+    return (
     <>
       <div className="dashboard-sidebar-brand">
+        <div className={`flex min-w-0 items-center gap-3 ${collapsed ? "dashboard-sidebar-brand-inner w-full" : ""}`}>
         <div className="brand-mark">
           <img src={withBasePath("/picture/sbm-buddy-transparent.png")} alt="SB&M Buddy mascot" />
         </div>
-        <div className="min-w-0">
-          <p className="brand-title">CPAC SB&amp;M</p>
-          <p className="brand-subtitle">Inventory Management</p>
+        {!collapsed ? (
+          <div className="min-w-0">
+            <p className="brand-title">CPAC SB&amp;M</p>
+            <p className="brand-subtitle">Inventory Management</p>
+          </div>
+        ) : null}
         </div>
         <button
           type="button"
           onClick={closeMobileMenu}
-          className="icon-button ml-auto lg:hidden"
+          className={`icon-button ml-auto lg:hidden ${collapsed ? "hidden" : ""}`}
           aria-label="ปิดเมนู"
         >
           <X aria-hidden="true" size={18} />
@@ -341,7 +336,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
             aria-current={pathname === "/overview" ? "page" : undefined}
           >
             <Home aria-hidden="true" className="dashboard-nav-icon" size={17} strokeWidth={2.1} />
-            <span className="min-w-0 flex-1 truncate">Dashboard</span>
+            {!collapsed ? <span className="min-w-0 flex-1 truncate">Dashboard</span> : null}
           </Link>
         ) : null}
 
@@ -364,14 +359,24 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
               <button
                 type="button"
                 className={`dashboard-nav-item dashboard-nav-group-trigger ${hasActiveItem ? "dashboard-nav-group-active" : ""}`}
-                onClick={() => setOpenGroups((current) => ({ ...current, [group.id]: !isOpen }))}
-                aria-expanded={isOpen}
+                onClick={() => {
+                  if (collapsed && !mobile) {
+                    setIsSidebarCollapsed(false);
+                    localStorage.setItem("dashboard_sidebar_collapsed", "false");
+                    setOpenGroups((current) => ({ ...current, [group.id]: true }));
+                    return;
+                  }
+                  setOpenGroups((current) => ({ ...current, [group.id]: !isOpen }));
+                }}
+                aria-expanded={collapsed && !mobile ? false : isOpen}
               >
                 <GroupIcon aria-hidden="true" className="dashboard-nav-icon" size={17} strokeWidth={2.1} />
-                <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
-                <ChevronDown aria-hidden="true" size={15} className={`dashboard-nav-chevron ${isOpen ? "rotate-180" : ""}`} />
+                {!collapsed ? <span className="min-w-0 flex-1 truncate text-left">{group.label}</span> : null}
+                {!collapsed ? (
+                  <ChevronDown aria-hidden="true" size={15} className={`dashboard-nav-chevron ${isOpen ? "rotate-180" : ""}`} />
+                ) : null}
               </button>
-              {isOpen ? (
+              {!collapsed && isOpen ? (
                 <div className="dashboard-nav-submenu">
                   {visibleItems.map((item) => {
                     const Icon = item.icon;
@@ -396,18 +401,21 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         })}
       </nav>
 
-      <div className="dashboard-sidebar-buddy" aria-label="SB&M Buddy">
-        <img src={withBasePath("/picture/sbm-buddy-transparent.png")} alt="SB&M Buddy mascot" />
-      </div>
+      {!collapsed ? (
+        <div className="dashboard-sidebar-buddy" aria-label="SB&M Buddy">
+          <img src={withBasePath("/picture/sbm-buddy-transparent.png")} alt="SB&M Buddy mascot" />
+        </div>
+      ) : null}
 
       <div className="dashboard-sidebar-logout">
         <a href={withBasePath("/api/auth/logout")} className="dashboard-logout-link">
           <LogOut aria-hidden="true" size={18} />
-          <span>ออกจากระบบ</span>
+          {!collapsed ? <span>ออกจากระบบ</span> : null}
         </a>
       </div>
     </>
   );
+  }
 
   return (
     <main className={`dashboard-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
@@ -426,10 +434,10 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {sidebarContent}
+        {renderSidebarContent({ collapsed: false, mobile: true })}
       </aside>
 
-      <aside className="dashboard-sidebar">{sidebarContent}</aside>
+      <aside className="dashboard-sidebar">{renderSidebarContent({ collapsed: isSidebarCollapsed })}</aside>
 
       <div className="dashboard-main">
         <header className="dashboard-header flex items-center justify-between gap-4">
