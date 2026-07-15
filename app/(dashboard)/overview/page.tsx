@@ -357,39 +357,80 @@ export default function OverviewPage() {
       .slice(0, 5);
   }, [chartTransactions, inventory]);
 
+  const mostReceivedProducts = useMemo(() => {
+    const productMap = new Map<
+      string,
+      { key: string; name: string; sku: string; unit: string; receiveCount: number; totalQuantity: number; balance: number }
+    >();
+
+    rangeTransactions
+      .filter((item) => item.type === "in")
+      .forEach((item) => {
+        const key = `${item.name}::${item.sku}::${item.unit}`;
+        const current = productMap.get(key) || {
+          key,
+          name: item.name,
+          sku: item.sku,
+          unit: item.unit,
+          receiveCount: 0,
+          totalQuantity: 0,
+          balance:
+            inventory.find(
+              (inventoryItem) =>
+                inventoryItem.key ===
+                `${item.productImportType ?? "resale"}::${item.name.toLowerCase()}::${item.sku.toLowerCase()}::${item.unit.toLowerCase()}`
+            )?.balance ?? 0,
+        };
+
+        current.receiveCount += 1;
+        current.totalQuantity += item.quantity;
+        productMap.set(key, current);
+      });
+
+    return Array.from(productMap.values())
+      .sort((a, b) => b.totalQuantity - a.totalQuantity || b.receiveCount - a.receiveCount)
+      .slice(0, 5);
+  }, [inventory, rangeTransactions]);
+
   const highestBalanceInventory = useMemo(
     () => inventoryWithTargets.filter((item) => item.balance > 0).sort((a, b) => b.balance - a.balance).slice(0, 5),
     [inventoryWithTargets]
   );
 
-  const inventoryStatus = useMemo(() => {
-    const total = inventoryWithTargets.length;
-    const low = inventoryWithTargets.filter((item) => item.stockTargetStatus === "low").length;
-    const high = inventoryWithTargets.filter((item) => item.stockTargetStatus === "high").length;
-    const missing = inventoryWithTargets.filter((item) => item.stockTargetStatus === "missing").length;
-    const normal = Math.max(0, total - low - high - missing);
-    const normalPercent = total > 0 ? (normal / total) * 100 : 0;
-    const lowPercent = total > 0 ? (low / total) * 100 : 0;
-    const highPercent = total > 0 ? (high / total) * 100 : 0;
+  const stockReviewRows = useMemo(() => {
+    return inventoryWithTargets
+      .map((item) => {
+        const rangeIn = rangeTransactions
+          .filter((transaction) => transaction.type === "in" && transaction.name === item.name && transaction.sku === item.sku && transaction.unit === item.unit)
+          .reduce((sum, transaction) => sum + transaction.quantity, 0);
+        const rangeOut = rangeTransactions
+          .filter((transaction) => transaction.type === "out" && transaction.name === item.name && transaction.sku === item.sku && transaction.unit === item.unit && transaction.status !== "cancelled")
+          .reduce((sum, transaction) => sum + transaction.quantity, 0);
+        const safeMax = item.maxStock > 0 ? item.maxStock : Math.max(item.minStock * 2, item.balance, item.minStock, 1);
+        const progressPercent = Math.max(0, Math.min(100, (item.balance / safeMax) * 100));
+        const minPercent = Math.max(0, Math.min(100, (item.minStock / safeMax) * 100));
+        const maxPercent = item.maxStock > 0 ? 100 : 0;
 
-    return {
-      total,
-      normal,
-      low,
-      high,
-      missing,
-      donutStyle: {
-        background:
-          total > 0
-            ? `conic-gradient(#059669 0 ${normalPercent}%, #dc2626 ${normalPercent}% ${
-                normalPercent + lowPercent
-              }%, #f59e0b ${normalPercent + lowPercent}% ${
-                normalPercent + lowPercent + highPercent
-              }%, #94a3b8 ${normalPercent + lowPercent + highPercent}% 100%)`
-            : "#e2e8f0",
-      },
-    };
-  }, [inventoryWithTargets]);
+        return {
+          ...item,
+          rangeIn,
+          rangeOut,
+          progressPercent,
+          minPercent,
+          maxPercent,
+        };
+      })
+      .sort((left, right) => {
+        const priority = { low: 0, high: 1, normal: 2, missing: 3 } as const;
+        return (
+          priority[left.stockTargetStatus] - priority[right.stockTargetStatus] ||
+          right.rangeOut - left.rangeOut ||
+          right.rangeIn - left.rangeIn ||
+          left.name.localeCompare(right.name, "th")
+        );
+      })
+      .slice(0, 12);
+  }, [inventoryWithTargets, rangeTransactions]);
 
   const visibleRequisitions = useMemo(() => {
     if (!canViewStockOverview) return ownRequisitions.slice(0, 5);
@@ -464,12 +505,6 @@ export default function OverviewPage() {
 
   return (
     <section id="import" className="overview-page">
-      <div className="overview-header">
-        <div>
-          <h2>{canViewStockOverview ? "ภาพรวมสต็อก" : "ภาพรวมการเบิกของฉัน"}</h2>
-        </div>
-      </div>
-
       <section className="overview-summary-row">
         <div className="overview-kpi-grid">
           {overviewStats.map((stat) => {
@@ -615,6 +650,32 @@ export default function OverviewPage() {
               <div className="overview-soft-empty">ยังไม่มีข้อมูลการเบิกในช่วงวันที่เลือก</div>
             )}
           </div>
+
+          <div className="overview-section-heading overview-section-heading-compact">
+            <div>
+              <h3>สินค้ารับเข้าเยอะ</h3>
+              <p>ใช้ดูว่าช่วงนี้สินค้าไหนเข้าคลังมากเป็นพิเศษ</p>
+            </div>
+          </div>
+
+          <div className="overview-priority-list">
+            {mostReceivedProducts.length > 0 ? (
+              mostReceivedProducts.map((item) => (
+                <div className="overview-priority-item" key={`received-${item.key}`}>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <span>{item.sku || "-"} · คงเหลือ {formatNumber(item.balance)} {item.unit}</span>
+                  </div>
+                  <div>
+                    <strong>{formatNumber(item.totalQuantity)} {item.unit}</strong>
+                    <span>{formatNumber(item.receiveCount)} ครั้ง</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="overview-soft-empty">ยังไม่มีข้อมูลการรับเข้าในช่วงวันที่เลือก</div>
+            )}
+          </div>
         </article>
       </section>
 
@@ -623,59 +684,76 @@ export default function OverviewPage() {
           <article className="overview-list-card">
             <div className="overview-section-heading">
               <div>
-                <h3>สินค้าต่ำกว่า min</h3>
-                <p>สินค้าเหลือน้อยกว่าจำนวนขั้นต่ำที่ตั้งไว้</p>
+                <h3>สต๊อกรายสินค้า</h3>
+                <p>ดูคงเหลือเทียบกับ min / max รายสินค้า พร้อมปริมาณรับเข้าและเบิกจ่ายในช่วงวันที่เลือก</p>
               </div>
             </div>
 
-            <div className="overview-status-widget">
-              <div className="overview-donut" style={inventoryStatus.donutStyle}>
-                <div>
-                  <strong>{formatNumber(inventoryStatus.total)}</strong>
-                  <span>ทั้งหมด</span>
-                </div>
-              </div>
-              <div className="overview-status-list">
-                <div>
-                  <span><i className="status-dot-normal" /> สินค้าปกติ</span>
-                  <strong>{formatNumber(inventoryStatus.normal)}</strong>
-                </div>
-                <div>
-                  <span><i className="status-dot-low" /> ต่ำกว่ากำหนด</span>
-                  <strong>{formatNumber(inventoryStatus.low)}</strong>
-                </div>
-                <div>
-                  <span><i className="status-dot-low" /> สูงกว่า max</span>
-                  <strong>{formatNumber(inventoryStatus.high)}</strong>
-                </div>
-                <div>
-                  <span><i className="status-dot-normal" /> ยังไม่ตั้ง min/max</span>
-                  <strong>{formatNumber(inventoryStatus.missing)}</strong>
-                </div>
-              </div>
-            </div>
-
-            <div className="overview-low-stock-list">
-              <div className="overview-low-stock-heading">
-                <strong>รายการที่ควรเติมสต็อก</strong>
-                <span>{lowStockInventory.length} รายการ</span>
-              </div>
-              {lowStockInventory.length > 0 ? (
-                lowStockInventory.map((item) => (
-                  <div className="overview-low-stock-item" key={item.key}>
-                    <div>
-                      <strong>{item.name}</strong>
-                      <span>{item.sku || "-"} · min {formatNumber(item.minStock)} {item.unit}</span>
-                    </div>
-                    <div>
-                      <strong className="text-red-600">{formatNumber(item.balance)}</strong>
-                      <span>{item.unit}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="overview-low-stock-empty">ไม่มีสินค้าที่ใกล้หมดในขณะนี้</div>
-              )}
+            <div className="overview-stock-table-wrap">
+              <table className="overview-stock-table">
+                <thead>
+                  <tr>
+                    <th>สินค้า</th>
+                    <th>รับเข้า</th>
+                    <th>เบิกจ่าย</th>
+                    <th>คงเหลือ / min-max</th>
+                    <th>ภาพรวมสต๊อก</th>
+                    <th>สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stockReviewRows.map((item) => (
+                    <tr key={item.key}>
+                      <td>
+                        <div className="overview-stock-product">
+                          <strong>{item.name}</strong>
+                          <span>{item.sku || "-"} · {item.unit}</span>
+                        </div>
+                      </td>
+                      <td className="text-right">{formatNumber(item.rangeIn)}</td>
+                      <td className="text-right">{formatNumber(item.rangeOut)}</td>
+                      <td>
+                        <div className="overview-stock-amount">
+                          <strong>{formatNumber(item.balance)} {item.unit}</strong>
+                          <span>min {formatNumber(item.minStock)} / max {formatNumber(item.maxStock)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="overview-stock-meter">
+                          <div className="overview-stock-meter-track">
+                            <div className="overview-stock-meter-fill" style={{ width: `${item.progressPercent}%` }} />
+                            <span className="overview-stock-meter-min" style={{ left: `${item.minPercent}%` }} />
+                            {item.maxStock > 0 ? (
+                              <span className="overview-stock-meter-max" style={{ left: `${item.maxPercent}%` }} />
+                            ) : null}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          className={`stock-pill ${
+                            item.stockTargetStatus === "low"
+                              ? "stock-pill-danger"
+                              : item.stockTargetStatus === "high"
+                                ? "stock-pill-warn"
+                                : item.stockTargetStatus === "normal"
+                                  ? "stock-pill-ok"
+                                  : ""
+                          }`}
+                        >
+                          {item.stockTargetStatus === "low"
+                            ? "ต่ำกว่า min"
+                            : item.stockTargetStatus === "high"
+                              ? "สูงกว่า max"
+                              : item.stockTargetStatus === "normal"
+                                ? "อยู่ในช่วง"
+                                : "ยังไม่ตั้งค่า"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </article>
         ) : (
