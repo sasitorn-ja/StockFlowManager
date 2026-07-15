@@ -116,8 +116,7 @@ function RequisitionTrackerContent() {
   useEffect(() => {
     if (!deepLinkedIssueKey) return;
     setActiveTab("all");
-    setSearchQuery(deepLinkedIssueKey);
-    setExpandedKeys((current) => ({ ...current, [deepLinkedIssueKey]: true }));
+    setExpandedKeys({ [deepLinkedIssueKey]: true });
   }, [deepLinkedIssueKey]);
 
   // Group transactions by issueKey
