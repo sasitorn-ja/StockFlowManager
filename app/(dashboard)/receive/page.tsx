@@ -941,7 +941,7 @@ export default function ReceivePage() {
       const categoryExists = categoryCatalog.some(
         (category) => normalizeCategoryValue(category) === normalizeCategoryValue(transaction.category)
       );
-      if (!categoryExists && transaction.category !== "-") {
+      if (canCreateNewProduct && !categoryExists && transaction.category !== "-") {
         const categoryResponse = await fetch(withBasePath("/api/categories"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1041,13 +1041,13 @@ export default function ReceivePage() {
     );
   }
 
-  if (currentRole !== "admin") {
+  if (currentRole === "employee") {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-4">
         <div className="dashboard-card max-w-[480px] p-8 text-center shadow-xl backdrop-blur-xl">
           <h3 className="text-lg font-bold text-[var(--text-strong)]">ปฏิเสธการเข้าถึง</h3>
           <p className="mt-2 text-sm text-[var(--text-muted)]">
-            การรับสินค้าเข้าคลังเป็นหน้าที่ของแอดมินเท่านั้น
+            หน้านี้เปิดให้ผู้จัดการและแอดมินใช้งานเท่านั้น
           </p>
           <div className="mt-6">
             <Button type="button" onClick={() => window.location.assign(withBasePath("/issue"))}>

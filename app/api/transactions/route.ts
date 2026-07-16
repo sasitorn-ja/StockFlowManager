@@ -181,7 +181,7 @@ export async function POST(request: Request) {
     // Check if it is a batch of transactions (array)
     const items = Array.isArray(body) ? body : [body];
     const hasStockIn = items.some((item) => (item.type || "in") === "in");
-    if (hasStockIn && actor.role !== "admin") {
+    if (hasStockIn && actor.role !== "admin" && actor.role !== "manager") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

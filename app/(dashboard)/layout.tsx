@@ -54,7 +54,7 @@ const navigationGroups = [
     label: "บริหารคลังสินค้า",
     icon: Database,
     items: [
-      { label: "คลังสินค้าและรับเข้า", href: "/receive", icon: ClipboardPlus, roles: ["admin"] },
+      { label: "คลังสินค้าและรับเข้า", href: "/receive", icon: ClipboardPlus, roles: ["manager", "admin"] },
       { label: "สินค้าใกล้หมด/หมดอายุ", href: "/expiring", icon: Clock3, roles: ["manager", "admin"] },
     ] satisfies NavigationItem[],
   },
@@ -475,11 +475,12 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         <Link href="/approve" className={pathname === "/approve" ? "active" : ""}>
           <PackageCheck size={20} /><span>{userRole === "admin" ? "จัดการใบเบิก" : userRole === "manager" ? "อนุมัติใบเบิก" : "ใบเบิกของฉัน"}</span>
         </Link>
-        {userRole === "admin" ? (
+        {userRole === "admin" || userRole === "manager" ? (
           <Link href="/receive" className={pathname === "/receive" ? "active" : ""}>
             <ClipboardPlus size={20} /><span>รับสินค้า</span>
           </Link>
-        ) : userRole === "manager" ? (
+        ) : null}
+        {userRole === "manager" ? (
           <Link href="/overview" className={pathname === "/overview" ? "active" : ""}>
             <Home size={20} /><span>Dashboard</span>
           </Link>
