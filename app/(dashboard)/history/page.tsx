@@ -15,7 +15,7 @@ import {
   formatCurrencyWithLabel,
   getProductImportTypeLabel,
   buildInventoryLotMap,
-  buildItemKey,
+  buildInventoryLotKey,
 } from "@/lib/stock-flow/utils";
 import { useTransactions } from "../TransactionContext";
 import type { Transaction, TransactionType } from "@/types/stock-flow";
@@ -158,7 +158,7 @@ function HistorySection({
             const issueKey = item.issueKey || "-";
             const isStockIn = item.type === "in";
             const documentNo = isStockIn ? getReceiveDocumentNo(item, receivePrefix) : issueKey;
-            const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
+            const lotKey = buildInventoryLotKey(item);
             const lotLabel = lotLabels.get(lotKey) || "-";
             const relatedPerson = isStockIn
               ? item.requester || "จุดเก็บไม่ระบุ"

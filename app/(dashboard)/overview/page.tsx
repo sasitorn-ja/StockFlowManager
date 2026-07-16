@@ -423,7 +423,7 @@ export default function OverviewPage() {
         helper: `ภายใน ${formatNumber(Number(appSettings.expiryWarningDays || 90))} วัน`,
         icon: Clock3,
         tone: "violet" as const,
-        valueTone: expiringItems.length > 0 ? ("danger" as const) : undefined,
+        valueTone: expiringItems.length > 0 ? ("warning" as const) : undefined,
       },
     ];
   }, [
@@ -757,7 +757,15 @@ export default function OverviewPage() {
               </div>
               <div>
                 <span>{stat.label}</span>
-                <strong className={stat.valueTone === "danger" ? "text-red-600" : ""}>
+                <strong
+                  className={
+                    stat.valueTone === "danger"
+                      ? "text-red-600"
+                      : stat.valueTone === "warning"
+                        ? "text-orange-600"
+                        : ""
+                  }
+                >
                   {stat.value}
                 </strong>
                 <small>{stat.unit}</small>

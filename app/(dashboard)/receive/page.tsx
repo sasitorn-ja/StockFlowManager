@@ -17,7 +17,7 @@ import {
 import {
   buildInventoryMap,
   buildInventoryLotMap,
-  buildItemKey,
+  buildInventoryLotKey,
   createEmptyForm,
   createTransactionId,
   getLocalDateValue,
@@ -93,7 +93,7 @@ export default function ReceivePage() {
   const [categoryCatalog, setCategoryCatalog] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [receiveFilter, setReceiveFilter] = useState<OverviewFilter>("all");
-  const [activeView, setActiveView] = useState<ReceiveView>("receipts");
+  const [activeView, setActiveView] = useState<ReceiveView>("inventory");
   const [form, setForm] = useState<FormState>(createEmptyForm);
   const [isReceivePanelOpen, setIsReceivePanelOpen] = useState(false);
   const [receiveImagePreview, setReceiveImagePreview] = useState<{ src: string; title: string } | null>(null);
@@ -178,7 +178,7 @@ export default function ReceivePage() {
           return false;
         }
 
-        const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
+        const lotKey = buildInventoryLotKey(item);
         const haystack = `${item.name} ${item.sku} ${item.category} ${item.note} ${lotLabels.get(lotKey) || ""}`.toLowerCase();
         return haystack.includes(normalizedSearchTerm);
       })
@@ -682,7 +682,7 @@ export default function ReceivePage() {
 
   async function handleReceiveExport() {
     const rows = receiveTransactions.map((item, index) => {
-      const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
+      const lotKey = buildInventoryLotKey(item);
 
       return {
         "เลขที่รับเข้า": `${appSettings.receivePrefix || "IN"}-${item.date.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`,
@@ -927,17 +927,17 @@ export default function ReceivePage() {
             <div className="receive-view-tabs" role="tablist" aria-label="มุมมองคลังสินค้า">
               <button
                 type="button"
-                className={activeView === "receipts" ? "active" : ""}
-                onClick={() => setActiveView("receipts")}
-              >
-                ประวัติรับเข้า
-              </button>
-              <button
-                type="button"
                 className={activeView === "inventory" ? "active" : ""}
                 onClick={() => setActiveView("inventory")}
               >
                 สินค้าในคลัง
+              </button>
+              <button
+                type="button"
+                className={activeView === "receipts" ? "active" : ""}
+                onClick={() => setActiveView("receipts")}
+              >
+                ประวัติรับเข้า
               </button>
             </div>
             <div className="receive-table-toolbar">
@@ -1010,7 +1010,7 @@ export default function ReceivePage() {
                         const receiveNo = `${appSettings.receivePrefix || "IN"}-${item.date.replaceAll("-", "")}-${String(
                           index + 1
                         ).padStart(3, "0")}`;
-                        const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
+                        const lotKey = buildInventoryLotKey(item);
                         const lotLabel = lotLabels.get(lotKey) || "-";
                         const totalValue = item.quantity * (item.costPrice || item.price || 0);
 
@@ -1188,9 +1188,15 @@ export default function ReceivePage() {
 
       <Dialog open={isReceivePanelOpen} onOpenChange={(open) => { if (!open) closeReceiveDialog(); }}>
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[720px]">
-          <DialogHeader>
-            <DialogTitle>บันทึกรับเข้า</DialogTitle>
-            <DialogDescription>เลือกวันที่รับเข้าเอง ระบบจะบันทึกเวลาทำรายการให้อัตโนมัติ</DialogDescription>
+          <DialogHeader className="receive-dialog-header">
+            <div className="min-w-0">
+              <DialogTitle>บันทึกรับเข้า</DialogTitle>
+              <DialogDescription>เลือกวันที่รับเข้าเอง ระบบจะบันทึกเวลาทำรายการให้อัตโนมัติ</DialogDescription>
+            </div>
+            <div className="receive-auto-time" aria-label="เวลาบันทึกอัตโนมัติ">
+              <span>เวลาบันทึก</span>
+              <strong>{autoRecordTimeLabel}</strong>
+            </div>
           </DialogHeader>
 
           <form className="receive-form" onSubmit={handleSubmit}>
@@ -1416,11 +1422,6 @@ export default function ReceivePage() {
                 <small>ใช้วันที่นี้ในรายงาน สต็อก และกราฟภาพรวม</small>
               </label>
 
-              <div className="receive-auto-time" aria-label="เวลาบันทึกอัตโนมัติ">
-                <span>เวลาบันทึกอัตโนมัติ</span>
-                <strong>{autoRecordTimeLabel}</strong>
-                <small>ระบบเก็บจริงเมื่อกดบันทึกรายการ</small>
-              </div>
             </div>
 
             <label>

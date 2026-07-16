@@ -1668,15 +1668,14 @@ textarea {
     @apply text-[12px] font-bold;
   }
 
-  .receive-form label small,
-  .receive-auto-time small {
+  .receive-form label small {
     color: var(--text-muted);
     @apply text-[11px] font-semibold leading-4;
   }
 
-  .receive-form input:not([cmdk-input]),
+  .receive-form input:not([cmdk-input]):not([data-combobox-input]),
   .receive-form select,
-  .receive-form [role="combobox"],
+  .receive-form [role="combobox"]:not([data-combobox-input]),
   .receive-form textarea {
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid var(--border);
@@ -1684,15 +1683,15 @@ textarea {
     @apply h-10 w-full rounded-md px-3 text-sm outline-none transition-colors;
   }
 
-  .receive-form input:not([cmdk-input]):focus,
+  .receive-form input:not([cmdk-input]):not([data-combobox-input]):focus,
   .receive-form select:focus,
-  .receive-form [role="combobox"]:focus-visible,
+  .receive-form [role="combobox"]:not([data-combobox-input]):focus-visible,
   .receive-form textarea:focus {
     border-color: #60a5fa;
     box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
   }
 
-  .receive-form input:not([cmdk-input]):disabled,
+  .receive-form input:not([cmdk-input]):not([data-combobox-input]):disabled,
   .receive-form select:disabled,
   .receive-form button:disabled[role="combobox"],
   .receive-form textarea:disabled {
@@ -1703,7 +1702,7 @@ textarea {
     opacity: 1;
   }
 
-  .receive-form input:not([cmdk-input]):disabled::placeholder,
+  .receive-form input:not([cmdk-input]):not([data-combobox-input]):disabled::placeholder,
   .receive-form textarea:disabled::placeholder {
     color: #94a3b8;
   }
@@ -1730,26 +1729,31 @@ textarea {
   .cost-currency-control {
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid var(--border);
-    @apply grid h-11 grid-cols-[minmax(0,1fr)_140px] items-center overflow-hidden rounded-md;
+    @apply grid h-11 grid-cols-[minmax(0,1fr)_140px] items-center overflow-visible rounded-md;
   }
 
-  .cost-currency-control input,
+  .cost-currency-control > input,
   .cost-currency-control select,
-  .cost-currency-control [role="combobox"] {
+  .cost-currency-control [role="combobox"]:not([data-combobox-input]) {
     box-shadow: none;
     @apply h-full min-w-0 border-0 bg-transparent;
   }
 
-  .cost-currency-control input:focus,
+  .cost-currency-control > input:focus,
   .cost-currency-control select:focus,
-  .cost-currency-control [role="combobox"]:focus-visible {
+  .cost-currency-control [role="combobox"]:not([data-combobox-input]):focus-visible {
     box-shadow: none;
   }
 
   .cost-currency-control select,
-  .cost-currency-control [role="combobox"] {
+  .cost-currency-control [role="combobox"]:not([data-combobox-input]) {
     border-left: 1px solid var(--border-soft);
     @apply rounded-none px-4;
+  }
+
+  .cost-currency-control [data-combobox-control] {
+    border-left: 1px solid var(--border-soft);
+    @apply h-full rounded-none border-y-0 border-r-0 bg-transparent px-4 shadow-none;
   }
 
   .receive-form-grid {
@@ -1761,20 +1765,24 @@ textarea {
     @apply -mt-1 text-[11px] font-semibold leading-4 sm:col-span-2;
   }
 
+  .receive-dialog-header {
+    @apply flex flex-col gap-3 pr-10 sm:flex-row sm:items-start sm:justify-between;
+  }
+
   .receive-auto-time {
-    background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.96));
-    border: 1px solid rgba(147, 197, 253, 0.65);
-    @apply grid min-h-10 gap-1 rounded-md px-3 py-2;
+    background: rgba(239, 246, 255, 0.72);
+    border: 1px solid rgba(147, 197, 253, 0.5);
+    @apply inline-flex w-fit shrink-0 items-center gap-2 rounded-full px-3 py-1.5;
   }
 
   .receive-auto-time > span {
-    color: var(--text-body);
-    @apply text-[12px] font-bold;
+    color: var(--text-muted);
+    @apply text-[10px] font-bold leading-none;
   }
 
   .receive-auto-time strong {
     color: var(--text-strong);
-    @apply text-xl font-extrabold leading-6;
+    @apply text-sm font-extrabold leading-none;
   }
 
   .receive-image-preview {
@@ -2022,8 +2030,8 @@ textarea {
   }
 
   .issue-quick-form select,
-  .issue-quick-form input,
-  .issue-quick-form [role="combobox"] {
+  .issue-quick-form input:not([data-combobox-input]),
+  .issue-quick-form [role="combobox"]:not([data-combobox-input]) {
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid var(--border);
     color: var(--text-body);
@@ -2031,8 +2039,8 @@ textarea {
   }
 
   .issue-quick-form select:focus,
-  .issue-quick-form input:focus,
-  .issue-quick-form [role="combobox"]:focus-visible {
+  .issue-quick-form input:not([data-combobox-input]):focus,
+  .issue-quick-form [role="combobox"]:not([data-combobox-input]):focus-visible {
     border-color: #60a5fa;
     box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
   }
@@ -3183,9 +3191,9 @@ textarea {
     min-width: 44px;
   }
 
-  .receive-form input:not([type="file"]):not([cmdk-input]),
+  .receive-form input:not([type="file"]):not([cmdk-input]):not([data-combobox-input]),
   .receive-form select,
-  .receive-form [role="combobox"],
+  .receive-form [role="combobox"]:not([data-combobox-input]),
   .receive-form textarea,
   .control-input,
   .settings-field input,

@@ -1,19 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput as BaseComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 
 export type ComboboxInputOption = {
   label: string;
@@ -46,119 +42,83 @@ export function ComboboxInput({
   options,
   placeholder = "เลือกหรือพิมพ์ข้อมูล",
   portalled = true,
-  searchPlaceholder = "ค้นหาหรือพิมพ์ค่าใหม่...",
+  searchPlaceholder,
   value,
 }: ComboboxInputProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
-  const [searchValue, setSearchValue] = React.useState("");
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  const open = controlledOpen ?? uncontrolledOpen;
   const activeOption = options.find((option) => option.value === value);
-  const trimmedSearchValue = searchValue.trim();
+  const displayValue = activeOption?.label ?? value;
+  const [inputValue, setInputValue] = React.useState(displayValue);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const optionLabels = React.useMemo(() => options.map((option) => option.label), [options]);
+  const trimmedInputValue = inputValue.trim();
   const hasExactOption = options.some(
-    (option) => option.value.trim().toLowerCase() === trimmedSearchValue.toLowerCase()
+    (option) => option.label.trim().toLocaleLowerCase("th") === trimmedInputValue.toLocaleLowerCase("th")
   );
+  const shouldShowCustomValue = allowCustomValue && trimmedInputValue && !hasExactOption;
+
+  React.useEffect(() => {
+    if (!open) {
+      setInputValue(displayValue);
+    }
+  }, [displayValue, open]);
 
   function handleOpenChange(nextOpen: boolean) {
-    if (disabled && nextOpen) {
-      return;
-    }
-
+    if (disabled && nextOpen) return;
     if (controlledOpen === undefined) {
       setUncontrolledOpen(nextOpen);
     }
+    if (!nextOpen) {
+      setInputValue(displayValue);
+    }
     onOpenChange?.(nextOpen);
+  }
 
-    if (nextOpen) {
-      setSearchValue("");
+  function handleInputValueChange(nextValue: string) {
+    setInputValue(nextValue);
+    if (allowCustomValue) {
+      onValueChange(nextValue);
     }
   }
 
-  React.useEffect(() => {
-    if (!open) return;
-    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
-    return () => window.cancelAnimationFrame(frame);
-  }, [open]);
-
-  React.useEffect(() => {
-    if (disabled && open) {
-      handleOpenChange(false);
-    }
-  }, [disabled, open]);
+  function handleSelectLabel(label: string) {
+    const selectedOption = options.find((option) => option.label === label);
+    onValueChange(selectedOption?.value ?? label);
+    setInputValue(label);
+  }
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange} modal>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={disabled}
-          role="combobox"
-          aria-expanded={open}
-          className={cn("w-full justify-between", className)}
-        >
-          <span className={cn("min-w-0 truncate", !value && "text-slate-400")}>
-            {(activeOption?.label ?? value) || placeholder}
-          </span>
-          <ChevronDown size={15} className="shrink-0 text-slate-500" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        portalled={portalled}
-        className="w-[--radix-popover-trigger-width] max-w-[calc(100vw-1rem)] p-0"
-      >
-        <Command shouldFilter>
-          <CommandInput
-            ref={inputRef}
-            value={searchValue}
-            onValueChange={(nextValue) => {
-              setSearchValue(nextValue);
-              if (allowCustomValue) {
-                onValueChange(nextValue);
-              }
-            }}
-            placeholder={searchPlaceholder}
-          />
-          <CommandList>
-            <CommandEmpty>
-              {allowCustomValue && searchValue.trim()
-                ? `ใช้ค่า “${searchValue.trim()}”`
-                : emptyText}
-            </CommandEmpty>
-            <CommandGroup>
-              {allowCustomValue && trimmedSearchValue && !hasExactOption ? (
-                <CommandItem
-                  value={`__custom__ ${trimmedSearchValue}`}
-                  onSelect={() => {
-                    onValueChange(trimmedSearchValue);
-                    handleOpenChange(false);
-                  }}
-                >
-                  <Check size={16} className="shrink-0 opacity-0" />
-                  <span className="truncate">ใช้ค่า “{trimmedSearchValue}”</span>
-                </CommandItem>
-              ) : null}
-              {options.map((option) => (
-                <CommandItem
-                  key={`${option.value}-${option.label}`}
-                  value={`${option.label} ${option.value}`}
-                  onSelect={() => {
-                    onValueChange(option.value);
-                    handleOpenChange(false);
-                  }}
-                >
-                  <Check
-                    size={16}
-                    className={cn("shrink-0", value === option.value ? "opacity-100" : "opacity-0")}
-                  />
-                  <span className="truncate">{option.label}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <Combobox
+      disabled={disabled}
+      inputValue={inputValue}
+      items={optionLabels}
+      onInputValueChange={handleInputValueChange}
+      onOpenChange={handleOpenChange}
+      onValueChange={handleSelectLabel}
+      open={open}
+      value={activeOption?.label ?? value}
+    >
+      <BaseComboboxInput
+        className={className}
+        placeholder={searchPlaceholder || placeholder}
+      />
+      <ComboboxContent portalled={portalled}>
+        <ComboboxEmpty>{emptyText}</ComboboxEmpty>
+        <ComboboxList>
+          {(item) => (
+            <ComboboxItem key={item} value={item}>
+              {item}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+        {shouldShowCustomValue ? (
+          <div className="border-t border-slate-100 p-1">
+            <ComboboxItem value={trimmedInputValue}>
+              ใช้ค่า “{trimmedInputValue}”
+            </ComboboxItem>
+          </div>
+        ) : null}
+      </ComboboxContent>
+    </Combobox>
   );
 }

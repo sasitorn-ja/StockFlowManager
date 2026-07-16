@@ -211,7 +211,7 @@ export function buildInventoryLotMap(transactions: Transaction[]) {
 
     if (transaction.type === "in") {
       const expiryDate = transaction.expiryDate || "";
-      const lotKey = `${baseItemKey}::${expiryDate || "no-expiry"}`;
+      const lotKey = buildInventoryLotKey(transaction);
       const entry = lotMap.get(lotKey) || {
         key: lotKey,
         baseItemKey,
@@ -231,6 +231,7 @@ export function buildInventoryLotMap(transactions: Transaction[]) {
         expiryDate,
         createdAt: transaction.createdAt,
         receivedDate: transaction.date,
+        storageLocation: transaction.requester?.trim() || "",
       };
 
       entry.totalIn += transaction.quantity;
@@ -247,6 +248,10 @@ export function buildInventoryLotMap(transactions: Transaction[]) {
 
       if (transaction.imageDataUrl) {
         entry.imageDataUrl = transaction.imageDataUrl;
+      }
+
+      if (!entry.storageLocation && transaction.requester?.trim()) {
+        entry.storageLocation = transaction.requester.trim();
       }
 
       if (!entry.receivedDate || transaction.date < entry.receivedDate) {
@@ -285,9 +290,14 @@ export function buildInventoryLotMap(transactions: Transaction[]) {
       remainingQuantity -= deducted;
     };
 
-    if (transaction.expiryDate) {
+    const exactLot = lotMap.get(buildInventoryLotKey(transaction));
+    if (exactLot) {
+      deductFromLot(exactLot);
+    }
+
+    if (remainingQuantity > 0) {
       candidateLots.forEach((lot) => {
-        if (lot.expiryDate === transaction.expiryDate) {
+        if (lot !== exactLot && lot.expiryDate === transaction.expiryDate) {
           deductFromLot(lot);
         }
       });
@@ -295,7 +305,7 @@ export function buildInventoryLotMap(transactions: Transaction[]) {
 
     if (remainingQuantity > 0) {
       candidateLots.forEach((lot) => {
-        if (lot.expiryDate !== transaction.expiryDate) {
+        if (lot !== exactLot && lot.expiryDate !== transaction.expiryDate) {
           deductFromLot(lot);
         }
       });
@@ -309,6 +319,14 @@ export function buildItemKey(
   item: Pick<Transaction, "name" | "sku" | "unit"> & Partial<Pick<Transaction, "productImportType">>
 ) {
   return `${item.productImportType ?? "resale"}::${item.name.toLowerCase()}::${item.sku.toLowerCase()}::${item.unit.toLowerCase()}`;
+}
+
+export function buildInventoryLotKey(
+  item: Pick<Transaction, "name" | "sku" | "unit" | "expiryDate" | "costPrice" | "costCurrency"> &
+    Partial<Pick<Transaction, "productImportType">>
+) {
+  const costPrice = Math.max(0, Number(item.costPrice || 0));
+  return `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}::${item.costCurrency || "THB"}::${costPrice}`;
 }
 
 export function matchesMasterProduct(

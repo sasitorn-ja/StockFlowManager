@@ -9,6 +9,7 @@ import {
   invalidateClientMasterProductsCache,
 } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
+import { ComboboxInput } from "@/components/ui/combobox-input";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
 import {
@@ -442,16 +443,21 @@ export default function SettingsPage() {
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 ประเภทสินค้า
-                <select
+                <ComboboxInput
                   value={productEditForm.productImportType}
-                  onChange={(event) =>
-                    updateProductEditForm("productImportType", event.target.value as ProductImportType)
+                  onValueChange={(value) =>
+                    updateProductEditForm("productImportType", value as ProductImportType)
                   }
                   className={inputClassName}
-                >
-                  <option value="resale">ซื้อมาขายไป</option>
-                  <option value="stable">สินค้าเข้าสต็อก</option>
-                </select>
+                  options={[
+                    { value: "resale", label: "ซื้อมาขายไป" },
+                    { value: "stable", label: "สินค้าเข้าสต็อก" },
+                  ]}
+                  placeholder="เลือกประเภทสินค้า"
+                  searchPlaceholder="ค้นหาประเภทสินค้า..."
+                  allowCustomValue={false}
+                  portalled={false}
+                />
               </label>
 
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">

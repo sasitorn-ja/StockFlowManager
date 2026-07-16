@@ -1,16 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { withBasePath } from "@/lib/base-path";
 import { getClientSession } from "@/lib/dashboard-client-cache";
-import { TransactionProvider, useTransactions } from "./TransactionContext";
+import { TransactionProvider } from "./TransactionContext";
 import {
   Menu,
   X,
-  Bell,
   PanelLeftClose,
   PanelLeftOpen,
   PackageCheck,
@@ -186,7 +185,6 @@ const buddyUiStyles = `
     }
   }
   .dashboard-date-pill,
-  .dashboard-notification-button,
   .dashboard-user-card {
     min-height: 50px; border: 1px solid rgba(216,229,246,.92); border-radius: 12px;
     background: rgba(255,255,255,.9); box-shadow: 0 10px 24px rgba(15,76,140,.08);
@@ -194,11 +192,6 @@ const buddyUiStyles = `
   .dashboard-date-pill { display: flex; align-items: center; gap: 10px; padding: 0 14px; color: #23486f; font-size: 13px; font-weight: 700; white-space: nowrap; }
   .dashboard-date-pill svg { color: #0b63bd; }
   .dashboard-date-pill b { color: #647b98; font-size: 12px; }
-  .dashboard-notification-button { position: relative; display: inline-flex; width: 50px; align-items: center; justify-content: center; color: #0b2d62; }
-  .dashboard-notification-button span {
-    position: absolute; right: 8px; top: 7px; display: inline-flex; min-width: 17px; height: 17px;
-    align-items: center; justify-content: center; border-radius: 999px; background: #0b80ff; color: #fff; font-size: 10px; font-weight: 800;
-  }
   .dashboard-user-card { display: flex; align-items: center; gap: 10px; min-width: 154px; padding: 0 12px; }
   .dashboard-user-avatar {
     display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center;
@@ -232,7 +225,6 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>("employee");
-  const { transactions } = useTransactions();
   const pathname = usePathname();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(
@@ -243,15 +235,6 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     )
   );
   const [ssoUser, setSsoUser] = useState<{ name: string; email?: string; userId?: string; role: UserRole } | null>(null);
-  const pendingApprovalCount = useMemo(
-    () =>
-      new Set(
-        transactions
-          .filter((transaction) => transaction.type === "out" && transaction.status === "pending" && transaction.issueKey)
-          .map((transaction) => transaction.issueKey)
-      ).size,
-    [transactions]
-  );
 
   useEffect(() => {
     const storedValue = localStorage.getItem("dashboard_sidebar_collapsed");
@@ -466,22 +449,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                 SB&amp;M Buddy พร้อมช่วยจัดการคลังสินค้า
               </p>
             </div>
-          </div>
+        </div>
 
         <div className="dashboard-topbar-actions">
-          <Link
-            href="/approve"
-            className="dashboard-notification-button"
-            aria-label={
-              pendingApprovalCount > 0
-                ? `มีใบเบิกรอดำเนินการ ${pendingApprovalCount} รายการ`
-                : "ไปหน้าจัดการใบเบิก"
-            }
-            title={pendingApprovalCount > 0 ? "ไปดูใบเบิกรอดำเนินการ" : "ไปหน้าจัดการใบเบิก"}
-          >
-            <Bell aria-hidden="true" size={19} />
-            {pendingApprovalCount > 0 ? <span>{pendingApprovalCount}</span> : null}
-          </Link>
           <div className="dashboard-user-card">
             <div className="dashboard-user-avatar">
               <UserRound aria-hidden="true" size={17} />

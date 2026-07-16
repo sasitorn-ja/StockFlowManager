@@ -57,6 +57,7 @@ export type InventoryLotItem = InventoryItem & {
   createdAt: number;
   receivedDate: string;
   expiryDate: string;
+  storageLocation: string;
 };
 
 export type ProductMaster = {

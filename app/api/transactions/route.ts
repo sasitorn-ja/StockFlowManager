@@ -254,8 +254,6 @@ export async function PUT(request: Request) {
       const requisition = requisitionRows[0];
       if (!requisition) return NextResponse.json({ error: "Requisition not found" }, { status: 404 });
       const currentStatus = requisition.status || "completed";
-      const requiresSettingsCheck = status === "completed";
-      const settings = requiresSettingsCheck ? await getAppSettings() : null;
       const isOwner = [requisition.requester, requisition.createdBy].some(
         (name) => String(name || "").trim() === actor.name.trim()
       );
@@ -263,8 +261,7 @@ export async function PUT(request: Request) {
         (status === "approved" && currentStatus === "pending" && actor.role === "manager" && (!requisition.approver || requisition.approver === actor.name)) ||
         (status === "issued" && currentStatus === "approved" && actor.role === "admin") ||
         (status === "received" && currentStatus === "issued" && String(requisition.requester || "").trim() === actor.name.trim()) ||
-        (status === "completed" && currentStatus === "issued" && actor.role === "admin" && !settings?.requireEmployeeConfirmation) ||
-        (status === "completed" && (currentStatus === "received" || currentStatus === "employee_confirmed") && actor.role === "admin") ||
+        (status === "completed" && (currentStatus === "approved" || currentStatus === "issued" || currentStatus === "received" || currentStatus === "employee_confirmed") && actor.role === "admin") ||
         (status === "cancelled" && currentStatus === "pending" && (isOwner || actor.role === "admin"));
       if (!allowed) return NextResponse.json({ error: "ไม่สามารถเปลี่ยนสถานะในขั้นตอนนี้ได้" }, { status: 403 });
 

@@ -3,10 +3,10 @@ import type { TransactionStatus } from "@/types/stock-flow";
 export const REQUISITION_STATUS_LABELS: Record<TransactionStatus, string> = {
   pending: "รอผู้จัดการอนุมัติ",
   approved: "อนุมัติแล้ว · รอแอดมินจ่ายสินค้า",
-  issued: "จ่ายสินค้าแล้ว · รอผู้รับยืนยัน",
+  issued: "จ่ายสินค้าแล้ว · รอแอดมินปิดงาน",
   received: "ผู้รับยืนยันแล้ว · รอแอดมินปิดงาน",
   employee_confirmed: "ผู้รับยืนยันแล้ว · รอแอดมินปิดงาน",
-  completed: "ปิดใบเบิกแล้ว",
+  completed: "จ่ายสินค้าและปิดงานแล้ว",
   cancelled: "ยกเลิกแล้ว",
 };
 

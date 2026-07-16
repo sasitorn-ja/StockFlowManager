@@ -8,7 +8,7 @@ import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { StatusBadge } from "@/components/stock-flow/StatusBadge";
 import { Table } from "@/components/stock-flow/Table";
 import {
-  buildInventoryMap,
+  buildInventoryLotMap,
   compareExpiryDate,
   isExpiringSoon,
   formatDate,
@@ -38,22 +38,42 @@ export default function ExpiringPage() {
       .catch(() => setAppSettings(defaultAppSettings));
   }, []);
 
-  const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
+  const inventoryLots = useMemo(() => {
+    const lots = [...buildInventoryLotMap(transactions).values()].sort(
+      (a, b) =>
+        a.baseItemKey.localeCompare(b.baseItemKey, "th") ||
+        a.receivedDate.localeCompare(b.receivedDate) ||
+        a.expiryDate.localeCompare(b.expiryDate) ||
+        a.createdAt - b.createdAt
+    );
+    const counters = new Map<string, number>();
+
+    return lots.map((lot) => {
+      const sequence = (counters.get(lot.baseItemKey) ?? 0) + 1;
+      counters.set(lot.baseItemKey, sequence);
+      return { ...lot, lotLabel: `ล็อต ${sequence}` };
+    });
+  }, [transactions]);
 
   const groupData = useMemo(() => {
     const groupLabel = selectedImportType === "resale" ? "ซื้อมาขายไป" : "สินค้าเข้าสต็อก";
-    const groupInventory = inventory.filter(
+    const groupInventory = inventoryLots.filter(
       (item) => (item.productImportType ?? "resale") === selectedImportType
     );
     const priorityItems = groupInventory
-      .filter((item) => item.balance > 0 && isExpiringSoon(item.nearestExpiryDate, Number(appSettings.expiryWarningDays || 90)))
-      .sort((a, b) => compareExpiryDate(a.nearestExpiryDate, b.nearestExpiryDate));
+      .filter((item) => item.balance > 0 && isExpiringSoon(item.expiryDate, Number(appSettings.expiryWarningDays || 90)))
+      .sort(
+        (a, b) =>
+          compareExpiryDate(a.expiryDate, b.expiryDate) ||
+          a.receivedDate.localeCompare(b.receivedDate) ||
+          a.createdAt - b.createdAt
+      );
 
     return {
       label: groupLabel,
       priorityItems,
     };
-  }, [appSettings.expiryWarningDays, inventory, selectedImportType]);
+  }, [appSettings.expiryWarningDays, inventoryLots, selectedImportType]);
 
   if (canViewExpiring === null) {
     return (
@@ -117,12 +137,12 @@ export default function ExpiringPage() {
           description={`แสดงสินค้าคงเหลือที่ใกล้หมดอายุภายใน ${formatNumber(Number(appSettings.expiryWarningDays || 90))} วัน เฉพาะกลุ่มนี้`}
         >
           <Table
-            headers={["สินค้า", "วันหมดอายุ", "เหลือเวลา", "คงเหลือ"]}
+            headers={["สินค้า", "ล็อต", "วันที่รับเข้า", "วันหมดอายุ", "เหลือเวลา", "จุดเก็บ", "คงเหลือ"]}
             emptyMessage={`ยังไม่มีสินค้า ${groupData.label} ที่ใกล้หมดอายุภายใน ${formatNumber(Number(appSettings.expiryWarningDays || 90))} วัน`}
-            columnCount={4}
+            columnCount={7}
           >
             {groupData.priorityItems.map((item) => {
-              const daysLeft = getDaysUntil(item.nearestExpiryDate);
+              const daysLeft = getDaysUntil(item.expiryDate);
 
               return (
                 <tr key={`${item.key}-priority`}>
@@ -130,12 +150,17 @@ export default function ExpiringPage() {
                     <strong className="font-semibold text-[var(--text-strong)]">{item.name}</strong>
                     <div className="text-[12px] text-[var(--text-muted)]">{item.sku || "-"}</div>
                   </td>
-                  <td>{formatDate(item.nearestExpiryDate)}</td>
+                  <td>
+                    <strong className="font-semibold text-sky-700">{item.lotLabel}</strong>
+                  </td>
+                  <td>{formatDate(item.receivedDate)}</td>
+                  <td>{formatDate(item.expiryDate)}</td>
                   <td>
                     <StatusBadge tone={daysLeft <= 30 ? "urgent" : "warn"}>
                       {formatDaysLeft(daysLeft)}
                     </StatusBadge>
                   </td>
+                  <td>{item.storageLocation || "-"}</td>
                   <td className="text-right">
                     {formatNumber(item.balance)} {item.unit}
                   </td>

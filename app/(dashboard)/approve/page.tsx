@@ -13,19 +13,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { StatsGrid } from "@/components/stock-flow/StatsGrid";
 import { DataPanel } from "@/components/stock-flow/DataPanel";
 import { Table } from "@/components/stock-flow/Table";
 import { StatusBadge } from "@/components/stock-flow/StatusBadge";
 import {
   formatDate,
   formatNumber,
-  formatCurrency,
+  formatCurrencyWithLabel,
   buildInventoryLotMap,
-  buildItemKey,
+  buildInventoryLotKey,
   getProductImportTypeLabel,
 } from "@/lib/stock-flow/utils";
-import type { Transaction, TransactionStatus } from "@/types/stock-flow";
+import type { CostCurrency, Transaction, TransactionStatus } from "@/types/stock-flow";
 import { getRequisitionStatusLabel } from "@/lib/stock-flow/status";
 import { useTransactions } from "../TransactionContext";
 
@@ -56,6 +55,19 @@ type ConfirmDialogState = {
   requisition?: GroupedRequisition;
   title: string;
 };
+
+function formatRequisitionCostByCurrency(items: Transaction[]) {
+  const totals = items.reduce<Map<CostCurrency, number>>((map, item) => {
+    const currency = item.costCurrency || "THB";
+    const total = item.quantity * (item.costPrice || item.price || 0);
+    map.set(currency, (map.get(currency) || 0) + total);
+    return map;
+  }, new Map<CostCurrency, number>());
+
+  return Array.from(totals.entries())
+    .map(([currency, total]) => formatCurrencyWithLabel(total, currency))
+    .join(" / ") || formatCurrencyWithLabel(0, "THB");
+}
 
 export default function RequisitionTrackerPage() {
   return (
@@ -232,43 +244,6 @@ function RequisitionTrackerContent() {
     });
   }, [ownedRequisitions, activeTab, searchQuery]);
 
-  // Calculations for stats summary cards based on ownership visibility
-  const stats = useMemo(() => {
-    const total = ownedRequisitions.length;
-    const pending = ownedRequisitions.filter((r) => r.status === "pending").length;
-    const reserved = ownedRequisitions.filter((r) => 
-      r.status === "pending" || r.status === "approved" || r.status === "issued" || r.status === "received" || r.status === "employee_confirmed"
-    ).length;
-    const completed = ownedRequisitions.filter((r) => r.status === "completed").length;
-
-    return [
-      {
-        label: "คำขอเบิกทั้งหมด",
-        value: formatNumber(total),
-        unit: "ใบงาน",
-        tone: "sky" as const,
-      },
-      {
-        label: "รอผู้จัดการอนุมัติ",
-        value: formatNumber(pending),
-        unit: "ใบงาน",
-        tone: "amber" as const,
-      },
-      {
-        label: "สต๊อกที่จองไว้",
-        value: formatNumber(reserved),
-        unit: "ใบงาน",
-        tone: "violet" as const,
-      },
-      {
-        label: "จ่ายสินค้าแล้ว",
-        value: formatNumber(completed),
-        unit: "ใบงาน",
-        tone: "emerald" as const,
-      },
-    ];
-  }, [ownedRequisitions]);
-
   // Expand / collapse single row
   function toggleRowExpand(issueKey: string) {
     setExpandedKeys((prev) => ({
@@ -322,13 +297,18 @@ function RequisitionTrackerContent() {
   const isAdmin = currentRole === "admin";
   const isManager = currentRole === "manager";
   const isManagerOrAdmin = currentRole === "admin" || currentRole === "manager";
-  const pendingApprovalCount = useMemo(() => {
-    if (!isManagerOrAdmin) {
-      return 0;
-    }
+  const tabCounts = useMemo(() => {
+    const inApprovedStage = (status: TransactionStatus) =>
+      status === "approved" || status === "issued" || status === "received" || status === "employee_confirmed";
 
-    return ownedRequisitions.filter((requisition) => requisition.status === "pending").length;
-  }, [isManagerOrAdmin, ownedRequisitions]);
+    return {
+      all: ownedRequisitions.length,
+      pending: ownedRequisitions.filter((requisition) => requisition.status === "pending").length,
+      approved: ownedRequisitions.filter((requisition) => inApprovedStage(requisition.status)).length,
+      completed: ownedRequisitions.filter((requisition) => requisition.status === "completed").length,
+      cancelled: ownedRequisitions.filter((requisition) => requisition.status === "cancelled").length,
+    } satisfies Partial<Record<TabType, number>>;
+  }, [ownedRequisitions]);
 
   function handleConfirmAction() {
     if (!confirmDialog) {
@@ -344,7 +324,7 @@ function RequisitionTrackerContent() {
     }
 
     if (confirmDialog.action === "issue") {
-      updateRequisitionStatus(confirmDialog.issueKey, "issued");
+      updateRequisitionStatus(confirmDialog.issueKey, "completed");
       setConfirmDialog(null);
       return;
     }
@@ -417,7 +397,7 @@ function RequisitionTrackerContent() {
               </div>
               <div className="approve-review-total">
                 <span>รวม {formatNumber(confirmDialog.requisition.totalQuantity)} หน่วย</span>
-                <strong>{formatCurrency(confirmDialog.requisition.totalCost)}</strong>
+                <strong>{formatRequisitionCostByCurrency(confirmDialog.requisition.items)}</strong>
               </div>
             </div>
           ) : null}
@@ -442,7 +422,7 @@ function RequisitionTrackerContent() {
             </h3>
             <p className="dashboard-subtitle">
               {isAdmin
-                ? "ใช้กับใบเบิกที่ยังต้องดำเนินงาน เช่น จ่ายสินค้า ติดตามการรับ และปิดใบเบิก"
+                ? "ใช้กับใบเบิกที่ผู้จัดการอนุมัติแล้ว เพื่อจ่ายสินค้าและปิดงาน"
                 : isManager
                   ? "ใช้ตรวจคำขอที่รออนุมัติ และติดตามใบเบิกที่เกี่ยวข้องกับคุณ"
                   : "ใช้ติดตามสถานะใบเบิกของคุณ ตั้งแต่ส่งคำขอจนปิดใบเบิก"}
@@ -470,23 +450,21 @@ function RequisitionTrackerContent() {
         </div>
       </section>
 
-      {/* Stats Summary */}
-      <StatsGrid stats={stats} />
-
       {/* Filter Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-[var(--border-soft)]">
         <div className="bg-slate-100/60 p-1.5 rounded-2xl border border-slate-200/60 flex flex-wrap gap-1.5">
           {(
             [
-              { value: "all", label: "ทั้งหมด", icon: Layers, activeClass: "bg-slate-800 text-white shadow-md shadow-slate-200" },
-              { value: "pending", label: "รอผู้จัดการอนุมัติ", icon: Clock, activeClass: "bg-amber-500 text-white shadow-md shadow-amber-100" },
-              { value: "approved", label: "อนุมัติแล้ว · รอจ่ายสินค้า", icon: FileCheck, activeClass: "bg-sky-500 text-white shadow-md shadow-sky-100" },
-              { value: "completed", label: "ปิดใบเบิกแล้ว", icon: PackageCheck, activeClass: "bg-emerald-500 text-white shadow-md shadow-emerald-100" },
-              { value: "cancelled", label: "ยกเลิกแล้ว", icon: XCircle, activeClass: "bg-rose-500 text-white shadow-md shadow-rose-100" },
-            ] as { value: TabType; label: string; icon: any; activeClass: string }[]
+              { value: "all", label: "ทั้งหมด", icon: Layers, activeClass: "bg-slate-800 text-white shadow-md shadow-slate-200", badgeClass: "bg-slate-200 text-slate-700" },
+              { value: "pending", label: "รอผู้จัดการอนุมัติ", icon: Clock, activeClass: "bg-amber-500 text-white shadow-md shadow-amber-100", badgeClass: "bg-amber-100 text-amber-700" },
+              { value: "approved", label: "อนุมัติแล้ว · รอจ่ายสินค้า", icon: FileCheck, activeClass: "bg-sky-500 text-white shadow-md shadow-sky-100", badgeClass: "bg-sky-100 text-sky-700" },
+              { value: "completed", label: "จ่ายสินค้าและปิดงานแล้ว", icon: PackageCheck, activeClass: "bg-emerald-500 text-white shadow-md shadow-emerald-100", badgeClass: "bg-emerald-100 text-emerald-700" },
+              { value: "cancelled", label: "ยกเลิกแล้ว", icon: XCircle, activeClass: "bg-rose-500 text-white shadow-md shadow-rose-100", badgeClass: "bg-rose-100 text-rose-700" },
+            ] as { value: "all" | "pending" | "approved" | "completed" | "cancelled"; label: string; icon: any; activeClass: string; badgeClass: string }[]
           ).map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.value;
+            const count = tabCounts[tab.value] ?? 0;
             return (
               <button
                 key={`tab-${tab.value}`}
@@ -499,16 +477,14 @@ function RequisitionTrackerContent() {
               >
                 <Icon size={14} className={isActive ? "animate-pulse" : "text-slate-400"} />
                 <span>{tab.label}</span>
-                {tab.value === "pending" && pendingApprovalCount > 0 ? (
-                  <span
-                    className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
-                      isActive ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
-                    }`}
-                    aria-label={`รอผู้จัดการอนุมัติ ${pendingApprovalCount} รายการ`}
-                  >
-                    {pendingApprovalCount}
-                  </span>
-                ) : null}
+                <span
+                  className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                    isActive ? "bg-white/20 text-white" : tab.badgeClass
+                  }`}
+                  aria-label={`${tab.label} ${count} รายการ`}
+                >
+                  {formatNumber(count)}
+                </span>
               </button>
             );
           })}
@@ -652,29 +628,21 @@ function RequisitionTrackerContent() {
                             onClick={() => {
                               setConfirmDialog({
                                 action: "issue",
-                                confirmLabel: "ยืนยันจ่ายสินค้า",
-                                description: `ยืนยันว่าแอดมินได้จ่ายสินค้าสำหรับใบเบิก ${req.issueKey} แล้ว`,
+                                confirmLabel: "ยืนยันจ่ายสินค้าและปิดงาน",
+                                description: `ยืนยันว่าแอดมินได้จ่ายสินค้าสำหรับใบเบิก ${req.issueKey} แล้ว ระบบจะปิดงานทันที`,
                                 issueKey: req.issueKey,
-                                title: "ยืนยันการจ่ายสินค้า",
+                                title: "จ่ายสินค้าและปิดงาน",
                               });
                             }}
                             className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded"
                           >
-                            จ่ายสินค้า
+                            จ่ายสินค้าและปิดงาน
                           </Button>
                         )}
 
-                        {req.status === "issued" && req.requester === currentUsername && (
+                        {(req.status === "issued" || req.status === "received" || req.status === "employee_confirmed") && isAdmin && (
                           <Button type="button" size="sm" disabled={isUpdating === req.issueKey}
-                            onClick={() => setConfirmDialog({ action: "receive", confirmLabel: "ยืนยันรับสินค้า", description: `ยืนยันว่าได้รับสินค้าตามใบเบิก ${req.issueKey} ครบถ้วนแล้ว`, issueKey: req.issueKey, title: "ยืนยันการรับสินค้า" })}
-                            className="bg-violet-600 hover:bg-violet-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded">
-                            ยืนยันรับสินค้า
-                          </Button>
-                        )}
-
-                        {(req.status === "received" || req.status === "employee_confirmed") && isAdmin && (
-                          <Button type="button" size="sm" disabled={isUpdating === req.issueKey}
-                            onClick={() => setConfirmDialog({ action: "close", confirmLabel: "ยืนยันปิดใบเบิก", description: `ตรวจสอบการรับสินค้าแล้วและปิดใบเบิก ${req.issueKey}`, issueKey: req.issueKey, title: "ปิดใบเบิกขั้นสุดท้าย" })}
+                            onClick={() => setConfirmDialog({ action: "close", confirmLabel: "ยืนยันปิดใบเบิก", description: `ตรวจสอบการจ่ายสินค้าแล้วและปิดใบเบิก ${req.issueKey}`, issueKey: req.issueKey, title: "ปิดใบเบิกขั้นสุดท้าย" })}
                             className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-2.5 h-8 py-1 rounded">
                             ปิดใบเบิก
                           </Button>
@@ -741,7 +709,7 @@ function RequisitionTrackerContent() {
                               <tbody className="divide-y divide-slate-100">
                                 {req.items.map((item) => {
                                   const costVal = item.quantity * (item.costPrice || item.price || 0);
-                                  const lotKey = `${buildItemKey(item)}::${item.expiryDate || "no-expiry"}`;
+                                  const lotKey = buildInventoryLotKey(item);
                                   const lotLabel = lotLabels.get(lotKey) || "-";
                                   return (
                                     <tr key={item.id} className="hover:bg-slate-50/20">
@@ -759,10 +727,10 @@ function RequisitionTrackerContent() {
                                         {formatNumber(item.quantity)} {item.unit}
                                       </td>
                                       <td className="px-3 py-2.5 text-right text-slate-500">
-                                        {formatCurrency(item.costPrice || item.price || 0)}
+                                        {formatCurrencyWithLabel(item.costPrice || item.price || 0, item.costCurrency)}
                                       </td>
                                       <td className="px-3 py-2.5 text-right font-semibold text-slate-700">
-                                        {formatCurrency(costVal)}
+                                        {formatCurrencyWithLabel(costVal, item.costCurrency)}
                                       </td>
                                       <td className="px-3 py-2.5 text-slate-500">
                                         {item.productImportType === "stable" ? "สินค้าเข้าสต็อก" : "ซื้อมาขายไป"}
@@ -778,7 +746,7 @@ function RequisitionTrackerContent() {
                                   </td>
                                   <td className="px-3 py-2" />
                                   <td className="px-3 py-2 text-right text-sky-800 font-semibold">
-                                    {formatCurrency(req.totalCost)}
+                                    {formatRequisitionCostByCurrency(req.items)}
                                   </td>
                                   <td className="px-3 py-2" />
                                 </tr>
@@ -847,7 +815,7 @@ function RequisitionTrackerContent() {
 
                               <div className="hidden md:block h-0.5 bg-slate-200 grow mx-2" />
 
-                              {/* Step 3: Admin issues and requester receives */}
+                              {/* Step 3: Admin issues and closes the requisition */}
                               <div className="flex items-center gap-2">
                                 <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold ${
                                   req.status === "issued" || req.status === "received" || req.status === "employee_confirmed" || req.status === "completed"
@@ -858,7 +826,7 @@ function RequisitionTrackerContent() {
                                 </div>
                                 <div>
                                   <p className={req.status === "issued" || req.status === "received" || req.status === "employee_confirmed" || req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>
-                                    แอดมินจ่ายสินค้า / ผู้รับยืนยัน
+                                    แอดมินจ่ายสินค้า
                                   </p>
                                 </div>
                                 {req.status === "received" || req.status === "employee_confirmed" || req.status === "completed" ? (
@@ -873,7 +841,7 @@ function RequisitionTrackerContent() {
                               <div className="hidden md:block h-0.5 bg-slate-200 grow mx-2" />
                               <div className="flex items-center gap-2">
                                 <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold ${req.status === "completed" ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>4</div>
-                                <div><p className={req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>แอดมินปิดใบเบิก</p></div>
+                                <div><p className={req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>ปิดงานเสร็จสิ้น</p></div>
                                 {req.status === "completed" ? <CheckSquare size={16} className="text-emerald-500 shrink-0 ml-2" /> : <Clock size={16} className="text-slate-300 shrink-0 ml-2" />}
                               </div>
 

@@ -14,30 +14,21 @@ type RequisitionNotice = {
 };
 
 export async function sendRequisitionNotice(input: RequisitionNotice) {
+  if (input.status !== "approved") return;
+
   const host = process.env.MAIL_HOST;
   const username = process.env.MAIL_USERNAME;
   const password = process.env.MAIL_PASSWORD;
   const from = process.env.MAIL_FROM_ADDRESS || username;
   if (!host || !username || !password || !from) return;
 
-  const names = [input.requester, input.createdBy, input.approver]
-    .map((value) => value?.trim())
-    .filter((value): value is string => Boolean(value));
   const adminUsers = await sql`
     SELECT DISTINCT email, display_name, role
     FROM users
     WHERE email IS NOT NULL AND email <> ''
       AND role = 'admin'
   `;
-  const namedUsers = await Promise.all(
-    names.map((name) => sql`
-      SELECT DISTINCT email, display_name, role
-      FROM users
-      WHERE email IS NOT NULL AND email <> ''
-        AND display_name = ${name}
-    `)
-  );
-  const recipients = [...adminUsers, ...namedUsers.flat()]
+  const recipients = adminUsers
     .reduce<Array<{ address: string; name: string }>>((list, user) => {
       const address = String(user.email || "").trim();
       if (!address || list.some((entry) => entry.address === address)) {
@@ -70,8 +61,8 @@ export async function sendRequisitionNotice(input: RequisitionNotice) {
   await transporter.sendMail({
     from: { name: process.env.MAIL_FROM_NAME || "Stock Flow Manager", address: from },
     to: routedRecipients.recipients,
-    subject: `[${statusLabel}] ใบเบิกสินค้า ${input.issueKey}`,
-    text: `ใบเบิก ${input.issueKey}\nสถานะ: ${statusLabel}\nดำเนินการโดย: ${input.actorName}\nผู้ขอเบิก: ${input.requester || "-"}\n${requisitionUrl ? `เปิดใบเบิกนี้: ${requisitionUrl}` : ""}`,
-    html: `<div style="font-family:Arial,sans-serif;line-height:1.7;color:#0f172a"><h2>ใบเบิกสินค้า ${input.issueKey}</h2><p><strong>สถานะ:</strong> ${statusLabel}</p><p><strong>ดำเนินการโดย:</strong> ${input.actorName}</p><p><strong>ผู้ขอเบิก:</strong> ${input.requester || "-"}</p>${requisitionUrl ? `<p><a href="${requisitionUrl}" style="display:inline-block;padding:10px 16px;border-radius:10px;background:#0b63bd;color:#fff;text-decoration:none;font-weight:700">${input.status === "pending" ? "ตรวจสอบและอนุมัติใบเบิก" : "เปิดใบเบิกนี้"}</a></p>` : ""}<p style="color:#64748b;font-size:12px">อีเมลนี้ส่งโดยอัตโนมัติจากระบบ</p></div>`,
+    subject: `[ผู้จัดการอนุมัติแล้ว] ใบเบิกสินค้า ${input.issueKey} รอแอดมินจ่ายสินค้า`,
+    text: `ใบเบิก ${input.issueKey}\nสถานะ: ${statusLabel}\nผู้จัดการอนุมัติแล้วโดย: ${input.actorName}\nผู้ขอเบิก: ${input.requester || "-"}\nขั้นตอนถัดไป: แอดมินกดจ่ายสินค้าและปิดงาน\n${requisitionUrl ? `เปิดใบเบิกนี้: ${requisitionUrl}` : ""}`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.7;color:#0f172a"><h2>ใบเบิกสินค้า ${input.issueKey}</h2><p><strong>สถานะ:</strong> ${statusLabel}</p><p><strong>ผู้จัดการอนุมัติแล้วโดย:</strong> ${input.actorName}</p><p><strong>ผู้ขอเบิก:</strong> ${input.requester || "-"}</p><p><strong>ขั้นตอนถัดไป:</strong> แอดมินกดจ่ายสินค้าและปิดงาน</p>${requisitionUrl ? `<p><a href="${requisitionUrl}" style="display:inline-block;padding:10px 16px;border-radius:10px;background:#0b63bd;color:#fff;text-decoration:none;font-weight:700">เปิดใบเบิกเพื่อจ่ายสินค้า</a></p>` : ""}<p style="color:#64748b;font-size:12px">อีเมลนี้ส่งโดยอัตโนมัติจากระบบ</p></div>`,
   });
 }

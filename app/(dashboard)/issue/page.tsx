@@ -7,6 +7,14 @@ import { withBasePath } from "@/lib/base-path";
 import { getClientAppSettings, getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import { ComboboxInput } from "@/components/ui/combobox-input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useTransactions } from "../TransactionContext";
 import {
   buildInventoryLotMap,
@@ -149,6 +157,7 @@ export default function IssuePage() {
   const [issueImportTypeFilter, setIssueImportTypeFilter] = useState<OverviewFilter>("all");
   const [issueSelections, setIssueSelections] = useState<Record<string, IssueSelectionValue>>({});
   const [isIssuePanelOpen, setIsIssuePanelOpen] = useState(false);
+  const [isIssueConfirmOpen, setIsIssueConfirmOpen] = useState(false);
   const [issueRequester, setIssueRequester] = useState("");
   const [issueCreatedBy, setIssueCreatedBy] = useState("ผู้ใช้งาน");
   const [issueApproverContact, setIssueApproverContact] = useState("");
@@ -439,6 +448,96 @@ export default function IssuePage() {
     setIssueApproverEmail(parsedValue.email);
   }
 
+  function openIssueConfirmDialog() {
+    const selectedEntries = Object.entries(issueSelections)
+      .map(([itemKey, selection]) => {
+        const item = inventory.find((candidate) => candidate.key === itemKey);
+        return { item, quantity: Number(selection.quantity) };
+      })
+      .filter(
+        (entry): entry is { item: IssueProductItem; quantity: number } => Boolean(entry.item)
+      );
+
+    if (selectedEntries.length === 0) {
+      window.alert("เลือกสินค้าที่ต้องการเบิกก่อน");
+      return;
+    }
+
+    if (!issueRequester.trim()) {
+      window.alert("กรอกผู้ขอเบิกสินค้าก่อนบันทึก");
+      return;
+    }
+
+    if (!directoryUsers.some((user) => user.name.trim() === issueRequester.trim())) {
+      window.alert("กรุณาเลือกผู้ขอเบิกจากรายชื่อผู้ใช้งานในระบบ");
+      return;
+    }
+
+    const approvalRequired = appSettings.approvalMode !== "off";
+
+    if (approvalRequired && !issueApprover.trim()) {
+      window.alert("กรอกชื่อผู้อนุมัติก่อนบันทึก");
+      return;
+    }
+
+    const selectedManager = issueApproverContactSuggestions.find(
+      (item) => item.name === issueApprover.trim() && item.email === issueApproverEmail.trim()
+    );
+    if (approvalRequired && !selectedManager) {
+      window.alert("กรุณาเลือกผู้อนุมัติจากรายชื่อสำหรับบทบาทปัจจุบัน");
+      return;
+    }
+
+    if (approvalRequired && !issueApproverEmail.trim()) {
+      window.alert("กรอกผู้อนุมัติให้มีทั้งชื่อและอีเมลก่อนบันทึก");
+      return;
+    }
+
+    if (approvalRequired && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(issueApproverEmail.trim())) {
+      window.alert("กรอกผู้อนุมัติในรูปแบบ ชื่อ · อีเมล ให้ถูกต้อง");
+      return;
+    }
+
+    const invalidEntry = selectedEntries.find(
+      ({ quantity }) => !Number.isFinite(quantity) || !Number.isInteger(quantity) || quantity <= 0
+    );
+
+    if (invalidEntry) {
+      window.alert("จำนวนที่ต้องการเบิกต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไปทุกรายการ");
+      return;
+    }
+
+    const overBalanceEntry = appSettings.allowNegativeStock
+      ? null
+      : selectedEntries.find(({ item, quantity }) => quantity > item.totalBalance);
+
+    if (overBalanceEntry) {
+      window.alert(
+        `เบิก ${overBalanceEntry.item.name} ไม่ได้ เพราะคงเหลือรวมเพียง ${overBalanceEntry.item.totalBalance} ${overBalanceEntry.item.unit}`
+      );
+      return;
+    }
+
+    const failedAllocation = selectedEntries.find(({ item, quantity }) => {
+      const allocationPreview = buildAutoAllocationPlan(
+        item,
+        quantity,
+        appSettings.allocationMode,
+        appSettings.allowNegativeStock
+      );
+      return allocationPreview.remaining > 0;
+    });
+
+    if (failedAllocation) {
+      window.alert(
+        `ไม่สามารถจัดสรรล็อตของ ${failedAllocation.item.name} ได้ครบตามจำนวนที่ขอ กรุณาตรวจสอบสต๊อกอีกครั้ง`
+      );
+      return;
+    }
+
+    setIsIssueConfirmOpen(true);
+  }
+
   async function handleSelectedIssueBatch() {
     if (isSendingIssueEmail) {
       return;
@@ -634,6 +733,7 @@ export default function IssuePage() {
     setIssueApproverEmail("");
     setIssueNote("");
     setIsIssuePanelOpen(false);
+    setIsIssueConfirmOpen(false);
 
     router.push("/approve");
   }
@@ -858,7 +958,7 @@ export default function IssuePage() {
               </Button>
               <Button
                 type="button"
-                onClick={handleSelectedIssueBatch}
+                onClick={openIssueConfirmDialog}
                 disabled={isSendingIssueEmail}
               >
                 {isSendingIssueEmail ? "กำลังส่งอีเมล..." : "บันทึกเบิกสินค้า"}
@@ -866,6 +966,92 @@ export default function IssuePage() {
             </div>
           </div>
         </aside>
+        <Dialog open={isIssueConfirmOpen} onOpenChange={setIsIssueConfirmOpen}>
+          <DialogContent className="max-w-3xl overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>ยืนยันบันทึกใบเบิกสินค้า</DialogTitle>
+              <DialogDescription>
+                ตรวจสอบรายการที่จะเบิกก่อนส่งคำขอ ระบบจะสร้างใบเบิกและส่งให้ผู้อนุมัติตาม flow ที่ตั้งไว้
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 px-5 py-4 text-sm text-slate-700">
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2 font-bold text-slate-700">
+                  <span>รายการที่จะเบิก</span>
+                  <span>{formatNumber(selectedIssueEntries.length)} รายการ</span>
+                </div>
+                <div className="max-h-[320px] overflow-auto">
+                  <table className="w-full min-w-[620px] text-left text-xs">
+                    <thead className="bg-white text-slate-500">
+                      <tr>
+                        <th className="px-4 py-2">สินค้า</th>
+                        <th className="px-4 py-2">ประเภท</th>
+                        <th className="px-4 py-2 text-right">จำนวนเบิก</th>
+                        <th className="px-4 py-2">การจัดล็อต</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedIssueEntries.map(({ item, selection }) => {
+                        const quantity = Number(selection.quantity);
+                        const allocationPreview =
+                          Number.isFinite(quantity) && quantity > 0
+                            ? buildAutoAllocationPlan(item, quantity, appSettings.allocationMode, appSettings.allowNegativeStock)
+                            : { plan: [], remaining: 0 };
+
+                        return (
+                          <tr key={`confirm-issue-${item.key}`} className="bg-white">
+                            <td className="px-4 py-3">
+                              <strong className="block text-slate-900">{item.name}</strong>
+                              <span className="text-slate-400">
+                                {item.sku || "-"} · คงเหลือ {formatNumber(item.totalBalance)} {item.unit}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-600">
+                              {getProductImportTypeLabel(item.productImportType)}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-slate-900">
+                              {formatNumber(quantity)} {item.unit}
+                            </td>
+                            <td className="px-4 py-3 text-slate-600">
+                              {allocationPreview.plan.length > 0
+                                ? `${formatNumber(allocationPreview.plan.length)} ล็อต · ${item.lots.some((lot) => Boolean(lot.expiryDate)) ? "FEFO" : "FIFO"}`
+                                : "-"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {issueNote.trim() ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <span className="block text-xs font-semibold text-slate-500">หมายเหตุ</span>
+                  <p className="mt-1 text-slate-800">{issueNote.trim()}</p>
+                </div>
+              ) : null}
+            </div>
+            <DialogFooter className="border-t border-slate-200 bg-slate-50/70 px-5 py-4">
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full sm:w-auto sm:min-w-[150px]"
+                onClick={() => setIsIssueConfirmOpen(false)}
+              >
+                กลับไปแก้ไข
+              </Button>
+              <Button
+                type="button"
+                className="w-full sm:w-auto sm:min-w-[210px]"
+                onClick={handleSelectedIssueBatch}
+                disabled={isSendingIssueEmail}
+              >
+                {isSendingIssueEmail ? "กำลังบันทึก..." : "ยืนยันบันทึกใบเบิก"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         </>
       ) : null}
     </section>
