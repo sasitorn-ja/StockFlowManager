@@ -12,10 +12,13 @@ import {
   Plus,
   Save,
   Search,
-  Trash2,
 } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
-import { getClientAppSettings, getClientSession } from "@/lib/dashboard-client-cache";
+import {
+  getClientAppSettings,
+  getClientSession,
+  invalidateClientMasterProductsCache,
+} from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
 import { ComboboxInput } from "@/components/ui/combobox-input";
 import {
@@ -48,9 +51,10 @@ import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared"
 type OverviewFilter = "all" | ProductImportType;
 type ReceiveView = "receipts" | "inventory";
 type UserRole = "employee" | "manager" | "admin";
-type ReceiveComboboxKey = "productImportType" | "category" | "product" | "costCurrency" | "storageLocation";
+type ReceiveComboboxKey = "productImportType" | "category" | "product" | "storageLocation";
 type ReceiveProductSuggestion = {
   key: string;
+  masterProductId?: string;
   name: string;
   sku: string;
   category: string;
@@ -60,6 +64,8 @@ type ReceiveProductSuggestion = {
   price: number;
   costPrice: number;
   costCurrency: CostCurrency;
+  minStock: number;
+  maxStock: number;
   defaultStorageLocation?: string;
 };
 
@@ -204,19 +210,28 @@ export default function ReceivePage() {
         (item) =>
           !inactiveMasterProducts.some((product) => matchesMasterProduct(item, product))
       )
-      .map((item) => ({
-        key: `inventory-${item.key}`,
-        name: item.name,
-        sku: item.sku,
-        category: item.category,
-        imageDataUrl: item.imageDataUrl || "",
-        productImportType: item.productImportType,
-        unit: item.unit,
-        price: item.price,
-        costPrice: item.costPrice ?? 0,
-        costCurrency: item.costCurrency ?? "THB",
-        defaultStorageLocation: "",
-      }));
+      .map((item) => {
+        const masterProduct = masterProducts.find(
+          (product) => product.isActive && matchesMasterProduct(item, product)
+        );
+
+        return {
+          key: `inventory-${item.key}`,
+          masterProductId: masterProduct?.id,
+          name: item.name,
+          sku: item.sku,
+          category: item.category,
+          imageDataUrl: item.imageDataUrl || "",
+          productImportType: item.productImportType,
+          unit: item.unit,
+          price: item.price,
+          costPrice: item.costPrice ?? 0,
+          costCurrency: item.costCurrency ?? "THB",
+          minStock: masterProduct?.minStock ?? 0,
+          maxStock: masterProduct?.maxStock ?? 0,
+          defaultStorageLocation: masterProduct?.defaultStorageLocation || "",
+        };
+      });
 
     const existingKeys = new Set(
       inventorySuggestions.map(
@@ -229,6 +244,7 @@ export default function ReceivePage() {
       .filter((item) => item.isActive)
       .map((item) => ({
         key: `master-${item.id}`,
+        masterProductId: item.id,
         name: item.name,
         sku: item.sku,
         category: item.category,
@@ -238,6 +254,8 @@ export default function ReceivePage() {
         price: item.price ?? 0,
         costPrice: item.costPrice ?? 0,
         costCurrency: item.costCurrency ?? "THB",
+        minStock: item.minStock ?? 0,
+        maxStock: item.maxStock ?? 0,
         defaultStorageLocation: item.defaultStorageLocation || "",
       }))
       .filter((item) => {
@@ -453,6 +471,8 @@ export default function ReceivePage() {
       price: "0",
       costPrice: "0",
       costCurrency: "THB",
+      minStock: "0",
+      maxStock: "0",
       requester: "",
       expiryDate: "",
       issueKey: "",
@@ -509,6 +529,8 @@ export default function ReceivePage() {
         price: "0",
         costPrice: "0",
         costCurrency: "THB",
+        minStock: "0",
+        maxStock: "0",
       }));
       return;
     }
@@ -544,6 +566,8 @@ export default function ReceivePage() {
         const isCostPriceUnchanged = current.costPrice === String(prevMatchedItem.costPrice ?? 0);
         const isPriceUnchanged = current.price === String(prevMatchedItem.price);
         const isCurrencyUnchanged = current.costCurrency === (prevMatchedItem.costCurrency ?? "THB");
+        const isMinStockUnchanged = current.minStock === String(prevMatchedItem.minStock ?? 0);
+        const isMaxStockUnchanged = current.maxStock === String(prevMatchedItem.maxStock ?? 0);
         const isImageUnchanged = (current.imageDataUrl || "") === (prevMatchedItem.imageDataUrl || "");
 
         updatedFields = {
@@ -553,6 +577,8 @@ export default function ReceivePage() {
           costPrice: isCostPriceUnchanged ? "0" : current.costPrice,
           price: isPriceUnchanged ? "0" : current.price,
           costCurrency: isCurrencyUnchanged ? "THB" : current.costCurrency,
+          minStock: isMinStockUnchanged ? "0" : current.minStock,
+          maxStock: isMaxStockUnchanged ? "0" : current.maxStock,
           imageDataUrl: isImageUnchanged ? "" : current.imageDataUrl,
         };
       }
@@ -570,6 +596,8 @@ export default function ReceivePage() {
           price: String(matchedItem.price),
           costPrice: String(matchedItem.costPrice ?? 0),
           costCurrency: matchedItem.costCurrency ?? "THB",
+          minStock: String(matchedItem.minStock ?? 0),
+          maxStock: String(matchedItem.maxStock ?? 0),
           requester: current.requester || matchedItem.defaultStorageLocation || "",
         };
       }
@@ -653,6 +681,20 @@ export default function ReceivePage() {
         )
           ? current.costCurrency
           : "THB",
+      minStock:
+        current.name &&
+        filteredReceiveProductSuggestions.some(
+          (item) => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+        )
+          ? current.minStock
+          : "0",
+      maxStock:
+        current.name &&
+        filteredReceiveProductSuggestions.some(
+          (item) => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+        )
+          ? current.maxStock
+          : "0",
       requester:
         current.name &&
         filteredReceiveProductSuggestions.some(
@@ -791,14 +833,27 @@ export default function ReceivePage() {
     const quantity = Number(form.quantity);
     const price = Number(form.price || 0);
     const costPrice = Number(form.costPrice || 0);
+    const minStock = Math.max(0, Math.floor(Number(form.minStock || 0)));
+    const maxStock = Math.max(0, Math.floor(Number(form.maxStock || 0)));
 
-    if (!Number.isFinite(quantity) || !Number.isFinite(price) || !Number.isFinite(costPrice)) {
-      window.alert("กรอกจำนวน ราคา และราคาต้นทุนเป็นตัวเลขที่ถูกต้องก่อนบันทึก");
+    if (
+      !Number.isFinite(quantity) ||
+      !Number.isFinite(price) ||
+      !Number.isFinite(costPrice) ||
+      !Number.isFinite(minStock) ||
+      !Number.isFinite(maxStock)
+    ) {
+      window.alert("กรอกจำนวน ราคา ต้นทุน และค่า min / max เป็นตัวเลขที่ถูกต้องก่อนบันทึก");
       return;
     }
 
     if (!Number.isInteger(quantity) || quantity <= 0) {
       window.alert("จำนวนสินค้าต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป");
+      return;
+    }
+
+    if (maxStock > 0 && minStock > maxStock) {
+      window.alert("จำนวนขั้นต่ำ (min) ต้องไม่มากกว่าจำนวนสูงสุด (max)");
       return;
     }
 
@@ -865,13 +920,17 @@ export default function ReceivePage() {
         setCategoryCatalog((current) => [...new Set([...current, transaction.category])]);
       }
 
-      const masterExists = masterProducts.some((product) => matchesMasterProduct(transaction, product));
-      if (!masterExists) {
+      const existingMasterProduct = masterProducts.find((product) =>
+        matchesMasterProduct(transaction, product)
+      );
+      if (!existingMasterProduct) {
         const productResponse = await fetch(withBasePath("/api/master-products"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...transaction,
+            minStock,
+            maxStock,
             defaultStorageLocation: transaction.requester,
             defaultExpiryDate: transaction.expiryDate,
             isActive: true,
@@ -881,6 +940,23 @@ export default function ReceivePage() {
           const detail = await productResponse.json().catch(() => null);
           throw new Error(detail?.error || "Unable to save product master");
         }
+      } else if (
+        existingMasterProduct.minStock !== minStock ||
+        existingMasterProduct.maxStock !== maxStock
+      ) {
+        const productResponse = await fetch(withBasePath("/api/master-products"), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...existingMasterProduct,
+            minStock,
+            maxStock,
+          }),
+        });
+        if (!productResponse.ok) {
+          const detail = await productResponse.json().catch(() => null);
+          throw new Error(detail?.error || "Unable to update product min / max");
+        }
       }
 
       const response = await fetch(withBasePath("/api/transactions"), {
@@ -889,6 +965,14 @@ export default function ReceivePage() {
         body: JSON.stringify(transaction),
       });
       if (!response.ok) throw new Error("Unable to save stock receipt");
+      invalidateClientMasterProductsCache();
+      const refreshedProductsResponse = await fetch(withBasePath("/api/master-products"), {
+        cache: "no-store",
+      });
+      if (refreshedProductsResponse.ok) {
+        const refreshedProducts = (await refreshedProductsResponse.json()) as ProductMaster[];
+        if (Array.isArray(refreshedProducts)) setMasterProducts(refreshedProducts);
+      }
       await refresh();
       closeReceiveDialog();
     } catch (error) {
@@ -1220,7 +1304,7 @@ export default function ReceivePage() {
       </Dialog>
 
       <Dialog open={isReceivePanelOpen} onOpenChange={(open) => { if (!open) closeReceiveDialog(); }}>
-        <DialogContent className="receive-entry-dialog flex max-h-[calc(100dvh-24px)] flex-col overflow-hidden sm:max-h-[92vh] sm:max-w-[1080px]">
+        <DialogContent className="receive-entry-dialog flex max-h-[calc(100dvh-24px)] flex-col overflow-hidden sm:max-h-[88vh] sm:max-w-[900px]">
           <DialogHeader className="receive-dialog-header">
             <div className="min-w-0">
               <DialogTitle>บันทึกรับเข้า</DialogTitle>
@@ -1399,23 +1483,22 @@ export default function ReceivePage() {
                     onChange={(event) => updateForm("costPrice", event.target.value)}
                     disabled={!isCategoryReady}
                   />
-                  <ComboboxInput
+                  <select
                     value={form.costCurrency}
-                    onValueChange={(value) =>
-                      updateForm("costCurrency", value as CostCurrency)
+                    onChange={(event) =>
+                      updateForm("costCurrency", event.target.value as CostCurrency)
                     }
-                    open={openReceiveCombobox === "costCurrency"}
-                    onOpenChange={(open) => handleReceiveComboboxOpenChange("costCurrency", open)}
                     disabled={!isCategoryReady}
-                    options={costCurrencyOptions.map((option) => ({
-                      value: option.value,
-                      label: option.label,
-                    }))}
-                    portalled={false}
-                    searchPlaceholder="ค้นหาสกุลเงิน..."
-                    allowCustomValue={false}
-                  />
+                    aria-label="สกุลเงินของล็อตที่รับเข้า"
+                  >
+                    {costCurrencyOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+                <small>เลือกสกุลเงินสำหรับล็อตรับเข้ารอบนี้ได้อย่างอิสระ</small>
               </label>
 
               <label>
@@ -1434,6 +1517,44 @@ export default function ReceivePage() {
                   searchPlaceholder="ค้นหาหรือพิมพ์จุดเก็บ..."
                   disabled={!isCategoryReady}
                 />
+              </label>
+            </div>
+
+            <div className="receive-form-grid receive-stock-target-grid">
+              <label>
+                <span>จำนวนขั้นต่ำ (min)</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min="0"
+                  step="1"
+                  value={form.minStock}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === "" || /^\d+$/.test(value)) updateForm("minStock", value);
+                  }}
+                  placeholder="0"
+                  disabled={!isCategoryReady}
+                />
+                <small>แจ้งเตือนเมื่อจำนวนคงเหลือต่ำกว่าค่านี้</small>
+              </label>
+
+              <label>
+                <span>จำนวนสูงสุด (max)</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min="0"
+                  step="1"
+                  value={form.maxStock}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === "" || /^\d+$/.test(value)) updateForm("maxStock", value);
+                  }}
+                  placeholder="0"
+                  disabled={!isCategoryReady}
+                />
+                <small>ใช้เปรียบเทียบเพดานสต็อก โดยกำหนด 0 หากไม่ต้องการตั้งค่า</small>
               </label>
             </div>
 
@@ -1518,9 +1639,6 @@ export default function ReceivePage() {
             </div>
 
             <div className="receive-panel-actions">
-              <Button type="button" variant="secondary" onClick={closeReceiveDialog} disabled={isSubmitting}>
-                <Trash2 size={17} /> ยกเลิก
-              </Button>
               <Button type="submit" disabled={isSubmitting || !isCategoryReady}>
                 <Save size={17} /> {isSubmitting ? "กำลังบันทึก..." : "บันทึกรายการ"}
               </Button>

@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  CheckCircle2,
   Minus,
   Package,
   Plus,
@@ -833,7 +832,7 @@ export default function IssuePage() {
           aria-label="ปิดฟอร์มเบิกสินค้า"
           onClick={() => setIsIssuePanelOpen(false)}
         />
-        <aside className="receive-panel" role="dialog" aria-modal="true" aria-label="ฟอร์มเบิกจ่ายสินค้า">
+        <aside className="receive-panel issue-requisition-panel" role="dialog" aria-modal="true" aria-label="ฟอร์มเบิกจ่ายสินค้า">
           <div className="receive-panel-header">
             <div>
               <h3>เบิกจ่ายสินค้า</h3>
@@ -851,6 +850,7 @@ export default function IssuePage() {
           </div>
 
           <div className="issue-quick-form issue-quick-form-panel">
+            <div className="issue-quick-form-scroll">
             <label>
               <span>คนคีย์ข้อมูล</span>
               <input value={issueCreatedBy} readOnly />
@@ -892,19 +892,10 @@ export default function IssuePage() {
               </div>
               {selectedIssueEntries.length > 0 ? (
                 selectedIssueEntries.map(({ item, selection }) => {
-                  const requestedQuantity = Number(selection.quantity);
-                  const allocationPreview =
-                    Number.isFinite(requestedQuantity) && requestedQuantity > 0
-                      ? buildAutoAllocationPlan(item, requestedQuantity, appSettings.allocationMode, appSettings.allowNegativeStock)
-                      : { plan: [], remaining: 0 };
                   const imageDataUrl = item.lots.find((lot) => lot.imageDataUrl)?.imageDataUrl;
                   const allocationMode = item.lots.some((lot) => Boolean(lot.expiryDate))
                     ? "FEFO (หมดอายุก่อน)"
                     : "FIFO (เข้าก่อนออกก่อน)";
-                  const allocatedQuantity = allocationPreview.plan.reduce(
-                    (sum, entry) => sum + entry.quantity,
-                    0
-                  );
 
                   return (
                   <article key={`selected-issue-${item.key}`} className="issue-selection-item">
@@ -982,19 +973,6 @@ export default function IssuePage() {
                         </div>
                       </label>
 
-                      <div className="issue-selection-allocation-result">
-                        <CheckCircle2 size={16} />
-                        <span>
-                          {allocationPreview.plan.length > 0 ? (
-                            <>
-                              ระบบจะจัดสรรจาก {formatNumber(allocationPreview.plan.length)} ล็อต รวม{" "}
-                              {formatNumber(allocatedQuantity)} {item.unit}
-                            </>
-                          ) : (
-                            <>กรอกจำนวนที่ต้องการเบิก แล้วระบบจะคำนวณล็อตให้อัตโนมัติ</>
-                          )}
-                        </span>
-                      </div>
                     </div>
                   </article>
                   );
@@ -1011,6 +989,7 @@ export default function IssuePage() {
                 placeholder="ระบุหมายเหตุ ถ้ามี"
               />
             </label>
+            </div>
             <div className="receive-panel-actions">
               <Button
                 type="button"

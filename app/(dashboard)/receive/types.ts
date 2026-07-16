@@ -12,6 +12,8 @@ export type FormState = {
   price: string;
   costPrice: string;
   costCurrency: CostCurrency;
+  minStock: string;
+  maxStock: string;
   date: string;
   expiryDate: string;
   issueKey: string;

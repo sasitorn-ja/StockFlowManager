@@ -96,6 +96,8 @@ export function createEmptyForm(): FormState {
     price: "0",
     costPrice: "0",
     costCurrency: "THB",
+    minStock: "0",
+    maxStock: "0",
     date: getLocalDateValue(),
     expiryDate: "",
     issueKey: "",

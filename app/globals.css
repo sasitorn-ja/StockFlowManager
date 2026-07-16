@@ -1776,6 +1776,12 @@ textarea {
     @apply sm:grid-cols-2;
   }
 
+  .receive-stock-target-grid {
+    background: rgba(239, 246, 255, 0.62);
+    border: 1px solid rgba(191, 219, 254, 0.72);
+    @apply rounded-lg p-3 sm:grid-cols-2;
+  }
+
   .receive-grid-helper {
     color: var(--text-muted);
     @apply -mt-1 text-[11px] font-semibold leading-4 sm:col-span-2;
@@ -1837,7 +1843,11 @@ textarea {
   }
 
   .receive-entry-dialog .cost-currency-control {
-    @apply h-12 grid-cols-[minmax(0,1fr)_130px];
+    @apply h-12 grid-cols-[minmax(0,1fr)_120px];
+  }
+
+  .receive-entry-dialog .cost-currency-control select {
+    @apply h-full cursor-pointer bg-white px-3 text-xs font-extrabold;
   }
 
   .receive-note-field {
@@ -1934,7 +1944,7 @@ textarea {
   }
 
   .receive-entry-dialog .receive-panel-actions {
-    @apply gap-4 px-7 py-5;
+    @apply grid-cols-1 px-7 py-5;
   }
 
   .receive-entry-dialog .receive-panel-actions button {
@@ -1951,6 +1961,14 @@ textarea {
 
   .issue-page > .receive-panel {
     @apply fixed bottom-0 right-0 top-[72px] z-50 w-[560px] max-w-full overflow-y-auto rounded-none border-0 border-l bg-white shadow-2xl;
+  }
+
+  .issue-page > .issue-requisition-panel {
+    @apply flex flex-col overflow-hidden;
+  }
+
+  .issue-requisition-panel > .receive-panel-header {
+    @apply shrink-0;
   }
 
   .issue-panel-overlay {
@@ -2139,7 +2157,11 @@ textarea {
 
   .issue-quick-form-panel {
     border-top: 0;
-    @apply block space-y-4 md:grid-cols-none md:items-stretch;
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden p-0 md:grid-cols-none md:items-stretch;
+  }
+
+  .issue-quick-form-scroll {
+    @apply min-h-0 flex-1 space-y-4 overflow-y-auto p-5;
   }
 
   .issue-quick-form label {
@@ -2168,15 +2190,11 @@ textarea {
   }
 
   .issue-selection-list {
-    border: 1px solid var(--border-soft);
-    background: rgba(248, 250, 252, 0.72);
-    @apply grid gap-0 overflow-hidden rounded-xl;
+    @apply grid gap-3;
   }
 
   .issue-selection-list-header {
-    background: rgba(255, 255, 255, 0.92);
-    border-bottom: 1px solid var(--border-soft);
-    @apply flex items-center justify-between gap-3 px-4 py-3;
+    @apply flex items-center justify-between gap-3 pb-1;
   }
 
   .issue-selection-list-header span,
@@ -2188,17 +2206,11 @@ textarea {
   .issue-selection-item {
     border: 1px solid #dbe7f3;
     background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 6px 18px rgba(30, 64, 175, 0.05);
-    @apply m-3 grid grid-cols-[108px_minmax(0,1fr)] gap-4 rounded-xl p-3;
-  }
-
-  .issue-selection-item + .issue-selection-item {
-    @apply mt-0;
+    @apply grid grid-cols-[96px_minmax(0,1fr)] gap-4 rounded-xl p-3;
   }
 
   .issue-selection-image {
     background: linear-gradient(145deg, #ffffff 0%, #eff6ff 100%);
-    border: 1px solid #e1ebf5;
     color: #93c5fd;
     @apply flex aspect-[4/5] w-full items-center justify-center overflow-hidden rounded-lg;
   }
@@ -2250,8 +2262,7 @@ textarea {
     @apply text-xs font-extrabold;
   }
 
-  .issue-selection-allocation-mode,
-  .issue-selection-allocation-result {
+  .issue-selection-allocation-mode {
     @apply flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-semibold leading-5;
   }
 
@@ -2262,15 +2273,6 @@ textarea {
 
   .issue-selection-allocation-mode svg {
     @apply shrink-0 text-sky-500;
-  }
-
-  .issue-selection-allocation-result {
-    background: #f0fdf4;
-    color: #15803d;
-  }
-
-  .issue-selection-allocation-result svg {
-    @apply shrink-0 text-green-600;
   }
 
   .issue-selection-stepper {
