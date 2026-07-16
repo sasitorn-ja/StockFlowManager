@@ -2,7 +2,18 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Filter, X, Trash2, ShoppingCart, Plus, Minus, Package } from "lucide-react";
+import {
+  CheckCircle2,
+  Filter,
+  Minus,
+  Package,
+  Plus,
+  RefreshCw,
+  Search,
+  ShoppingCart,
+  Trash2,
+  X,
+} from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { getClientAppSettings, getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
@@ -468,8 +479,16 @@ export default function IssuePage() {
       return;
     }
 
-    if (!directoryUsers.some((user) => user.name.trim() === issueRequester.trim())) {
+    const selectedRequester = directoryUsers.find(
+      (user) => user.name.trim() === issueRequester.trim()
+    );
+    if (!selectedRequester) {
       window.alert("กรุณาเลือกผู้ขอเบิกจากรายชื่อผู้ใช้งานในระบบ");
+      return;
+    }
+
+    if (!selectedRequester.email.trim()) {
+      window.alert("ผู้ขอเบิกรายนี้ยังไม่มีอีเมลในระบบ กรุณาให้ผู้ใช้งานเข้าสู่ระบบอย่างน้อย 1 ครั้งก่อนสร้างใบเบิก");
       return;
     }
 
@@ -562,8 +581,16 @@ export default function IssuePage() {
       return;
     }
 
-    if (!directoryUsers.some((user) => user.name.trim() === issueRequester.trim())) {
+    const selectedRequester = directoryUsers.find(
+      (user) => user.name.trim() === issueRequester.trim()
+    );
+    if (!selectedRequester) {
       window.alert("กรุณาเลือกผู้ขอเบิกจากรายชื่อผู้ใช้งานในระบบ");
+      return;
+    }
+
+    if (!selectedRequester.email.trim()) {
+      window.alert("ผู้ขอเบิกรายนี้ยังไม่มีอีเมลในระบบ กรุณาให้ผู้ใช้งานเข้าสู่ระบบอย่างน้อย 1 ครั้งก่อนสร้างใบเบิก");
       return;
     }
 
@@ -648,6 +675,7 @@ export default function IssuePage() {
         expiryDate: lot.expiryDate,
         issueKey: batchIssueKey,
         requester: issueRequester.trim(),
+        requesterEmail: selectedRequester.email.trim(),
         createdBy: issueCreatedBy.trim(),
         approver: approvalRequired ? issueApprover.trim() : "",
         note: issueNote.trim(),
@@ -871,59 +899,104 @@ export default function IssuePage() {
                     Number.isFinite(requestedQuantity) && requestedQuantity > 0
                       ? buildAutoAllocationPlan(item, requestedQuantity, appSettings.allocationMode, appSettings.allowNegativeStock)
                       : { plan: [], remaining: 0 };
+                  const imageDataUrl = item.lots.find((lot) => lot.imageDataUrl)?.imageDataUrl;
+                  const allocationMode = item.lots.some((lot) => Boolean(lot.expiryDate))
+                    ? "FEFO (หมดอายุก่อน)"
+                    : "FIFO (เข้าก่อนออกก่อน)";
+                  const allocatedQuantity = allocationPreview.plan.reduce(
+                    (sum, entry) => sum + entry.quantity,
+                    0
+                  );
 
                   return (
                   <article key={`selected-issue-${item.key}`} className="issue-selection-item">
-                    <div className="issue-selection-item-header">
-                      <div className="issue-selection-check">
+                    <div className="issue-selection-image">
+                      {imageDataUrl ? (
+                        <img src={imageDataUrl} alt={item.name} />
+                      ) : (
+                        <Package size={38} />
+                      )}
+                    </div>
+                    <div className="issue-selection-content">
+                      <div className="issue-selection-item-header">
                         <span>
                           <strong>{item.name}</strong>
                           <small>
                             {item.sku || "-"} · คงเหลือรวม {formatNumber(item.totalBalance)} {item.unit}
                           </small>
                         </span>
+                        <button
+                          type="button"
+                          className="issue-selection-delete"
+                          onClick={() => toggleIssueSelection(item.key, false)}
+                          aria-label={`ลบ ${item.name} ออกจากรายการเบิก`}
+                          title="ลบรายการนี้"
+                        >
+                          <Trash2 size={17} />
+                          <span>ลบ</span>
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        className="issue-selection-delete"
-                        onClick={() => toggleIssueSelection(item.key, false)}
-                        aria-label={`ลบ ${item.name} ออกจากรายการเบิก`}
-                        title="ลบรายการนี้"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    <div className="text-[12px] text-[var(--text-muted)]">
-                      ระบบจะเลือกล็อตให้อัตโนมัติแบบ{" "}
-                      {item.lots.some((lot) => Boolean(lot.expiryDate)) ? "FEFO (หมดอายุก่อน)" : "FIFO (เข้าก่อนออกก่อน)"}
-                    </div>
-                    <label className="issue-selection-quantity">
-                      <span>จำนวน</span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min="1"
-                        max={item.totalBalance}
-                        step="1"
-                        value={selection.quantity}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          if (value === "" || /^\d+$/.test(value)) updateIssueSelection(item.key, { quantity: value });
-                        }}
-                      />
-                    </label>
-                    <div className="text-[12px] text-[var(--text-muted)]">
-                      {allocationPreview.plan.length > 0 ? (
-                        <>
-                          ระบบจะจัดสรรจาก {formatNumber(allocationPreview.plan.length)} ล็อต รวม{" "}
-                          {formatNumber(
-                            allocationPreview.plan.reduce((sum, entry) => sum + entry.quantity, 0)
-                          )}{" "}
-                          {item.unit}
-                        </>
-                      ) : (
-                        <>กรอกจำนวนที่ต้องการเบิก แล้วระบบจะคำนวณล็อตให้อัตโนมัติ</>
-                      )}
+
+                      <div className="issue-selection-allocation-mode">
+                        <RefreshCw size={15} />
+                        <span>ระบบจะเลือกล็อตให้อัตโนมัติแบบ {allocationMode}</span>
+                      </div>
+
+                      <label className="issue-selection-quantity">
+                        <span>จำนวน</span>
+                        <div className="issue-selection-stepper">
+                          <button
+                            type="button"
+                            aria-label={`ลดจำนวน ${item.name}`}
+                            onClick={() => {
+                              const next = Math.max(1, Number(selection.quantity || 1) - 1);
+                              updateIssueSelection(item.key, { quantity: String(next) });
+                            }}
+                          >
+                            <Minus size={18} />
+                          </button>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="1"
+                            max={appSettings.allowNegativeStock ? undefined : item.totalBalance}
+                            step="1"
+                            value={selection.quantity}
+                            aria-label={`จำนวนเบิก ${item.name}`}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              if (value === "" || /^\d+$/.test(value)) updateIssueSelection(item.key, { quantity: value });
+                            }}
+                          />
+                          <button
+                            type="button"
+                            aria-label={`เพิ่มจำนวน ${item.name}`}
+                            onClick={() => {
+                              const current = Number(selection.quantity || 1);
+                              const next = appSettings.allowNegativeStock
+                                ? current + 1
+                                : Math.min(item.totalBalance, current + 1);
+                              updateIssueSelection(item.key, { quantity: String(next) });
+                            }}
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                      </label>
+
+                      <div className="issue-selection-allocation-result">
+                        <CheckCircle2 size={16} />
+                        <span>
+                          {allocationPreview.plan.length > 0 ? (
+                            <>
+                              ระบบจะจัดสรรจาก {formatNumber(allocationPreview.plan.length)} ล็อต รวม{" "}
+                              {formatNumber(allocatedQuantity)} {item.unit}
+                            </>
+                          ) : (
+                            <>กรอกจำนวนที่ต้องการเบิก แล้วระบบจะคำนวณล็อตให้อัตโนมัติ</>
+                          )}
+                        </span>
+                      </div>
                     </div>
                   </article>
                   );

@@ -301,11 +301,20 @@ export default function ReceivePage() {
   }, [transactions]);
 
   const autoRecordTimeLabel = useMemo(
-    () =>
-      new Date(autoRecordTime).toLocaleTimeString("th-TH", {
+    () => {
+      const recordTime = new Date(autoRecordTime);
+      const dateLabel = recordTime.toLocaleDateString("th-TH", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      const timeLabel = recordTime.toLocaleTimeString("th-TH", {
         hour: "2-digit",
         minute: "2-digit",
-      }),
+      });
+
+      return `${dateLabel} · ${timeLabel}`;
+    },
     [autoRecordTime]
   );
   const hasSelectedProductType = Boolean(form.productImportType);
@@ -1187,19 +1196,20 @@ export default function ReceivePage() {
       </Dialog>
 
       <Dialog open={isReceivePanelOpen} onOpenChange={(open) => { if (!open) closeReceiveDialog(); }}>
-        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[720px]">
+        <DialogContent className="flex max-h-[calc(100dvh-24px)] flex-col overflow-hidden sm:max-h-[88vh] sm:max-w-[720px]">
           <DialogHeader className="receive-dialog-header">
             <div className="min-w-0">
               <DialogTitle>บันทึกรับเข้า</DialogTitle>
               <DialogDescription>เลือกวันที่รับเข้าเอง ระบบจะบันทึกเวลาทำรายการให้อัตโนมัติ</DialogDescription>
             </div>
-            <div className="receive-auto-time" aria-label="เวลาบันทึกอัตโนมัติ">
-              <span>เวลาบันทึก</span>
+            <div className="receive-auto-time" aria-label="วันและเวลาบันทึกอัตโนมัติ">
+              <span>วัน/เวลาบันทึก</span>
               <strong>{autoRecordTimeLabel}</strong>
             </div>
           </DialogHeader>
 
           <form className="receive-form" onSubmit={handleSubmit}>
+            <div className="receive-form-scroll">
             <div className="receive-form-grid">
               <label>
                 <span>ประเภทสินค้า *</span>
@@ -1444,6 +1454,7 @@ export default function ReceivePage() {
                 <img src={form.imageDataUrl} alt={form.name || "รูปสินค้า"} className="rounded-lg object-cover max-h-48 w-full border" />
               </div>
             ) : null}
+            </div>
 
             <div className="receive-panel-actions">
               <Button type="button" variant="secondary" onClick={closeReceiveDialog} disabled={isSubmitting}>

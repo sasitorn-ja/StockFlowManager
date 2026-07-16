@@ -27,6 +27,7 @@ export type Transaction = {
   expiryDate: string;
   issueKey: string;
   requester?: string;
+  requesterEmail?: string;
   createdBy?: string;
   approver?: string;
   approvedAt?: number;

@@ -53,6 +53,7 @@ async function ensureTableExists() {
           "expiryDate" VARCHAR(50),
           "issueKey" VARCHAR(100),
           requester VARCHAR(255),
+          "requesterEmail" VARCHAR(320),
           "createdBy" VARCHAR(255),
           approver VARCHAR(255),
           "approvedAt" BIGINT DEFAULT 0,
@@ -64,6 +65,7 @@ async function ensureTableExists() {
 
       await ensureColumn("transactions", "status", "VARCHAR(50) DEFAULT 'confirmed'");
       await ensureColumn("transactions", "createdBy", "VARCHAR(255) DEFAULT ''");
+      await ensureColumn("transactions", "requesterEmail", "VARCHAR(320) DEFAULT ''");
       await ensureColumn("transactions", "approvedAt", "BIGINT DEFAULT 0");
       await ensureColumnDefinition("transactions", "imageDataUrl", "LONGTEXT");
       await tx`UPDATE transactions SET quantity = FLOOR(quantity) WHERE quantity <> FLOOR(quantity);`;
@@ -184,7 +186,7 @@ export async function POST(request: Request) {
       await sql`
         INSERT INTO transactions (
           id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
-          quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, "createdBy", approver, note, "createdAt", status
+          quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, "requesterEmail", "createdBy", approver, note, "createdAt", status
         ) VALUES (
           ${item.id || `txn-${Date.now()}-${Math.random().toString(36).slice(2)}`},
           ${item.name},
@@ -202,6 +204,7 @@ export async function POST(request: Request) {
           ${item.expiryDate || ""},
           ${item.issueKey || ""},
           ${item.requester || actor.name || ""},
+          ${item.requesterEmail || ""},
           ${actor.name || ""},
           ${item.approver || ""},
           ${item.note || ""},
@@ -220,6 +223,7 @@ export async function POST(request: Request) {
           status: issueStatus,
           actorName: actor.name,
           requester: issue.requester || actor.name,
+          requesterEmail: issue.requesterEmail || "",
           createdBy: actor.name,
           approver: issue.approver || "",
         });
@@ -248,7 +252,7 @@ export async function PUT(request: Request) {
     // Action 3: Update status for an entire issueKey batch
     if (action === "update_status" && issueKey && status) {
       const requisitionRows = await sql`
-        SELECT requester, "createdBy", approver, "approvedAt", status
+        SELECT requester, "requesterEmail", "createdBy", approver, "approvedAt", status
         FROM transactions WHERE "issueKey" = ${issueKey} LIMIT 1
       `;
       const requisition = requisitionRows[0];
@@ -294,6 +298,7 @@ export async function PUT(request: Request) {
         status: status as TransactionStatus,
         actorName: actor.name,
         requester: requisition.requester,
+        requesterEmail: requisition.requesterEmail,
         createdBy: requisition.createdBy,
         approver: nextApprover,
       });

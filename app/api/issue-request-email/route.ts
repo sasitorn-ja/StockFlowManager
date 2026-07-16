@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { resolveEmailRecipients } from "@/lib/email-routing";
+import { getAdminEmailRecipients } from "@/lib/email-recipients";
 
 type IssueEmailRow = {
   name: string;
@@ -181,12 +182,16 @@ export async function POST(request: Request) {
         address: approverEmail,
       },
     ]);
+    const adminBcc = resolveEmailRecipients(await getAdminEmailRecipients()).recipients.filter(
+      (recipient) => recipient.address.toLowerCase() !== approverEmail.toLowerCase()
+    );
     const result = await transporter.sendMail({
       from: {
         name: fromName,
         address: fromEmail,
       },
       to: routedRecipients.recipients,
+      bcc: adminBcc,
       subject: `[รออนุมัติ] ใบเบิกสินค้า ${issueKey}`,
       html: buildEmailHtml({
         appUrl,

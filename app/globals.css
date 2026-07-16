@@ -1656,7 +1656,11 @@ textarea {
   }
 
   .receive-form {
-    @apply grid gap-4 p-5;
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+  }
+
+  .receive-form-scroll {
+    @apply grid min-h-0 flex-1 gap-4 overflow-y-auto p-5;
   }
 
   .receive-form label {
@@ -1766,7 +1770,7 @@ textarea {
   }
 
   .receive-dialog-header {
-    @apply flex flex-col gap-3 pr-10 sm:flex-row sm:items-start sm:justify-between;
+    @apply flex shrink-0 flex-col gap-3 pr-10 sm:flex-row sm:items-start sm:justify-between;
   }
 
   .receive-auto-time {
@@ -1816,7 +1820,9 @@ textarea {
 
   .receive-panel-actions {
     border-top: 1px solid var(--border-soft);
-    @apply -mx-5 mt-2 grid grid-cols-2 gap-3 px-5 pt-5;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.06);
+    @apply grid shrink-0 grid-cols-2 gap-3 px-5 py-4;
   }
 
   .issue-page {
@@ -1828,7 +1834,7 @@ textarea {
   }
 
   .issue-page > .receive-panel {
-    @apply fixed bottom-0 right-0 top-[72px] z-50 w-[430px] max-w-full overflow-y-auto rounded-none border-0 border-l bg-white shadow-2xl;
+    @apply fixed bottom-0 right-0 top-[72px] z-50 w-[560px] max-w-full overflow-y-auto rounded-none border-0 border-l bg-white shadow-2xl;
   }
 
   .issue-panel-overlay {
@@ -2047,52 +2053,70 @@ textarea {
 
   .issue-selection-list {
     border: 1px solid var(--border-soft);
-    @apply grid gap-0 overflow-hidden rounded-lg;
+    background: rgba(248, 250, 252, 0.72);
+    @apply grid gap-0 overflow-hidden rounded-xl;
   }
 
   .issue-selection-list-header {
-    background: #f8fafc;
+    background: rgba(255, 255, 255, 0.92);
     border-bottom: 1px solid var(--border-soft);
-    @apply flex items-center justify-between gap-3 px-3 py-2;
+    @apply flex items-center justify-between gap-3 px-4 py-3;
   }
 
   .issue-selection-list-header span,
   .issue-selection-list-header strong {
     color: var(--text-body);
-    @apply text-[12px] font-bold;
+    @apply text-sm font-extrabold;
   }
 
   .issue-selection-item {
-    border-bottom: 1px solid var(--border-soft);
-    @apply grid gap-3 p-3 last:border-b-0;
+    border: 1px solid #dbe7f3;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 6px 18px rgba(30, 64, 175, 0.05);
+    @apply m-3 grid grid-cols-[108px_minmax(0,1fr)] gap-4 rounded-xl p-3;
+  }
+
+  .issue-selection-item + .issue-selection-item {
+    @apply mt-0;
+  }
+
+  .issue-selection-image {
+    background: linear-gradient(145deg, #ffffff 0%, #eff6ff 100%);
+    border: 1px solid #e1ebf5;
+    color: #93c5fd;
+    @apply flex aspect-[4/5] w-full items-center justify-center overflow-hidden rounded-lg;
+  }
+
+  .issue-selection-image img {
+    @apply h-full w-full object-contain p-2;
+  }
+
+  .issue-selection-content {
+    @apply grid min-w-0 gap-3;
   }
 
   .issue-selection-item-header {
     @apply flex items-start justify-between gap-3;
   }
 
-  .issue-selection-check {
-    @apply flex min-w-0 flex-1 items-start gap-3;
+  .issue-selection-item-header > span {
+    @apply min-w-0;
   }
 
-  .issue-selection-check input {
-    @apply mt-1 h-4 w-4 shrink-0;
-  }
-
-  .issue-selection-check strong {
+  .issue-selection-item-header strong {
     color: var(--text-strong);
-    @apply block text-sm font-bold leading-5;
+    @apply block truncate text-base font-extrabold leading-6;
   }
 
-  .issue-selection-check small {
-    color: var(--text-muted);
-    @apply block text-[11px] font-semibold leading-5;
+  .issue-selection-item-header small {
+    color: #4f7fbd;
+    @apply block truncate text-[11px] font-bold leading-5;
   }
 
   .issue-selection-delete {
     background: #fff1f2;
     color: #be123c;
-    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors;
+    @apply inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-extrabold transition-colors;
   }
 
   .issue-selection-delete:hover,
@@ -2105,9 +2129,56 @@ textarea {
     @apply grid gap-1;
   }
 
-  .issue-selection-quantity span {
-    color: var(--text-muted);
-    @apply text-[11px] font-bold;
+  .issue-selection-quantity > span {
+    color: var(--text-strong);
+    @apply text-xs font-extrabold;
+  }
+
+  .issue-selection-allocation-mode,
+  .issue-selection-allocation-result {
+    @apply flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-semibold leading-5;
+  }
+
+  .issue-selection-allocation-mode {
+    background: #eff6ff;
+    color: #315f99;
+  }
+
+  .issue-selection-allocation-mode svg {
+    @apply shrink-0 text-sky-500;
+  }
+
+  .issue-selection-allocation-result {
+    background: #f0fdf4;
+    color: #15803d;
+  }
+
+  .issue-selection-allocation-result svg {
+    @apply shrink-0 text-green-600;
+  }
+
+  .issue-selection-stepper {
+    border: 1px solid #d5e2ef;
+    @apply grid h-11 grid-cols-[48px_minmax(0,1fr)_48px] overflow-hidden rounded-lg bg-white;
+  }
+
+  .issue-selection-stepper button {
+    color: #1683d8;
+    @apply flex h-full items-center justify-center bg-slate-50 transition-colors hover:bg-blue-50;
+  }
+
+  .issue-selection-stepper button:first-child {
+    border-right: 1px solid #d5e2ef;
+  }
+
+  .issue-selection-stepper button:last-child {
+    border-left: 1px solid #d5e2ef;
+  }
+
+  .issue-quick-form .issue-selection-stepper input {
+    border: 0;
+    box-shadow: none;
+    @apply h-full rounded-none bg-white px-2 text-center text-base font-extrabold;
   }
 
   .issue-toolbar {
@@ -3205,6 +3276,22 @@ textarea {
   .issue-card-stepper button {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  .issue-selection-item {
+    @apply grid-cols-[82px_minmax(0,1fr)] gap-3 p-2.5;
+  }
+
+  .issue-selection-delete {
+    @apply w-9 px-0;
+  }
+
+  .issue-selection-delete span {
+    @apply sr-only;
+  }
+
+  .issue-selection-stepper {
+    @apply grid-cols-[44px_minmax(0,1fr)_44px];
   }
 
   .delivery-document {

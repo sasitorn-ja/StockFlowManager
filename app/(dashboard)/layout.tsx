@@ -324,7 +324,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
         {[...navigationGroups]
           .sort((a, b) => {
-            if (userRole !== "admin") return 0;
+            if (userRole === "employee") return 0;
             const order: Record<string, number> = { stock: 0, requisition: 1, system: 2 };
             return order[a.id] - order[b.id];
           })
