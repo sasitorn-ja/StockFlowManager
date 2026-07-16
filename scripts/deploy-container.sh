@@ -20,6 +20,15 @@ trap show_diagnostics EXIT
 
 cd "$PROJECT_DIR"
 docker compose pull --ignore-buildable || true
-docker compose down
-docker compose up -d --build
+
+# Keep the current container online while the replacement image is building.
+# A missing parent snapshot means Docker's build cache is corrupt; rebuild once
+# from a clean cache instead of leaving the service stopped.
+if ! docker compose build; then
+  echo "Initial image build failed. Clearing Docker build cache and retrying once."
+  docker builder prune --all --force || true
+  docker compose build --no-cache
+fi
+
+docker compose up -d --remove-orphans
 trap - EXIT
