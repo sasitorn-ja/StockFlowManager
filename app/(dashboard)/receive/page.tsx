@@ -1,8 +1,19 @@
 "use client";
 
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, DragEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Filter, ChevronDown, FileText } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  FileImage,
+  FileText,
+  Filter,
+  Minus,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { getClientAppSettings, getClientSession } from "@/lib/dashboard-client-cache";
 import { Button } from "@/components/ui/button";
@@ -449,9 +460,7 @@ export default function ReceivePage() {
     }));
   }
 
-  function handleProductImageChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-
+  function applyProductImage(file?: File) {
     if (!file) {
       updateForm("imageDataUrl", "");
       return;
@@ -459,7 +468,11 @@ export default function ReceivePage() {
 
     if (!file.type.startsWith("image/")) {
       window.alert("อัปโหลดได้เฉพาะไฟล์รูปภาพ");
-      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      window.alert("ขนาดไฟล์รูปภาพต้องไม่เกิน 5MB");
       return;
     }
 
@@ -469,6 +482,17 @@ export default function ReceivePage() {
       updateForm("imageDataUrl", result);
     };
     reader.readAsDataURL(file);
+  }
+
+  function handleProductImageChange(event: ChangeEvent<HTMLInputElement>) {
+    applyProductImage(event.target.files?.[0]);
+    event.target.value = "";
+  }
+
+  function handleProductImageDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    if (!isCategoryReady || !canCreateNewProduct) return;
+    applyProductImage(event.dataTransfer.files?.[0]);
   }
 
   function handleReceiveProductNameChange(value: string) {
@@ -1196,13 +1220,14 @@ export default function ReceivePage() {
       </Dialog>
 
       <Dialog open={isReceivePanelOpen} onOpenChange={(open) => { if (!open) closeReceiveDialog(); }}>
-        <DialogContent className="flex max-h-[calc(100dvh-24px)] flex-col overflow-hidden sm:max-h-[88vh] sm:max-w-[720px]">
+        <DialogContent className="receive-entry-dialog flex max-h-[calc(100dvh-24px)] flex-col overflow-hidden sm:max-h-[92vh] sm:max-w-[1080px]">
           <DialogHeader className="receive-dialog-header">
             <div className="min-w-0">
               <DialogTitle>บันทึกรับเข้า</DialogTitle>
               <DialogDescription>เลือกวันที่รับเข้าเอง ระบบจะบันทึกเวลาทำรายการให้อัตโนมัติ</DialogDescription>
             </div>
             <div className="receive-auto-time" aria-label="วันและเวลาบันทึกอัตโนมัติ">
+              <CalendarDays size={16} aria-hidden="true" />
               <span>วัน/เวลาบันทึก</span>
               <strong>{autoRecordTimeLabel}</strong>
             </div>
@@ -1317,22 +1342,40 @@ export default function ReceivePage() {
               </label>
             </div>
 
-            <div className="receive-form-grid">
+            <div className="receive-form-grid receive-form-grid-compact">
               <label>
                 <span>จำนวน *</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
-                  step="1"
-                  value={form.quantity}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    if (value === "" || /^\d+$/.test(value)) updateForm("quantity", value);
-                  }}
-                  disabled={!isCategoryReady}
-                  required
-                />
+                <div className="receive-quantity-stepper">
+                  <button
+                    type="button"
+                    aria-label="ลดจำนวน"
+                    disabled={!isCategoryReady || Number(form.quantity || 1) <= 1}
+                    onClick={() => updateForm("quantity", String(Math.max(1, Number(form.quantity || 1) - 1)))}
+                  >
+                    <Minus size={17} />
+                  </button>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    step="1"
+                    value={form.quantity}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value === "" || /^\d+$/.test(value)) updateForm("quantity", value);
+                    }}
+                    disabled={!isCategoryReady}
+                    required
+                  />
+                  <button
+                    type="button"
+                    aria-label="เพิ่มจำนวน"
+                    disabled={!isCategoryReady}
+                    onClick={() => updateForm("quantity", String(Number(form.quantity || 0) + 1))}
+                  >
+                    <Plus size={17} />
+                  </button>
+                </div>
               </label>
 
               <label>
@@ -1345,9 +1388,6 @@ export default function ReceivePage() {
                   required
                 />
               </label>
-            </div>
-
-            <div className="receive-form-grid">
               <label>
                 <span>ต้นทุนต่อหน่วย *</span>
                 <div className="cost-currency-control">
@@ -1419,7 +1459,7 @@ export default function ReceivePage() {
               </label>
             </div>
 
-            <div className="receive-form-grid">
+            <div className="receive-form-grid receive-form-grid-half">
               <label>
                 <span>วันที่รับเข้า *</span>
                 <input
@@ -1434,34 +1474,55 @@ export default function ReceivePage() {
 
             </div>
 
-            <label>
+            <label className="receive-note-field">
               <span>หมายเหตุ</span>
-              <input
+              <textarea
                 value={form.note}
                 onChange={(event) => updateForm("note", event.target.value)}
                 placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)"
                 disabled={!isCategoryReady}
+                maxLength={255}
+                rows={2}
               />
+              <small className="receive-note-count">{form.note.length} / 255</small>
             </label>
 
-            <label>
+            <div className="receive-upload-field">
               <span>รูปสินค้า</span>
-              <input type="file" accept="image/*" onChange={handleProductImageChange} disabled={!isCategoryReady || !canCreateNewProduct} className="cursor-pointer file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200" />
-            </label>
-
-            {form.imageDataUrl ? (
-              <div className="receive-image-preview mt-1">
-                <img src={form.imageDataUrl} alt={form.name || "รูปสินค้า"} className="rounded-lg object-cover max-h-48 w-full border" />
-              </div>
-            ) : null}
+              <label
+                className={`receive-upload-dropzone ${!isCategoryReady || !canCreateNewProduct ? "is-disabled" : ""}`}
+                htmlFor="receive-product-image"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={handleProductImageDrop}
+              >
+                {form.imageDataUrl ? (
+                  <img src={form.imageDataUrl} alt={form.name || "รูปสินค้า"} />
+                ) : (
+                  <span className="receive-upload-icon"><FileImage size={22} /></span>
+                )}
+                <span className="receive-upload-copy">
+                  <strong>{form.imageDataUrl ? "เลือกไฟล์ใหม่" : "เลือกไฟล์"}</strong> หรือลากไฟล์มาวางที่นี่
+                  <small>รองรับไฟล์ JPG, PNG ขนาดไม่เกิน 5MB</small>
+                </span>
+                <span className="receive-upload-button">เลือกไฟล์</span>
+              </label>
+              <input
+                id="receive-product-image"
+                type="file"
+                accept="image/*"
+                onChange={handleProductImageChange}
+                disabled={!isCategoryReady || !canCreateNewProduct}
+                className="sr-only"
+              />
+            </div>
             </div>
 
             <div className="receive-panel-actions">
               <Button type="button" variant="secondary" onClick={closeReceiveDialog} disabled={isSubmitting}>
-                ยกเลิก
+                <Trash2 size={17} /> ยกเลิก
               </Button>
               <Button type="submit" disabled={isSubmitting || !isCategoryReady}>
-                {isSubmitting ? "กำลังบันทึก..." : "บันทึกรายการ"}
+                <Save size={17} /> {isSubmitting ? "กำลังบันทึก..." : "บันทึกรายการ"}
               </Button>
             </div>
           </form>

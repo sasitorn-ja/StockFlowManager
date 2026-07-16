@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
-  Filter,
   Minus,
   Package,
   Plus,
@@ -799,7 +798,6 @@ export default function IssuePage() {
               <button key={option.value} type="button" className={issueImportTypeFilter === option.value ? "active" : ""}
                 onClick={() => setIssueImportTypeFilter(option.value)}>{option.label}</button>
             ))}
-            {(searchTerm || issueImportTypeFilter !== "all") && <button type="button" onClick={() => { setSearchTerm(""); setIssueImportTypeFilter("all"); }}><Filter size={14} /> ล้างตัวกรอง</button>}
           </div>
         </div>
 

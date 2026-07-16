@@ -1663,6 +1663,10 @@ textarea {
     @apply grid min-h-0 flex-1 gap-4 overflow-y-auto p-5;
   }
 
+  .receive-entry-dialog .receive-form-scroll {
+    @apply gap-5 px-7 py-6;
+  }
+
   .receive-form label {
     @apply grid content-start gap-1.5;
   }
@@ -1764,6 +1768,14 @@ textarea {
     @apply grid items-start gap-3 sm:grid-cols-2;
   }
 
+  .receive-form-grid-compact {
+    @apply sm:grid-cols-2 lg:grid-cols-4;
+  }
+
+  .receive-form-grid-half {
+    @apply sm:grid-cols-2;
+  }
+
   .receive-grid-helper {
     color: var(--text-muted);
     @apply -mt-1 text-[11px] font-semibold leading-4 sm:col-span-2;
@@ -1773,20 +1785,116 @@ textarea {
     @apply flex shrink-0 flex-col gap-3 pr-10 sm:flex-row sm:items-start sm:justify-between;
   }
 
+  .receive-entry-dialog .receive-dialog-header {
+    @apply flex-col gap-3 px-7 py-5 sm:items-start;
+  }
+
   .receive-auto-time {
     background: rgba(239, 246, 255, 0.72);
     border: 1px solid rgba(147, 197, 253, 0.5);
-    @apply inline-flex w-fit shrink-0 items-center gap-2 rounded-full px-3 py-1.5;
+    color: #1672ce;
+    @apply inline-flex w-fit shrink-0 items-center gap-2 rounded-lg px-3 py-2;
   }
 
   .receive-auto-time > span {
-    color: var(--text-muted);
-    @apply text-[10px] font-bold leading-none;
+    color: #3979b9;
+    @apply text-[11px] font-bold leading-none;
   }
 
   .receive-auto-time strong {
-    color: var(--text-strong);
+    color: #075fc2;
     @apply text-sm font-extrabold leading-none;
+  }
+
+  .receive-quantity-stepper {
+    border: 1px solid var(--border);
+    @apply grid h-12 grid-cols-[44px_minmax(0,1fr)_44px] overflow-hidden rounded-md bg-white;
+  }
+
+  .receive-quantity-stepper button {
+    color: #1672ce;
+    @apply flex h-full items-center justify-center bg-slate-50 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-300;
+  }
+
+  .receive-quantity-stepper button:first-child {
+    border-right: 1px solid var(--border-soft);
+  }
+
+  .receive-quantity-stepper button:last-child {
+    border-left: 1px solid var(--border-soft);
+  }
+
+  .receive-form .receive-quantity-stepper input {
+    border: 0;
+    box-shadow: none;
+    @apply h-full rounded-none px-1 text-center font-extrabold;
+  }
+
+  .receive-entry-dialog .receive-form input:not([type="file"]):not([cmdk-input]):not([data-combobox-input]),
+  .receive-entry-dialog .receive-form textarea,
+  .receive-entry-dialog .receive-form [data-combobox-control] {
+    @apply h-12;
+  }
+
+  .receive-entry-dialog .cost-currency-control {
+    @apply h-12 grid-cols-[minmax(0,1fr)_130px];
+  }
+
+  .receive-note-field {
+    @apply relative;
+  }
+
+  .receive-entry-dialog .receive-form .receive-note-field textarea {
+    @apply h-16 resize-none pb-6 pr-16 pt-3;
+  }
+
+  .receive-form .receive-note-count {
+    color: #7890ad;
+    @apply pointer-events-none absolute bottom-2 right-3 leading-none;
+  }
+
+  .receive-upload-field {
+    @apply grid gap-1.5;
+  }
+
+  .receive-upload-field > span {
+    color: var(--text-body);
+    @apply text-[12px] font-bold;
+  }
+
+  .receive-form .receive-upload-dropzone {
+    border: 1px dashed #a8c8ea;
+    background: rgba(248, 251, 255, 0.88);
+    @apply flex min-h-20 cursor-pointer grid-cols-none content-center items-center gap-3 rounded-lg px-4 py-3 transition-colors hover:border-blue-400 hover:bg-blue-50/60;
+  }
+
+  .receive-form .receive-upload-dropzone.is-disabled {
+    @apply cursor-not-allowed border-slate-200 bg-slate-100 opacity-70;
+  }
+
+  .receive-upload-dropzone > img,
+  .receive-upload-icon {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 object-contain p-2 text-blue-600;
+  }
+
+  .receive-form .receive-upload-copy {
+    color: #64748b;
+    @apply block min-w-0 flex-1 text-xs font-semibold;
+  }
+
+  .receive-form .receive-upload-copy strong {
+    color: #1267c4;
+    @apply font-extrabold;
+  }
+
+  .receive-form .receive-upload-copy small {
+    @apply mt-1 block;
+  }
+
+  .receive-form .receive-upload-button {
+    border: 1px solid #60a5fa;
+    color: #1267c4;
+    @apply shrink-0 rounded-lg bg-white px-5 py-2 text-xs font-extrabold;
   }
 
   .receive-image-preview {
@@ -1823,6 +1931,14 @@ textarea {
     background: rgba(255, 255, 255, 0.98);
     box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.06);
     @apply grid shrink-0 grid-cols-2 gap-3 px-5 py-4;
+  }
+
+  .receive-entry-dialog .receive-panel-actions {
+    @apply gap-4 px-7 py-5;
+  }
+
+  .receive-entry-dialog .receive-panel-actions button {
+    @apply h-12 gap-2 text-sm font-extrabold;
   }
 
   .issue-page {
@@ -3292,6 +3408,20 @@ textarea {
 
   .issue-selection-stepper {
     @apply grid-cols-[44px_minmax(0,1fr)_44px];
+  }
+
+  .receive-entry-dialog .receive-dialog-header,
+  .receive-entry-dialog .receive-form-scroll,
+  .receive-entry-dialog .receive-panel-actions {
+    @apply px-4;
+  }
+
+  .receive-form .receive-upload-dropzone {
+    @apply flex-wrap;
+  }
+
+  .receive-form .receive-upload-button {
+    @apply ml-[56px];
   }
 
   .delivery-document {
