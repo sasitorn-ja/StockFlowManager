@@ -38,7 +38,13 @@ jobs:
         shell: bash
         run: |
           cd /opt/sbm-inventory-management
-          docker compose exec -T sbm-inventory-management node - <<'NODE'
+          docker compose exec -T -u root sbm-inventory-management sh -c '
+            mkdir -p /tmp/reset-db &&
+            cd /tmp/reset-db &&
+            npm init -y >/dev/null 2>&1 &&
+            npm install --omit=dev --ignore-scripts mysql2@3.22.6 >/dev/null 2>&1
+          '
+          docker compose exec -T -e NODE_PATH=/tmp/reset-db/node_modules sbm-inventory-management node - <<'NODE'
           const mysql = require("mysql2/promise");
 
           (async () => {
