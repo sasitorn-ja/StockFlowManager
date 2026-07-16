@@ -156,6 +156,7 @@ export default function AdminRightsPage() {
             headers={["ชื่อพนักงาน", "บทบาท (Role)", "วันที่จัดการ", "ปรับบทบาท"]}
             columnCount={4}
             emptyMessage="ยังไม่มีข้อมูลพนักงาน"
+            className="admin-rights-action-table"
           >
             {users.map((user) => (
               <tr key={`user-row-${user.username}`}>

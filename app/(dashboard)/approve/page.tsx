@@ -491,7 +491,7 @@ function RequisitionTrackerContent() {
               <button
                 key={`tab-${tab.value}`}
                 onClick={() => setActiveTab(tab.value)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all duration-200 outline-none ${
+                className={`min-h-11 flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all duration-200 outline-none ${
                   isActive
                     ? `${tab.activeClass} scale-[1.02]`
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
@@ -587,7 +587,7 @@ function RequisitionTrackerContent() {
                       <button
                         type="button"
                         onClick={() => toggleRowExpand(req.issueKey)}
-                        className="p-1 rounded hover:bg-slate-200 transition-colors"
+                        className="min-h-11 min-w-11 p-1 rounded hover:bg-slate-200 transition-colors"
                         aria-label="ขยายรายละเอียด"
                       >
                         {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}

@@ -321,6 +321,7 @@ export default function SettingsPage() {
             headers={["สินค้า", "หมวดหมู่", "คงเหลือ", "min / max", "สถานะ", "จัดการ"]}
             emptyMessage="ยังไม่มีรายการสินค้า"
             columnCount={6}
+            className="settings-action-table"
           >
             {filteredProducts.map((product) => (
               <tr key={product.id} className={!product.isActive ? "opacity-70" : undefined}>

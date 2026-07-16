@@ -56,7 +56,7 @@ const navigationGroups = [
     icon: Database,
     items: [
       { label: "คลังสินค้าและรับเข้า", href: "/receive", icon: ClipboardPlus, roles: ["admin"] },
-      { label: "สินค้าใกล้หมด/หมดอายุ", href: "/expiring", icon: Clock3, roles: ["admin"] },
+      { label: "สินค้าใกล้หมด/หมดอายุ", href: "/expiring", icon: Clock3, roles: ["manager", "admin"] },
     ] satisfies NavigationItem[],
   },
   {

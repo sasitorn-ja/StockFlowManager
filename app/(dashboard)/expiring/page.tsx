@@ -30,7 +30,7 @@ export default function ExpiringPage() {
     getClientSession()
       .then((data) => {
         const role = data?.user?.role;
-        setCanViewExpiring(role === "admin");
+        setCanViewExpiring(role === "admin" || role === "manager");
       })
       .catch(() => setCanViewExpiring(false));
     getClientAppSettings()
@@ -88,7 +88,7 @@ export default function ExpiringPage() {
         <div className="dashboard-category-switch flex gap-1 rounded-lg bg-[var(--sky-soft)] p-1 border border-sky-100">
           <button
             type="button"
-            className={`px-3 py-1.5 rounded text-xs font-semibold ${
+            className={`min-h-11 px-3 py-1.5 rounded text-xs font-semibold ${
               selectedImportType === "resale"
                 ? "bg-sky-600 text-white"
                 : "text-sky-700 hover:bg-sky-100"
@@ -99,7 +99,7 @@ export default function ExpiringPage() {
           </button>
           <button
             type="button"
-            className={`px-3 py-1.5 rounded text-xs font-semibold ${
+            className={`min-h-11 px-3 py-1.5 rounded text-xs font-semibold ${
               selectedImportType === "stable"
                 ? "bg-sky-600 text-white"
                 : "text-sky-700 hover:bg-sky-100"

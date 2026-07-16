@@ -112,12 +112,12 @@ textarea {
       url("./picture/bg2.png") center bottom / cover;
     border-right: 1px solid var(--border-soft);
     box-shadow: 0 16px 36px rgba(2, 6, 23, 0.12);
-    @apply fixed inset-y-0 left-0 z-40 flex w-[208px] max-w-[85vw] flex-col overflow-y-auto transition-transform duration-200 lg:hidden;
+    @apply fixed inset-y-0 left-0 z-[60] flex w-[208px] max-w-[85vw] flex-col overflow-y-auto transition-transform duration-200 lg:hidden;
   }
 
   .dashboard-overlay {
     background: rgba(15, 23, 42, 0.45);
-    @apply fixed inset-0 z-30 lg:hidden;
+    @apply fixed inset-0 z-50 lg:hidden;
   }
 
   .dashboard-main {
@@ -1427,7 +1427,9 @@ textarea {
   }
 
   .overview-table-wrap {
-    @apply overflow-x-hidden;
+    @apply overflow-x-auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .overview-table {
@@ -1819,6 +1821,10 @@ textarea {
 
   .issue-page > .receive-panel {
     @apply fixed bottom-0 right-0 top-[72px] z-50 w-[430px] max-w-full overflow-y-auto rounded-none border-0 border-l bg-white shadow-2xl;
+  }
+
+  .issue-panel-overlay {
+    display: none;
   }
 
   .issue-table-card {
@@ -2547,7 +2553,15 @@ textarea {
   }
 
   .delivery-summary-grid {
-    @apply grid gap-4 md:grid-cols-3;
+    @apply grid gap-8 text-[14px] font-semibold leading-8 md:grid-cols-3;
+  }
+
+  .delivery-summary-grid > div {
+    @apply grid content-start gap-3;
+  }
+
+  .delivery-sign-line {
+    @apply min-h-[34px] leading-9;
   }
 
   .delivery-summary-grid-single {
@@ -2614,7 +2628,11 @@ textarea {
   }
 
   .approve-confirm-dialog {
-    overflow: hidden;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     border-color: #d8e5f2;
     box-shadow: 0 32px 90px rgba(15, 23, 42, 0.26);
   }
@@ -3086,6 +3104,16 @@ textarea {
 }
 
 @media (max-width: 1023px) {
+  .issue-panel-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: block;
+    border: 0;
+    background: rgba(15, 23, 42, 0.42);
+    backdrop-filter: blur(2px);
+  }
+
   .issue-page > .receive-panel {
     top: auto;
     width: 100%;
@@ -3110,6 +3138,108 @@ textarea {
 
   .dashboard-spotlight-actions .secondary-button {
     @apply w-full justify-center;
+  }
+
+  .requisition-table button {
+    min-height: 44px !important;
+    min-width: 44px;
+  }
+
+  .settings-action-table th:last-child,
+  .settings-action-table td:last-child,
+  .admin-rights-action-table th:last-child,
+  .admin-rights-action-table td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: #ffffff;
+    box-shadow: -10px 0 18px rgba(15, 23, 42, 0.08);
+  }
+
+  .settings-action-table th:last-child,
+  .admin-rights-action-table th:last-child {
+    background: #f8fafc;
+  }
+}
+
+@media (max-width: 640px) {
+  .icon-button,
+  .dialog-close-button,
+  .receive-panel-header button {
+    min-width: 44px !important;
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .receive-view-tabs button,
+  .overview-filter-menu summary,
+  .overview-filter-dropdown button,
+  .overview-pagination button,
+  .dashboard-nav-subitem {
+    min-height: 44px;
+  }
+
+  .overview-pagination button {
+    min-width: 44px;
+  }
+
+  .receive-form input:not([type="file"]):not([cmdk-input]),
+  .receive-form select,
+  .receive-form [role="combobox"],
+  .receive-form textarea,
+  .control-input,
+  .settings-field input,
+  .settings-field select,
+  .settings-field textarea {
+    font-size: 16px !important;
+  }
+
+  .issue-card-stepper button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .delivery-document {
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .delivery-document-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .delivery-table {
+    min-width: 100%;
+    table-layout: fixed;
+    font-size: 10px;
+  }
+
+  .delivery-table th,
+  .delivery-table td {
+    height: auto;
+    overflow-wrap: anywhere;
+    padding: 4px;
+  }
+
+  .delivery-table th:nth-child(1),
+  .delivery-table td:nth-child(1) {
+    width: 9%;
+  }
+
+  .delivery-table th:nth-child(2),
+  .delivery-table td:nth-child(2) {
+    width: 14%;
+  }
+
+  .delivery-table th:nth-child(4),
+  .delivery-table td:nth-child(4),
+  .delivery-table th:nth-child(5),
+  .delivery-table td:nth-child(5) {
+    width: 18%;
+  }
+
+  .delivery-print-spacer {
+    min-height: 48px;
   }
 }
 

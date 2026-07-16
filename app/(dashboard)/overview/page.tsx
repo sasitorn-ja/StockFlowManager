@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, ClipboardPlus, Clock3, Database, PackageCheck, PackageMinus } from "lucide-react";
+import { AlertTriangle, ClipboardList, ClipboardPlus, Clock3, Database, PackageMinus } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { getClientAppSettings, getClientMasterProducts, getClientSession } from "@/lib/dashboard-client-cache";
 import {
@@ -17,7 +17,6 @@ import {
   matchesMasterProduct,
 } from "@/lib/stock-flow/utils";
 import type { ProductMaster, Transaction } from "@/types/stock-flow";
-import { getRequisitionStatusLabel } from "@/lib/stock-flow/status";
 import { useTransactions } from "../TransactionContext";
 import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
 
@@ -153,6 +152,7 @@ export default function OverviewPage() {
   const [overviewDateFrom, setOverviewDateFrom] = useState(getCurrentMonthStartDate);
   const [overviewDateTo, setOverviewDateTo] = useState(getLocalDateValue);
   const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
+  const [isMasterProductsLoaded, setIsMasterProductsLoaded] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
 
   const userRole = currentUser?.role ?? "employee";
@@ -170,7 +170,8 @@ export default function OverviewPage() {
       .finally(() => setIsCheckingSession(false));
     getClientMasterProducts()
       .then((products) => setMasterProducts(products))
-      .catch(() => setMasterProducts([]));
+      .catch(() => setMasterProducts([]))
+      .finally(() => setIsMasterProductsLoaded(true));
     getClientAppSettings()
       .then((settings) => setAppSettings(settings))
       .catch(() => setAppSettings(defaultAppSettings));
@@ -243,9 +244,40 @@ export default function OverviewPage() {
     () => [...buildInventoryMap(transactionsUntilOverviewDate).values()],
     [transactionsUntilOverviewDate]
   );
+  const inactiveMasterProducts = useMemo(
+    () => masterProducts.filter((product) => !product.isActive),
+    [masterProducts]
+  );
+  const activeInventory = useMemo(
+    () =>
+      isMasterProductsLoaded
+        ? inventory.filter(
+            (item) => !inactiveMasterProducts.some((product) => matchesMasterProduct(item, product))
+          )
+        : [],
+    [inactiveMasterProducts, inventory, isMasterProductsLoaded]
+  );
+  const activeRangeTransactions = useMemo(
+    () =>
+      isMasterProductsLoaded
+        ? rangeTransactions.filter(
+            (item) => !inactiveMasterProducts.some((product) => matchesMasterProduct(item, product))
+          )
+        : [],
+    [inactiveMasterProducts, isMasterProductsLoaded, rangeTransactions]
+  );
+  const activeChartTransactions = useMemo(
+    () =>
+      isMasterProductsLoaded
+        ? chartTransactions.filter(
+            (item) => !inactiveMasterProducts.some((product) => matchesMasterProduct(item, product))
+          )
+        : [],
+    [chartTransactions, inactiveMasterProducts, isMasterProductsLoaded]
+  );
   const inventoryWithTargets = useMemo(
     () =>
-      inventory.map((item) => {
+      activeInventory.map((item) => {
         const matchedProduct = masterProducts.find((product) => matchesMasterProduct(item, product));
         const minStock = matchedProduct?.minStock ?? 0;
         const maxStock = matchedProduct?.maxStock ?? 0;
@@ -257,7 +289,7 @@ export default function OverviewPage() {
           stockTargetStatus: getStockTargetStatus(item.balance, minStock, maxStock),
         };
       }),
-    [inventory, masterProducts]
+    [activeInventory, masterProducts]
   );
 
   const ownRequisitions = useMemo(
@@ -283,10 +315,10 @@ export default function OverviewPage() {
 
   const expiringItems = useMemo(
     () =>
-      inventory
+      activeInventory
         .filter((item) => item.balance > 0 && isExpiringSoon(item.nearestExpiryDate, Number(appSettings.expiryWarningDays || 90)))
         .sort((a, b) => a.nearestExpiryDate.localeCompare(b.nearestExpiryDate)),
-    [appSettings.expiryWarningDays, inventory]
+    [activeInventory, appSettings.expiryWarningDays]
   );
 
   const lowStockInventory = useMemo(
@@ -344,16 +376,16 @@ export default function OverviewPage() {
       ];
     }
 
-    const stockInToday = transactions
+    const stockInToday = activeRangeTransactions
       .filter((item) => item.date === overviewDateTo && item.type === "in")
       .reduce((sum, item) => sum + item.quantity, 0);
-    const stockOutToday = transactions
+    const stockOutToday = activeRangeTransactions
       .filter((item) => item.date === overviewDateTo && item.type === "out")
       .reduce((sum, item) => sum + item.quantity, 0);
     return [
       {
         label: "สินค้าในคลัง",
-        value: formatNumber(inventory.length),
+        value: formatNumber(activeInventory.length),
         unit: "รายการ",
         helper: "รายการที่ยังมีความเคลื่อนไหว",
         icon: Database,
@@ -396,9 +428,10 @@ export default function OverviewPage() {
     ];
   }, [
     appSettings.expiryWarningDays,
+    activeInventory.length,
+    activeRangeTransactions,
     canViewStockOverview,
     expiringItems.length,
-    inventory,
     lowStockItems.length,
     overviewDateTo,
     ownRangeTransactions,
@@ -415,16 +448,16 @@ export default function OverviewPage() {
 
   const estimatedInventoryValue = useMemo(
     () =>
-      inventory.reduce(
+      activeInventory.reduce(
         (sum, item) => sum + item.balance * (item.costPrice > 0 ? item.costPrice : item.price || 0),
         0
       ),
-    [inventory]
+    [activeInventory]
   );
 
   const movementChartPoints = useMemo(() => {
     return enumerateDateRange(overviewDateFrom, overviewDateTo).map((date) => {
-      const dayTransactions = rangeTransactions.filter((item) => item.date === date);
+      const dayTransactions = activeRangeTransactions.filter((item) => item.date === date);
       const stockIn = dayTransactions.filter((item) => item.type === "in").length;
       const stockOut = dayTransactions.filter(
         (item) => item.type === "out" && item.status !== "cancelled"
@@ -440,7 +473,7 @@ export default function OverviewPage() {
         stockOut,
       };
     });
-  }, [overviewDateFrom, overviewDateTo, rangeTransactions]);
+  }, [activeRangeTransactions, overviewDateFrom, overviewDateTo]);
 
   const stockStatusSummary = useMemo(() => {
     return {
@@ -486,7 +519,12 @@ export default function OverviewPage() {
         data: movementChartPoints.map((item) => item.label),
         axisTick: { show: false },
         axisLine: { lineStyle: { color: "#dbe7f5" } },
-        axisLabel: { color: "#64748b", fontFamily: "Sarabun, sans-serif", fontWeight: 700 },
+        axisLabel: {
+          color: "#64748b",
+          fontFamily: "Sarabun, sans-serif",
+          fontWeight: 700,
+          hideOverlap: true,
+        },
       },
       yAxis: {
         type: "value",
@@ -541,6 +579,7 @@ export default function OverviewPage() {
           center: ["50%", "44%"],
           avoidLabelOverlap: true,
           label: { formatter: "{b}\n{c}", color: "#0f172a", fontFamily: "Sarabun, sans-serif", fontWeight: 800 },
+          labelLayout: { hideOverlap: true, moveOverlap: "shiftY" },
           data: [
             { value: stockStatusSummary.normal, name: "ปกติ" },
             { value: stockStatusSummary.low, name: "ต่ำกว่า min" },
@@ -559,7 +598,7 @@ export default function OverviewPage() {
       { key: string; name: string; sku: string; unit: string; issueCount: number; totalQuantity: number; balance: number }
     >();
 
-    chartTransactions
+    activeChartTransactions
       .filter((item) => item.type === "out" && item.status !== "cancelled")
       .forEach((item) => {
         const key = `${item.name}::${item.sku}::${item.unit}`;
@@ -570,7 +609,7 @@ export default function OverviewPage() {
           unit: item.unit,
           issueCount: 0,
           totalQuantity: 0,
-          balance: inventory.find((inventoryItem) => inventoryItem.key === `${item.productImportType ?? "resale"}::${item.name.toLowerCase()}::${item.sku.toLowerCase()}::${item.unit.toLowerCase()}`)?.balance ?? 0,
+          balance: activeInventory.find((inventoryItem) => inventoryItem.key === `${item.productImportType ?? "resale"}::${item.name.toLowerCase()}::${item.sku.toLowerCase()}::${item.unit.toLowerCase()}`)?.balance ?? 0,
         };
 
         current.issueCount += 1;
@@ -581,7 +620,7 @@ export default function OverviewPage() {
     return Array.from(productMap.values())
       .sort((a, b) => b.issueCount - a.issueCount || b.totalQuantity - a.totalQuantity)
       .slice(0, 5);
-  }, [chartTransactions, inventory]);
+  }, [activeChartTransactions, activeInventory]);
 
   const mostReceivedProducts = useMemo(() => {
     const productMap = new Map<
@@ -589,7 +628,7 @@ export default function OverviewPage() {
       { key: string; name: string; sku: string; unit: string; receiveCount: number; totalQuantity: number; balance: number }
     >();
 
-    rangeTransactions
+    activeRangeTransactions
       .filter((item) => item.type === "in")
       .forEach((item) => {
         const key = `${item.name}::${item.sku}::${item.unit}`;
@@ -601,7 +640,7 @@ export default function OverviewPage() {
           receiveCount: 0,
           totalQuantity: 0,
           balance:
-            inventory.find(
+            activeInventory.find(
               (inventoryItem) =>
                 inventoryItem.key ===
                 `${item.productImportType ?? "resale"}::${item.name.toLowerCase()}::${item.sku.toLowerCase()}::${item.unit.toLowerCase()}`
@@ -616,7 +655,7 @@ export default function OverviewPage() {
     return Array.from(productMap.values())
       .sort((a, b) => b.totalQuantity - a.totalQuantity || b.receiveCount - a.receiveCount)
       .slice(0, 5);
-  }, [inventory, rangeTransactions]);
+  }, [activeInventory, activeRangeTransactions]);
 
   const highestBalanceInventory = useMemo(
     () => inventoryWithTargets.filter((item) => item.balance > 0).sort((a, b) => b.balance - a.balance).slice(0, 5),
@@ -626,10 +665,10 @@ export default function OverviewPage() {
   const stockReviewRows = useMemo(() => {
     return inventoryWithTargets
       .map((item) => {
-        const rangeIn = rangeTransactions
+        const rangeIn = activeRangeTransactions
           .filter((transaction) => transaction.type === "in" && transaction.name === item.name && transaction.sku === item.sku && transaction.unit === item.unit)
           .reduce((sum, transaction) => sum + transaction.quantity, 0);
-        const rangeOut = rangeTransactions
+        const rangeOut = activeRangeTransactions
           .filter((transaction) => transaction.type === "out" && transaction.name === item.name && transaction.sku === item.sku && transaction.unit === item.unit && transaction.status !== "cancelled")
           .reduce((sum, transaction) => sum + transaction.quantity, 0);
         const safeMax = item.maxStock > 0 ? item.maxStock : Math.max(item.minStock * 2, item.balance, item.minStock, 1);
@@ -656,7 +695,7 @@ export default function OverviewPage() {
         );
       })
       .slice(0, 12);
-  }, [inventoryWithTargets, rangeTransactions]);
+  }, [activeRangeTransactions, inventoryWithTargets]);
 
   const visibleRequisitions = useMemo(() => {
     if (!canViewStockOverview) return ownRequisitions.slice(0, 5);
@@ -666,66 +705,11 @@ export default function OverviewPage() {
       .slice(0, 5);
   }, [canViewStockOverview, ownRequisitions, transactionsUntilOverviewDate]);
 
-  const managerRequisitions = useMemo(
-    () => groupRequisitions(transactionsUntilOverviewDate),
-    [transactionsUntilOverviewDate]
-  );
-  const managerPending = managerRequisitions.filter(
-    (item) => item.status === "pending" && (!item.approver || item.approver === currentUserName)
-  );
-  const managerApproved = managerRequisitions.filter((item) => item.status === "approved");
-  const managerInProgress = managerRequisitions.filter(
-    (item) => item.status === "issued" || item.status === "received" || item.status === "employee_confirmed"
-  );
-  const managerOwn = managerRequisitions.filter(
-    (item) => item.requester === currentUserName || item.createdBy === currentUserName
-  );
-
   if (isCheckingSession || !canViewStockOverview) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-[var(--text-muted)]">
         กำลังตรวจสอบสิทธิ์...
       </div>
-    );
-  }
-
-  if (userRole === "manager") {
-    return (
-      <section className="manager-dashboard">
-        <header className="manager-dashboard-hero">
-          <div><span>MANAGER WORKSPACE</span><h2>แดชบอร์ดผู้จัดการ</h2><strong>{currentUserName}</strong></div>
-          <div><Link href="/approve">ตรวจสอบใบเบิก <ArrowRight size={16} /></Link><Link href="/issue">สร้างใบเบิก</Link></div>
-        </header>
-
-        <section className="manager-kpi-grid">
-          {[
-            { label: "รอฉันอนุมัติ", value: managerPending.length, unit: "ใบ", icon: Clock3, tone: "amber" },
-            { label: "อนุมัติแล้ว รอคลังจ่าย", value: managerApproved.length, unit: "ใบ", icon: CheckCircle2, tone: "sky" },
-            { label: "กำลังส่งมอบ", value: managerInProgress.length, unit: "ใบ", icon: PackageCheck, tone: "violet" },
-            { label: "ใบเบิกของฉัน", value: managerOwn.length, unit: "ใบ", icon: ClipboardList, tone: "emerald" },
-            { label: "ต่ำกว่า min", value: lowStockItems.length, unit: "รายการ", icon: AlertTriangle, tone: "amber" },
-            { label: "สูงกว่า max", value: highStockItems.length, unit: "รายการ", icon: Database, tone: "sky" },
-          ].map((item) => { const Icon = item.icon; return <article key={item.label}><div className={`manager-kpi-icon ${item.tone}`}><Icon size={21} /></div><span>{item.label}</span><strong>{formatNumber(item.value)}</strong><small>{item.unit}</small></article>; })}
-        </section>
-
-        <section className="manager-dashboard-grid">
-          <article className="manager-work-card manager-work-card-priority">
-            <div className="manager-work-heading"><div><span>งานที่ต้องทำ</span><h3>ใบเบิกรออนุมัติ</h3></div><Link href="/approve">ดูทั้งหมด</Link></div>
-            <div className="manager-request-list">
-              {managerPending.slice(0, 6).map((item) => <Link href="/approve" key={item.issueKey}><div><strong>{item.issueKey}</strong><span>{item.requester} · {formatDate(item.date)}</span></div><div><b>{formatNumber(item.itemCount)} รายการ</b><span>{formatNumber(item.totalQuantity)} หน่วย</span></div><ArrowRight size={16} /></Link>)}
-              {managerPending.length === 0 ? <div className="manager-empty"><CheckCircle2 size={32} /><strong>ไม่มีใบเบิกรออนุมัติ</strong></div> : null}
-            </div>
-          </article>
-
-          <article className="manager-work-card">
-            <div className="manager-work-heading"><div><span>ติดตามงาน</span><h3>ใบเบิกของฉัน</h3></div><Link href="/approve">ดูทั้งหมด</Link></div>
-            <div className="manager-own-list">
-              {managerOwn.slice(0, 6).map((item) => <Link href="/approve" key={item.issueKey}><div><strong>{item.issueKey}</strong><span>{formatDate(item.date)} · {formatNumber(item.totalQuantity)} หน่วย</span></div><em>{getRequisitionStatusLabel(item.status)}</em></Link>)}
-              {managerOwn.length === 0 ? <div className="manager-empty"><ClipboardList size={32} /><strong>ยังไม่มีใบเบิกของคุณ</strong></div> : null}
-            </div>
-          </article>
-        </section>
-      </section>
     );
   }
 

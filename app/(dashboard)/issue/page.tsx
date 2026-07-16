@@ -700,7 +700,14 @@ export default function IssuePage() {
       </div>
 
       {isIssuePanelOpen ? (
-        <aside className="receive-panel">
+        <>
+        <button
+          type="button"
+          className="issue-panel-overlay"
+          aria-label="ปิดฟอร์มเบิกสินค้า"
+          onClick={() => setIsIssuePanelOpen(false)}
+        />
+        <aside className="receive-panel" role="dialog" aria-modal="true" aria-label="ฟอร์มเบิกจ่ายสินค้า">
           <div className="receive-panel-header">
             <div>
               <h3>เบิกจ่ายสินค้า</h3>
@@ -859,6 +866,7 @@ export default function IssuePage() {
             </div>
           </div>
         </aside>
+        </>
       ) : null}
     </section>
   );
