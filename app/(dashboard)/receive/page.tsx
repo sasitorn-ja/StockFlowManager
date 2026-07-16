@@ -32,6 +32,7 @@ import {
   buildInventoryMap,
   buildInventoryLotMap,
   buildInventoryLotKey,
+  buildItemKey,
   createEmptyForm,
   createTransactionId,
   getLocalDateValue,
@@ -51,7 +52,7 @@ import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared"
 type OverviewFilter = "all" | ProductImportType;
 type ReceiveView = "receipts" | "inventory";
 type UserRole = "employee" | "manager" | "admin";
-type ReceiveComboboxKey = "productImportType" | "category" | "product" | "storageLocation";
+type ReceiveComboboxKey = "productImportType" | "category" | "product" | "unit" | "storageLocation";
 type ReceiveProductSuggestion = {
   key: string;
   masterProductId?: string;
@@ -121,6 +122,19 @@ export default function ReceivePage() {
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
 
+  const latestInventoryRecordTimes = useMemo(() => {
+    const latestTimes = new Map<string, number>();
+
+    transactions
+      .filter((item) => item.type === "in")
+      .forEach((item) => {
+        const itemKey = buildItemKey(item);
+        latestTimes.set(itemKey, Math.max(latestTimes.get(itemKey) ?? 0, item.createdAt));
+      });
+
+    return latestTimes;
+  }, [transactions]);
+
   const lotLabels = useMemo(() => {
     const lots = Array.from(buildInventoryLotMap(transactions).values()).sort(
       (a, b) =>
@@ -166,21 +180,12 @@ export default function ReceivePage() {
           ...item,
           minStock,
           maxStock,
+          latestRecordedAt: latestInventoryRecordTimes.get(item.key) ?? 0,
           stockTargetStatus: getStockTargetStatus(item.balance, minStock, maxStock),
         };
       })
-      .sort((a, b) => {
-        const statusPriority = { low: 0, high: 1, normal: 2, missing: 3 } as const;
-        return (
-          statusPriority[a.stockTargetStatus] - statusPriority[b.stockTargetStatus] ||
-          getProductImportTypeLabel(a.productImportType).localeCompare(
-            getProductImportTypeLabel(b.productImportType),
-            "th"
-          ) ||
-          a.name.localeCompare(b.name, "th")
-        );
-      });
-  }, [inventory, masterProducts, receiveFilter, searchTerm]);
+      .sort((a, b) => b.latestRecordedAt - a.latestRecordedAt || a.name.localeCompare(b.name, "th"));
+  }, [inventory, latestInventoryRecordTimes, masterProducts, receiveFilter, searchTerm]);
 
   const receiveTransactions = useMemo(() => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
@@ -328,6 +333,15 @@ export default function ReceivePage() {
       )
     ).sort((a, b) => a.localeCompare(b, "th"));
   }, [transactions]);
+  const receiveUnitSuggestions = useMemo(() => {
+    return Array.from(
+      new Set(
+        [...masterProducts.map((item) => item.unit), ...transactions.map((item) => item.unit)]
+          .map((unit) => unit.trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b, "th"));
+  }, [masterProducts, transactions]);
 
   const autoRecordTimeLabel = useMemo(
     () => {
@@ -763,12 +777,13 @@ export default function ReceivePage() {
         "เลขที่รับเข้า": `${appSettings.receivePrefix || "IN"}-${item.date.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`,
         "ล็อต": lotLabels.get(lotKey) || "-",
         "วันที่รับเข้า": formatDate(item.date),
+        "วันที่ผลิต": item.manufactureDate ? formatDate(item.manufactureDate) : "-",
         "เวลาบันทึก": new Date(item.createdAt).toLocaleTimeString("th-TH", {
           hour: "2-digit",
           minute: "2-digit",
         }),
         "วันหมดอายุ": item.expiryDate ? formatDate(item.expiryDate) : "-",
-        "จุดเก็บ / คลังย่อย": item.requester || "-",
+        "สถานที่จัดเก็บ": item.requester || "-",
         "รายการสินค้า": item.name,
         "รหัสสินค้า": item.sku || "-",
         "จำนวน": item.quantity,
@@ -833,8 +848,8 @@ export default function ReceivePage() {
     const quantity = Number(form.quantity);
     const price = Number(form.price || 0);
     const costPrice = Number(form.costPrice || 0);
-    const minStock = Math.max(0, Math.floor(Number(form.minStock || 0)));
-    const maxStock = Math.max(0, Math.floor(Number(form.maxStock || 0)));
+    const minStock = Math.max(0, Number(form.minStock || 0));
+    const maxStock = Math.max(0, Number(form.maxStock || 0));
 
     if (
       !Number.isFinite(quantity) ||
@@ -847,13 +862,28 @@ export default function ReceivePage() {
       return;
     }
 
-    if (!Number.isInteger(quantity) || quantity <= 0) {
-      window.alert("จำนวนสินค้าต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป");
+    if (quantity <= 0) {
+      window.alert("จำนวนสินค้าต้องเป็นตัวเลขที่มากกว่า 0");
       return;
     }
 
     if (maxStock > 0 && minStock > maxStock) {
       window.alert("จำนวนขั้นต่ำ (min) ต้องไม่มากกว่าจำนวนสูงสุด (max)");
+      return;
+    }
+
+    if (form.manufactureDate && form.date && form.manufactureDate > form.date) {
+      window.alert("วันที่ผลิตต้องไม่เกินวันที่รับเข้า");
+      return;
+    }
+
+    if (form.expiryDate && form.date && form.expiryDate < form.date) {
+      window.alert("วันหมดอายุต้องไม่น้อยกว่าวันที่รับเข้า");
+      return;
+    }
+
+    if (form.manufactureDate && form.expiryDate && form.expiryDate < form.manufactureDate) {
+      window.alert("วันหมดอายุต้องไม่น้อยกว่าวันที่ผลิต");
       return;
     }
 
@@ -875,7 +905,7 @@ export default function ReceivePage() {
       name: (baseProduct?.name ?? form.name).trim(),
       sku: sanitizeSku((baseProduct?.sku ?? form.sku).trim()),
       category: (baseProduct?.category ?? form.category).trim() || "-",
-      imageDataUrl: baseProduct?.imageDataUrl || form.imageDataUrl,
+      imageDataUrl: form.imageDataUrl || baseProduct?.imageDataUrl,
       productImportType: baseProduct?.productImportType ?? selectedProductImportType,
       unit: (baseProduct?.unit ?? form.unit).trim(),
       type: "in",
@@ -884,6 +914,7 @@ export default function ReceivePage() {
       costPrice: Math.max(0, costPrice),
       costCurrency: form.costCurrency,
       date: form.date,
+      manufactureDate: form.manufactureDate,
       expiryDate: form.expiryDate,
       issueKey: "",
       requester: form.requester.trim(),
@@ -942,7 +973,8 @@ export default function ReceivePage() {
         }
       } else if (
         existingMasterProduct.minStock !== minStock ||
-        existingMasterProduct.maxStock !== maxStock
+        existingMasterProduct.maxStock !== maxStock ||
+        (existingMasterProduct.imageDataUrl || "") !== (transaction.imageDataUrl || "")
       ) {
         const productResponse = await fetch(withBasePath("/api/master-products"), {
           method: "PUT",
@@ -951,6 +983,7 @@ export default function ReceivePage() {
             ...existingMasterProduct,
             minStock,
             maxStock,
+            imageDataUrl: transaction.imageDataUrl || "",
           }),
         });
         if (!productResponse.ok) {
@@ -964,7 +997,10 @@ export default function ReceivePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(transaction),
       });
-      if (!response.ok) throw new Error("Unable to save stock receipt");
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null);
+        throw new Error(detail?.error || "Unable to save stock receipt");
+      }
       invalidateClientMasterProductsCache();
       const refreshedProductsResponse = await fetch(withBasePath("/api/master-products"), {
         cache: "no-store",
@@ -1113,7 +1149,7 @@ export default function ReceivePage() {
                       <th>เลขที่รับเข้า / ล็อต</th>
                       <th>รูปภาพสินค้า</th>
                       <th>วันที่รับเข้า / เวลาบันทึก</th>
-                      <th>จุดเก็บ / คลังย่อย</th>
+                      <th>สถานที่จัดเก็บ</th>
                       <th>รายการสินค้า</th>
                       <th>จำนวนรายการ</th>
                       <th>ต้นทุนต่อหน่วย</th>
@@ -1135,7 +1171,11 @@ export default function ReceivePage() {
                           <tr key={`receive-${item.id}`}>
                             <td>
                               <strong className="sku-cell">{receiveNo}</strong>
-                              <span>{lotLabel}{item.expiryDate ? ` · หมดอายุ ${formatDate(item.expiryDate)}` : " · ไม่มีวันหมดอายุ"}</span>
+                              <span>
+                                {lotLabel}
+                                {item.manufactureDate ? ` · ผลิต ${formatDate(item.manufactureDate)}` : ""}
+                                {item.expiryDate ? ` · หมดอายุ ${formatDate(item.expiryDate)}` : " · ไม่มีวันหมดอายุ"}
+                              </span>
                             </td>
                             <td>
                               {item.imageDataUrl ? (
@@ -1208,6 +1248,7 @@ export default function ReceivePage() {
                       <th>min / max</th>
                       <th>สถานะ</th>
                       <th>หมดอายุใกล้สุด</th>
+                      <th>วันที่บันทึกข้อมูล</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1237,9 +1278,9 @@ export default function ReceivePage() {
                           <td>
                             <span className={`stock-pill ${
                               item.stockTargetStatus === "low"
-                                ? "stock-pill-danger"
+                                ? "stock-pill-warn"
                                 : item.stockTargetStatus === "high"
-                                  ? "stock-pill-warn"
+                                  ? "stock-pill-danger"
                                   : item.stockTargetStatus === "normal"
                                     ? "stock-pill-ok"
                                     : ""
@@ -1254,11 +1295,24 @@ export default function ReceivePage() {
                             </span>
                           </td>
                           <td>{item.nearestExpiryDate ? formatDate(item.nearestExpiryDate) : "-"}</td>
+                          <td>
+                            {item.latestRecordedAt > 0 ? (
+                              <>
+                                <strong>{new Date(item.latestRecordedAt).toLocaleDateString("th-TH")}</strong>
+                                <span>
+                                  {new Date(item.latestRecordedAt).toLocaleTimeString("th-TH", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </>
+                            ) : "-"}
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={7}>
+                        <td colSpan={8}>
                           <div className="empty-state">ไม่พบสินค้าในคลังที่ตรงกับตัวกรอง</div>
                         </td>
                       </tr>
@@ -1377,7 +1431,7 @@ export default function ReceivePage() {
 
             <div className="receive-form-grid">
               <label>
-                <span>รายการสินค้า *</span>
+                <span>ชื่อรายการสินค้า *</span>
                 <ComboboxInput
                   className={showMissingProductError ? "receive-input-error" : ""}
                   value={form.name}
@@ -1433,20 +1487,20 @@ export default function ReceivePage() {
                   <button
                     type="button"
                     aria-label="ลดจำนวน"
-                    disabled={!isCategoryReady || Number(form.quantity || 1) <= 1}
-                    onClick={() => updateForm("quantity", String(Math.max(1, Number(form.quantity || 1) - 1)))}
+                    disabled={!isCategoryReady || Number(form.quantity || 0) <= 0}
+                    onClick={() => updateForm("quantity", String(Math.max(0.0001, Number(form.quantity || 1) - 1)))}
                   >
                     <Minus size={17} />
                   </button>
                   <input
                     type="number"
-                    inputMode="numeric"
-                    min="1"
-                    step="1"
+                    inputMode="decimal"
+                    min="0.0001"
+                    step="0.0001"
                     value={form.quantity}
                     onChange={(event) => {
                       const value = event.target.value;
-                      if (value === "" || /^\d+$/.test(value)) updateForm("quantity", value);
+                      if (value === "" || /^\d*(?:\.\d{0,4})?$/.test(value)) updateForm("quantity", value);
                     }}
                     disabled={!isCategoryReady}
                     required
@@ -1464,12 +1518,18 @@ export default function ReceivePage() {
 
               <label>
                 <span>หน่วย *</span>
-                <input
+                <ComboboxInput
                   value={form.unit}
-                  onChange={(event) => updateForm("unit", event.target.value)}
+                  onValueChange={(value) => updateForm("unit", value)}
+                  open={openReceiveCombobox === "unit"}
+                  onOpenChange={(open) => handleReceiveComboboxOpenChange("unit", open)}
+                  options={receiveUnitSuggestions.map((unit) => ({ value: unit, label: unit }))}
                   placeholder="เช่น แผ่น / ถุง / ชิ้น"
+                  searchPlaceholder="ค้นหาหรือพิมพ์หน่วย..."
+                  emptyText="ยังไม่มีหน่วยในระบบ"
+                  allowCustomValue={canCreateNewProduct}
+                  portalled={false}
                   disabled={!isCategoryReady || !canCreateNewProduct}
-                  required
                 />
               </label>
               <label>
@@ -1477,10 +1537,14 @@ export default function ReceivePage() {
                 <div className="cost-currency-control">
                   <input
                     type="number"
+                    inputMode="decimal"
                     min="0"
-                    step="0.01"
+                    step="0.0001"
                     value={form.costPrice}
-                    onChange={(event) => updateForm("costPrice", event.target.value)}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value === "" || /^\d*(?:\.\d{0,4})?$/.test(value)) updateForm("costPrice", value);
+                    }}
                     disabled={!isCategoryReady}
                   />
                   <select
@@ -1502,7 +1566,7 @@ export default function ReceivePage() {
               </label>
 
               <label>
-                <span>จุดเก็บ / คลังย่อย</span>
+                <span>สถานที่จัดเก็บ</span>
                 <ComboboxInput
                   value={form.requester}
                   onValueChange={(value) => updateForm("requester", value)}
@@ -1512,9 +1576,9 @@ export default function ReceivePage() {
                     value: item,
                     label: item,
                   }))}
-                  placeholder="โปรดเลือกจุดเก็บ"
+                  placeholder="โปรดเลือกสถานที่จัดเก็บ"
                   portalled={false}
-                  searchPlaceholder="ค้นหาหรือพิมพ์จุดเก็บ..."
+                  searchPlaceholder="ค้นหาหรือพิมพ์สถานที่จัดเก็บ..."
                   disabled={!isCategoryReady}
                 />
               </label>
@@ -1525,13 +1589,13 @@ export default function ReceivePage() {
                 <span>จำนวนขั้นต่ำ (min)</span>
                 <input
                   type="number"
-                  inputMode="numeric"
+                  inputMode="decimal"
                   min="0"
-                  step="1"
+                  step="0.0001"
                   value={form.minStock}
                   onChange={(event) => {
                     const value = event.target.value;
-                    if (value === "" || /^\d+$/.test(value)) updateForm("minStock", value);
+                    if (value === "" || /^\d*(?:\.\d{0,4})?$/.test(value)) updateForm("minStock", value);
                   }}
                   placeholder="0"
                   disabled={!isCategoryReady}
@@ -1543,13 +1607,13 @@ export default function ReceivePage() {
                 <span>จำนวนสูงสุด (max)</span>
                 <input
                   type="number"
-                  inputMode="numeric"
+                  inputMode="decimal"
                   min="0"
-                  step="1"
+                  step="0.0001"
                   value={form.maxStock}
                   onChange={(event) => {
                     const value = event.target.value;
-                    if (value === "" || /^\d+$/.test(value)) updateForm("maxStock", value);
+                    if (value === "" || /^\d*(?:\.\d{0,4})?$/.test(value)) updateForm("maxStock", value);
                   }}
                   placeholder="0"
                   disabled={!isCategoryReady}
@@ -1563,10 +1627,12 @@ export default function ReceivePage() {
                 <span>วันที่ผลิต</span>
                 <input
                   type="date"
-                  value={form.issueKey}
-                  onChange={(event) => updateForm("issueKey", event.target.value)}
+                  value={form.manufactureDate}
+                  max={form.date || form.expiryDate || undefined}
+                  onChange={(event) => updateForm("manufactureDate", event.target.value)}
                   disabled={!isCategoryReady}
                 />
+                <small>วันที่ผลิตต้องไม่เกินวันที่รับเข้า</small>
               </label>
 
               <label>
@@ -1574,9 +1640,11 @@ export default function ReceivePage() {
                 <input
                   type="date"
                   value={form.expiryDate}
+                  min={form.date || form.manufactureDate || undefined}
                   onChange={(event) => updateForm("expiryDate", event.target.value)}
                   disabled={!isCategoryReady}
                 />
+                <small>วันหมดอายุต้องไม่น้อยกว่าวันที่รับเข้า</small>
               </label>
             </div>
 
@@ -1586,6 +1654,8 @@ export default function ReceivePage() {
                 <input
                   type="date"
                   value={form.date}
+                  min={form.manufactureDate || undefined}
+                  max={form.expiryDate || undefined}
                   onChange={(event) => updateForm("date", event.target.value)}
                   disabled={!isCategoryReady}
                   required

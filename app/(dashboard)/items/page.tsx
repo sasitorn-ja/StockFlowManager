@@ -158,9 +158,9 @@ function ItemsSection({ inventory }: ItemsSectionProps) {
           <article key={item.key} className="inventory-product-card">
             <div className="inventory-product-image">{item.imageDataUrl ? <img src={item.imageDataUrl} alt={item.name} /> : <Package size={42} />}<span>{getProductImportTypeLabel(item.productImportType)}</span></div>
             <div className="inventory-product-content"><small>{item.sku || "ไม่มีรหัสสินค้า"}</small><h3>{item.name}</h3><p>{item.category}</p>
-              <div className="inventory-balance"><span>คงเหลือ</span><strong className={item.stockTargetStatus === "low" ? "low" : ""}>{formatNumber(item.balance)} <small>{item.unit}</small></strong></div>
+              <div className="inventory-balance"><span>คงเหลือ</span><strong className={item.stockTargetStatus}>{formatNumber(item.balance)} <small>{item.unit}</small></strong></div>
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className={`stock-pill ${item.stockTargetStatus === "low" ? "stock-pill-danger" : item.stockTargetStatus === "high" ? "stock-pill-warn" : item.stockTargetStatus === "normal" ? "stock-pill-ok" : ""}`}>
+                <span className={`stock-pill ${item.stockTargetStatus === "low" ? "stock-pill-warn" : item.stockTargetStatus === "high" ? "stock-pill-danger" : item.stockTargetStatus === "normal" ? "stock-pill-ok" : ""}`}>
                   {item.stockTargetStatus === "low" ? "ต่ำกว่า min" : item.stockTargetStatus === "high" ? "สูงกว่า max" : item.stockTargetStatus === "normal" ? "อยู่ในช่วง" : "ยังไม่ตั้งค่า"}
                 </span>
                 <span className="text-[var(--text-muted)]">

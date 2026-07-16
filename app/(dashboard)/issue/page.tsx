@@ -1,16 +1,14 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Minus,
   Package,
   Plus,
-  RefreshCw,
   Search,
   ShoppingCart,
   Trash2,
-  X,
 } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import { getClientAppSettings, getClientSession } from "@/lib/dashboard-client-cache";
@@ -247,7 +245,6 @@ export default function IssuePage() {
         setIssueApprover(draft.approver || "");
         setIssueApproverEmail(draft.approverEmail || "");
         setIssueNote(draft.note || "");
-        setIsIssuePanelOpen(true);
       } catch (e) {
         console.error("Failed to parse cached draft", e);
       }
@@ -412,7 +409,6 @@ export default function IssuePage() {
           },
       }));
     }
-    setIsIssuePanelOpen(true);
   }
 
   function updateIssueSelection(itemKey: string, nextValue: Partial<IssueSelectionValue>) {
@@ -516,11 +512,11 @@ export default function IssuePage() {
     }
 
     const invalidEntry = selectedEntries.find(
-      ({ quantity }) => !Number.isFinite(quantity) || !Number.isInteger(quantity) || quantity <= 0
+      ({ quantity }) => !Number.isFinite(quantity) || quantity <= 0
     );
 
     if (invalidEntry) {
-      window.alert("จำนวนที่ต้องการเบิกต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไปทุกรายการ");
+      window.alert("จำนวนที่ต้องการเบิกต้องเป็นตัวเลขที่มากกว่า 0 ทุกรายการ");
       return;
     }
 
@@ -618,11 +614,11 @@ export default function IssuePage() {
     }
 
     const invalidEntry = selectedEntries.find(
-      ({ quantity }) => !Number.isFinite(quantity) || !Number.isInteger(quantity) || quantity <= 0
+      ({ quantity }) => !Number.isFinite(quantity) || quantity <= 0
     );
 
     if (invalidEntry) {
-      window.alert("จำนวนที่ต้องการเบิกต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไปทุกรายการ");
+      window.alert("จำนวนที่ต้องการเบิกต้องเป็นตัวเลขที่มากกว่า 0 ทุกรายการ");
       return;
     }
 
@@ -767,7 +763,7 @@ export default function IssuePage() {
   return (
     <section
       id="issue"
-      className={`issue-page ${isIssuePanelOpen ? "issue-page-panel-open" : ""}`}
+      className="issue-page"
     >
       <div className="issue-marketplace">
         <div className="issue-shop-hero">
@@ -824,31 +820,12 @@ export default function IssuePage() {
         </div>
       </div>
 
-      {isIssuePanelOpen ? (
-        <>
-        <button
-          type="button"
-          className="issue-panel-overlay"
-          aria-label="ปิดฟอร์มเบิกสินค้า"
-          onClick={() => setIsIssuePanelOpen(false)}
-        />
-        <aside className="receive-panel issue-requisition-panel" role="dialog" aria-modal="true" aria-label="ฟอร์มเบิกจ่ายสินค้า">
-          <div className="receive-panel-header">
-            <div>
-              <h3>เบิกจ่ายสินค้า</h3>
-              <p>เลือกสินค้าและจำนวนที่ต้องการเบิก</p>
-            </div>
-            <button
-              type="button"
-              aria-label="ปิดฟอร์ม"
-              onClick={() => {
-                setIsIssuePanelOpen(false);
-              }}
-            >
-              <X size={18} />
-            </button>
-          </div>
-
+      <Dialog open={isIssuePanelOpen} onOpenChange={setIsIssuePanelOpen}>
+        <DialogContent className="issue-cart-dialog flex max-h-[calc(100dvh-24px)] flex-col overflow-hidden sm:max-w-[860px]">
+          <DialogHeader>
+            <DialogTitle>ตะกร้าเบิกสินค้า</DialogTitle>
+            <DialogDescription>ตรวจสอบสินค้า จำนวน ผู้ขอเบิก และผู้อนุมัติก่อนบันทึก</DialogDescription>
+          </DialogHeader>
           <div className="issue-quick-form issue-quick-form-panel">
             <div className="issue-quick-form-scroll">
             <label>
@@ -893,10 +870,6 @@ export default function IssuePage() {
               {selectedIssueEntries.length > 0 ? (
                 selectedIssueEntries.map(({ item, selection }) => {
                   const imageDataUrl = item.lots.find((lot) => lot.imageDataUrl)?.imageDataUrl;
-                  const allocationMode = item.lots.some((lot) => Boolean(lot.expiryDate))
-                    ? "FEFO (หมดอายุก่อน)"
-                    : "FIFO (เข้าก่อนออกก่อน)";
-
                   return (
                   <article key={`selected-issue-${item.key}`} className="issue-selection-item">
                     <div className="issue-selection-image">
@@ -926,11 +899,6 @@ export default function IssuePage() {
                         </button>
                       </div>
 
-                      <div className="issue-selection-allocation-mode">
-                        <RefreshCw size={15} />
-                        <span>ระบบจะเลือกล็อตให้อัตโนมัติแบบ {allocationMode}</span>
-                      </div>
-
                       <label className="issue-selection-quantity">
                         <span>จำนวน</span>
                         <div className="issue-selection-stepper">
@@ -938,7 +906,7 @@ export default function IssuePage() {
                             type="button"
                             aria-label={`ลดจำนวน ${item.name}`}
                             onClick={() => {
-                              const next = Math.max(1, Number(selection.quantity || 1) - 1);
+                              const next = Math.max(0.0001, Number(selection.quantity || 1) - 1);
                               updateIssueSelection(item.key, { quantity: String(next) });
                             }}
                           >
@@ -946,15 +914,15 @@ export default function IssuePage() {
                           </button>
                           <input
                             type="number"
-                            inputMode="numeric"
-                            min="1"
+                            inputMode="decimal"
+                            min="0.0001"
                             max={appSettings.allowNegativeStock ? undefined : item.totalBalance}
-                            step="1"
+                            step="0.0001"
                             value={selection.quantity}
                             aria-label={`จำนวนเบิก ${item.name}`}
                             onChange={(event) => {
                               const value = event.target.value;
-                              if (value === "" || /^\d+$/.test(value)) updateIssueSelection(item.key, { quantity: value });
+                              if (value === "" || /^\d*(?:\.\d{0,4})?$/.test(value)) updateIssueSelection(item.key, { quantity: value });
                             }}
                           />
                           <button
@@ -1015,8 +983,9 @@ export default function IssuePage() {
               </Button>
             </div>
           </div>
-        </aside>
-        <Dialog open={isIssueConfirmOpen} onOpenChange={setIsIssueConfirmOpen}>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isIssueConfirmOpen} onOpenChange={setIsIssueConfirmOpen}>
           <DialogContent className="max-w-3xl overflow-hidden">
             <DialogHeader>
               <DialogTitle>ยืนยันบันทึกใบเบิกสินค้า</DialogTitle>
@@ -1037,17 +1006,11 @@ export default function IssuePage() {
                         <th className="px-4 py-2">สินค้า</th>
                         <th className="px-4 py-2">ประเภท</th>
                         <th className="px-4 py-2 text-right">จำนวนเบิก</th>
-                        <th className="px-4 py-2">การจัดล็อต</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {selectedIssueEntries.map(({ item, selection }) => {
                         const quantity = Number(selection.quantity);
-                        const allocationPreview =
-                          Number.isFinite(quantity) && quantity > 0
-                            ? buildAutoAllocationPlan(item, quantity, appSettings.allocationMode, appSettings.allowNegativeStock)
-                            : { plan: [], remaining: 0 };
-
                         return (
                           <tr key={`confirm-issue-${item.key}`} className="bg-white">
                             <td className="px-4 py-3">
@@ -1061,11 +1024,6 @@ export default function IssuePage() {
                             </td>
                             <td className="px-4 py-3 text-right font-bold text-slate-900">
                               {formatNumber(quantity)} {item.unit}
-                            </td>
-                            <td className="px-4 py-3 text-slate-600">
-                              {allocationPreview.plan.length > 0
-                                ? `${formatNumber(allocationPreview.plan.length)} ล็อต · ${item.lots.some((lot) => Boolean(lot.expiryDate)) ? "FEFO" : "FIFO"}`
-                                : "-"}
                             </td>
                           </tr>
                         );
@@ -1101,9 +1059,7 @@ export default function IssuePage() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
-        </>
-      ) : null}
+      </Dialog>
     </section>
   );
 }

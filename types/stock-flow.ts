@@ -24,6 +24,7 @@ export type Transaction = {
   costPrice: number;
   costCurrency: CostCurrency;
   date: string;
+  manufactureDate?: string;
   expiryDate: string;
   issueKey: string;
   requester?: string;
@@ -31,6 +32,10 @@ export type Transaction = {
   createdBy?: string;
   approver?: string;
   approvedAt?: number;
+  issuedAt?: number;
+  receivedAt?: number;
+  completedAt?: number;
+  cancelledAt?: number;
   note: string;
   createdAt: number;
   status?: TransactionStatus;

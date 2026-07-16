@@ -99,6 +99,7 @@ export function createEmptyForm(): FormState {
     minStock: "0",
     maxStock: "0",
     date: getLocalDateValue(),
+    manufactureDate: "",
     expiryDate: "",
     issueKey: "",
     requester: "",
@@ -114,7 +115,7 @@ export function normalizeTransactions(value: unknown): Transaction[] {
   return value
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
     .map((item) => {
-      const quantity = Math.max(0, Math.floor(toNumberValue(item.quantity)));
+      const quantity = Math.max(0, toNumberValue(item.quantity));
       const createdAt = toNumberValue(item.createdAt, Date.now());
 
       return {
@@ -131,12 +132,17 @@ export function normalizeTransactions(value: unknown): Transaction[] {
         costPrice: Math.max(0, toNumberValue(item.costPrice)),
         costCurrency: toCostCurrency(item.costCurrency),
         date: toStringValue(item.date) || getLocalDateValue(),
+        manufactureDate: toStringValue(item.manufactureDate),
         expiryDate: toStringValue(item.expiryDate),
         issueKey: toStringValue(item.issueKey).trim(),
         requester: toStringValue(item.requester).trim(),
         createdBy: toStringValue(item.createdBy).trim(),
         approver: toStringValue(item.approver).trim(),
         approvedAt: Math.max(0, toNumberValue(item.approvedAt)),
+        issuedAt: Math.max(0, toNumberValue(item.issuedAt)),
+        receivedAt: Math.max(0, toNumberValue(item.receivedAt)),
+        completedAt: Math.max(0, toNumberValue(item.completedAt)),
+        cancelledAt: Math.max(0, toNumberValue(item.cancelledAt)),
         note: toStringValue(item.note).trim(),
         createdAt,
         status: toTransactionStatus(item.status),

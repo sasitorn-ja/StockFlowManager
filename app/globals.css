@@ -1659,6 +1659,10 @@ textarea {
     @apply flex min-h-0 flex-1 flex-col overflow-hidden;
   }
 
+  .receive-entry-dialog {
+    height: min(88vh, calc(100dvh - 24px));
+  }
+
   .receive-form-scroll {
     @apply grid min-h-0 flex-1 gap-4 overflow-y-auto p-5;
   }
@@ -1875,7 +1879,7 @@ textarea {
   .receive-form .receive-upload-dropzone {
     border: 1px dashed #a8c8ea;
     background: rgba(248, 251, 255, 0.88);
-    @apply flex min-h-20 cursor-pointer grid-cols-none content-center items-center gap-3 rounded-lg px-4 py-3 transition-colors hover:border-blue-400 hover:bg-blue-50/60;
+    @apply flex h-20 min-h-20 cursor-pointer grid-cols-none content-center items-center gap-3 overflow-hidden rounded-lg px-4 py-3 transition-colors hover:border-blue-400 hover:bg-blue-50/60;
   }
 
   .receive-form .receive-upload-dropzone.is-disabled {
@@ -2127,6 +2131,8 @@ textarea {
   .inventory-balance > span { @apply text-xs font-bold text-slate-500; }
   .inventory-balance strong { @apply text-xl font-black text-[#0b63bd]; }
   .inventory-balance strong.low { @apply text-amber-600; }
+  .inventory-balance strong.high { @apply text-red-600; }
+  .inventory-balance strong.normal { @apply text-emerald-600; }
   .inventory-balance strong small { @apply text-xs font-bold; }
   .inventory-product-content dl { @apply grid grid-cols-3 gap-2 py-2; }
   .inventory-product-content dl div { @apply min-w-0 text-center; }
@@ -2158,6 +2164,10 @@ textarea {
   .issue-quick-form-panel {
     border-top: 0;
     @apply flex min-h-0 flex-1 flex-col overflow-hidden p-0 md:grid-cols-none md:items-stretch;
+  }
+
+  .issue-cart-dialog {
+    height: min(88vh, calc(100dvh - 24px));
   }
 
   .issue-quick-form-scroll {

@@ -137,7 +137,7 @@ export default function ExpiringPage() {
           description={`แสดงสินค้าคงเหลือที่ใกล้หมดอายุภายใน ${formatNumber(Number(appSettings.expiryWarningDays || 90))} วัน เฉพาะกลุ่มนี้`}
         >
           <Table
-            headers={["สินค้า", "ล็อต", "วันที่รับเข้า", "วันหมดอายุ", "เหลือเวลา", "จุดเก็บ", "คงเหลือ"]}
+            headers={["สินค้า", "ล็อต", "วันที่รับเข้า", "วันหมดอายุ", "เหลือเวลา", "สถานที่จัดเก็บ", "คงเหลือ"]}
             emptyMessage={`ยังไม่มีสินค้า ${groupData.label} ที่ใกล้หมดอายุภายใน ${formatNumber(Number(appSettings.expiryWarningDays || 90))} วัน`}
             columnCount={7}
           >

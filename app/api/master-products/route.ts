@@ -38,8 +38,10 @@ async function ensureMasterProductTableExists() {
     `;
 
     await ensureColumnDefinition("products", "imageDataUrl", "LONGTEXT");
-    await ensureColumn("products", "minStock", "BIGINT DEFAULT 0");
-    await ensureColumn("products", "maxStock", "BIGINT DEFAULT 0");
+    await ensureColumnDefinition("products", "price", "DECIMAL(15,4) NOT NULL DEFAULT 0");
+    await ensureColumnDefinition("products", "costPrice", "DECIMAL(15,4) NOT NULL DEFAULT 0");
+    await ensureColumnDefinition("products", "minStock", "DECIMAL(15,4) NOT NULL DEFAULT 0");
+    await ensureColumnDefinition("products", "maxStock", "DECIMAL(15,4) NOT NULL DEFAULT 0");
 
   })().catch((error) => {
     masterProductTableSetup = null;
@@ -233,8 +235,8 @@ function normalizeProductPayload(payload: Record<string, unknown>) {
       payload.costCurrency === "THB"
         ? payload.costCurrency
         : "THB",
-    minStock: Math.max(0, Math.floor(Number(payload.minStock || 0))),
-    maxStock: Math.max(0, Math.floor(Number(payload.maxStock || 0))),
+    minStock: Math.max(0, Number(payload.minStock || 0)),
+    maxStock: Math.max(0, Number(payload.maxStock || 0)),
     defaultStorageLocation: String(payload.defaultStorageLocation || "").trim(),
     defaultExpiryDate: String(payload.defaultExpiryDate || "").trim(),
     vendor: String(payload.vendor || "").trim(),
@@ -294,8 +296,8 @@ export async function GET() {
         CAST(price AS FLOAT) AS price,
         CAST("costPrice" AS FLOAT) AS "costPrice",
         "costCurrency",
-        CAST("minStock" AS SIGNED) AS "minStock",
-        CAST("maxStock" AS SIGNED) AS "maxStock",
+        CAST("minStock" AS DOUBLE) AS "minStock",
+        CAST("maxStock" AS DOUBLE) AS "maxStock",
         "defaultStorageLocation",
         "defaultExpiryDate",
         vendor,
@@ -324,6 +326,9 @@ export async function POST(request: Request) {
 
     if (!product.name || !product.unit) {
       return NextResponse.json({ error: "กรอกชื่อสินค้าและหน่วยนับให้ครบก่อนบันทึก" }, { status: 400 });
+    }
+    if (![product.price, product.costPrice, product.minStock, product.maxStock].every(Number.isFinite)) {
+      return NextResponse.json({ error: "กรอกราคา ต้นทุน และจำนวนสต๊อกเป็นตัวเลขที่ถูกต้อง" }, { status: 400 });
     }
 
     if (product.maxStock > 0 && product.minStock > product.maxStock) {
@@ -461,6 +466,9 @@ export async function PUT(request: Request) {
     const product = normalizeProductPayload(body);
     if (!product.name || !product.unit) {
       return NextResponse.json({ error: "กรอกชื่อสินค้าและหน่วยนับให้ครบก่อนบันทึก" }, { status: 400 });
+    }
+    if (![product.price, product.costPrice, product.minStock, product.maxStock].every(Number.isFinite)) {
+      return NextResponse.json({ error: "กรอกราคา ต้นทุน และจำนวนสต๊อกเป็นตัวเลขที่ถูกต้อง" }, { status: 400 });
     }
 
     if (product.maxStock > 0 && product.minStock > product.maxStock) {

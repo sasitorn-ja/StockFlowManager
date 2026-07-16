@@ -161,7 +161,7 @@ function HistorySection({
             const lotKey = buildInventoryLotKey(item);
             const lotLabel = lotLabels.get(lotKey) || "-";
             const relatedPerson = isStockIn
-              ? item.requester || "จุดเก็บไม่ระบุ"
+              ? item.requester || "ไม่ระบุสถานที่จัดเก็บ"
               : item.requester || "ผู้ขอไม่ระบุ";
             const canViewIssueDocument =
               !isStockIn &&
@@ -235,7 +235,7 @@ function HistorySection({
                 </td>
                 <td>
                   <strong className="font-semibold text-[var(--text-strong)]">
-                    {isStockIn ? "คลัง/จุดเก็บ" : "ผู้ขอเบิก"}
+                    {isStockIn ? "สถานที่จัดเก็บ" : "ผู้ขอเบิก"}
                   </strong>
                   <div className="text-[12px] text-[var(--text-muted)]">{relatedPerson}</div>
                 </td>

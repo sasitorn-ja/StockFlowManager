@@ -15,6 +15,7 @@ export type FormState = {
   minStock: string;
   maxStock: string;
   date: string;
+  manufactureDate: string;
   expiryDate: string;
   issueKey: string;
   requester: string;

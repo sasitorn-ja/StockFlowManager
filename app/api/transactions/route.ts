@@ -45,11 +45,12 @@ async function ensureTableExists() {
           "productImportType" VARCHAR(50),
           unit VARCHAR(50),
           type VARCHAR(50),
-          quantity BIGINT,
+          quantity DECIMAL(15,4),
           price DECIMAL(15,4),
           "costPrice" DECIMAL(15,4),
           "costCurrency" VARCHAR(10),
           date VARCHAR(50),
+          "manufactureDate" VARCHAR(50) DEFAULT '',
           "expiryDate" VARCHAR(50),
           "issueKey" VARCHAR(100),
           requester VARCHAR(255),
@@ -57,6 +58,10 @@ async function ensureTableExists() {
           "createdBy" VARCHAR(255),
           approver VARCHAR(255),
           "approvedAt" BIGINT DEFAULT 0,
+          "issuedAt" BIGINT DEFAULT 0,
+          "receivedAt" BIGINT DEFAULT 0,
+          "completedAt" BIGINT DEFAULT 0,
+          "cancelledAt" BIGINT DEFAULT 0,
           note TEXT,
           "createdAt" BIGINT,
           status VARCHAR(50) DEFAULT 'confirmed'
@@ -67,9 +72,15 @@ async function ensureTableExists() {
       await ensureColumn("transactions", "createdBy", "VARCHAR(255) DEFAULT ''");
       await ensureColumn("transactions", "requesterEmail", "VARCHAR(320) DEFAULT ''");
       await ensureColumn("transactions", "approvedAt", "BIGINT DEFAULT 0");
+      await ensureColumn("transactions", "issuedAt", "BIGINT DEFAULT 0");
+      await ensureColumn("transactions", "receivedAt", "BIGINT DEFAULT 0");
+      await ensureColumn("transactions", "completedAt", "BIGINT DEFAULT 0");
+      await ensureColumn("transactions", "cancelledAt", "BIGINT DEFAULT 0");
+      await ensureColumn("transactions", "manufactureDate", "VARCHAR(50) DEFAULT ''");
       await ensureColumnDefinition("transactions", "imageDataUrl", "LONGTEXT");
-      await tx`UPDATE transactions SET quantity = FLOOR(quantity) WHERE quantity <> FLOOR(quantity);`;
-      await ensureColumnDefinition("transactions", "quantity", "BIGINT NOT NULL DEFAULT 0");
+      await ensureColumnDefinition("transactions", "quantity", "DECIMAL(15,4) NOT NULL DEFAULT 0");
+      await ensureColumnDefinition("transactions", "price", "DECIMAL(15,4) NOT NULL DEFAULT 0");
+      await ensureColumnDefinition("transactions", "costPrice", "DECIMAL(15,4) NOT NULL DEFAULT 0");
       await ensureIndex(
         "transactions",
         "transactions_created_at_idx",
@@ -123,15 +134,15 @@ export async function GET() {
         CAST(quantity AS FLOAT) as quantity, 
         CAST(price AS FLOAT) as price, 
         CAST("costPrice" AS FLOAT) as "costPrice", 
-        "costCurrency", date, "expiryDate", "issueKey", 
-        requester, "createdBy", approver, "approvedAt", note, "createdAt", status
+        "costCurrency", date, "manufactureDate", "expiryDate", "issueKey",
+        requester, "createdBy", approver, "approvedAt", "issuedAt", "receivedAt", "completedAt", "cancelledAt", note, "createdAt", status
       FROM transactions 
       ORDER BY "createdAt" DESC;
     ` : actor.role === "manager" ? await sql`
       SELECT id, name, sku, category, CASE WHEN type = 'in' THEN "imageDataUrl" ELSE '' END AS "imageDataUrl", "productImportType", unit, type,
         CAST(quantity AS FLOAT) quantity, CAST(price AS FLOAT) price,
-        CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "expiryDate",
-        "issueKey", requester, "createdBy", approver, "approvedAt", note, "createdAt", status
+        CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "manufactureDate", "expiryDate",
+        "issueKey", requester, "createdBy", approver, "approvedAt", "issuedAt", "receivedAt", "completedAt", "cancelledAt", note, "createdAt", status
       FROM transactions
       WHERE type = 'in'
         OR requester = ${actor.name}
@@ -141,8 +152,8 @@ export async function GET() {
     ` : await sql`
       SELECT id, name, sku, category, CASE WHEN type = 'in' THEN "imageDataUrl" ELSE '' END AS "imageDataUrl", "productImportType", unit, type,
         CAST(quantity AS FLOAT) quantity, CAST(price AS FLOAT) price,
-        CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "expiryDate",
-        "issueKey", requester, "createdBy", approver, "approvedAt", note, "createdAt", status
+        CAST("costPrice" AS FLOAT) "costPrice", "costCurrency", date, "manufactureDate", "expiryDate",
+        "issueKey", requester, "createdBy", approver, "approvedAt", "issuedAt", "receivedAt", "completedAt", "cancelledAt", note, "createdAt", status
       FROM transactions
       WHERE type = 'in'
         OR requester = ${actor.name}
@@ -179,14 +190,35 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Missing required fields: name or unit" }, { status: 400 });
       }
       const quantity = Number(item.quantity);
-      if (!Number.isInteger(quantity) || quantity <= 0) {
-        return NextResponse.json({ error: "Quantity must be a positive integer" }, { status: 400 });
+      const price = Number(item.price || 0);
+      const costPrice = Number(item.costPrice || 0);
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return NextResponse.json({ error: "Quantity must be a positive number" }, { status: 400 });
       }
+      if (!Number.isFinite(price) || price < 0 || !Number.isFinite(costPrice) || costPrice < 0) {
+        return NextResponse.json({ error: "Price and cost price must be non-negative numbers" }, { status: 400 });
+      }
+      const manufactureDate = String(item.manufactureDate || "");
+      const receivedDate = String(item.date || "");
+      const expiryDate = String(item.expiryDate || "");
+      const isStockReceipt = (item.type || "in") === "in";
+      if (isStockReceipt && manufactureDate && receivedDate && manufactureDate > receivedDate) {
+        return NextResponse.json({ error: "วันที่ผลิตต้องไม่เกินวันที่รับเข้า" }, { status: 400 });
+      }
+      if (isStockReceipt && expiryDate && receivedDate && expiryDate < receivedDate) {
+        return NextResponse.json({ error: "วันหมดอายุต้องไม่น้อยกว่าวันที่รับเข้า" }, { status: 400 });
+      }
+      if (isStockReceipt && manufactureDate && expiryDate && expiryDate < manufactureDate) {
+        return NextResponse.json({ error: "วันหมดอายุต้องไม่น้อยกว่าวันที่ผลิต" }, { status: 400 });
+      }
+      const createdAt = Number(item.createdAt || Date.now());
+      const initialStatus = item.status || (item.type === "out" ? (settings.approvalMode === "off" ? "approved" : "pending") : "confirmed");
+      const initialApprovedAt = initialStatus === "approved" ? createdAt : Number(item.approvedAt || 0);
 
       await sql`
         INSERT INTO transactions (
           id, name, sku, category, "imageDataUrl", "productImportType", unit, type,
-          quantity, price, "costPrice", "costCurrency", date, "expiryDate", "issueKey", requester, "requesterEmail", "createdBy", approver, note, "createdAt", status
+          quantity, price, "costPrice", "costCurrency", date, "manufactureDate", "expiryDate", "issueKey", requester, "requesterEmail", "createdBy", approver, "approvedAt", note, "createdAt", status
         ) VALUES (
           ${item.id || `txn-${Date.now()}-${Math.random().toString(36).slice(2)}`},
           ${item.name},
@@ -197,19 +229,21 @@ export async function POST(request: Request) {
           ${item.unit},
           ${item.type || "in"},
           ${quantity},
-          ${item.price || 0},
-          ${item.costPrice || 0},
+          ${price},
+          ${costPrice},
           ${item.costCurrency || "THB"},
           ${item.date},
+          ${manufactureDate},
           ${item.expiryDate || ""},
           ${item.issueKey || ""},
           ${item.requester || actor.name || ""},
           ${item.requesterEmail || ""},
           ${actor.name || ""},
           ${item.approver || ""},
+          ${initialApprovedAt},
           ${item.note || ""},
-          ${item.createdAt || Date.now()},
-          ${item.status || (item.type === 'out' ? (settings.approvalMode === "off" ? "approved" : "pending") : 'confirmed')}
+          ${createdAt},
+          ${initialStatus}
         )
       `;
     }
@@ -252,7 +286,7 @@ export async function PUT(request: Request) {
     // Action 3: Update status for an entire issueKey batch
     if (action === "update_status" && issueKey && status) {
       const requisitionRows = await sql`
-        SELECT requester, "requesterEmail", "createdBy", approver, "approvedAt", status
+        SELECT requester, "requesterEmail", "createdBy", approver, "approvedAt", "issuedAt", "receivedAt", "completedAt", "cancelledAt", status
         FROM transactions WHERE "issueKey" = ${issueKey} LIMIT 1
       `;
       const requisition = requisitionRows[0];
@@ -270,6 +304,7 @@ export async function PUT(request: Request) {
       if (!allowed) return NextResponse.json({ error: "ไม่สามารถเปลี่ยนสถานะในขั้นตอนนี้ได้" }, { status: 403 });
 
       const approvedAt = status === "approved" ? Date.now() : Number(requisition.approvedAt || 0);
+      const statusChangedAt = Date.now();
       const nextApprover = status === "approved"
         ? String(body.approver || actor.name || "").trim()
         : String(body.approver || requisition.approver || "").trim();
@@ -278,6 +313,32 @@ export async function PUT(request: Request) {
         await sql`
           UPDATE transactions
           SET status = ${status}, approver = ${nextApprover}, "approvedAt" = ${approvedAt}
+          WHERE "issueKey" = ${issueKey}
+        `;
+      } else if (status === "issued") {
+        await sql`
+          UPDATE transactions
+          SET status = ${status}, "issuedAt" = ${statusChangedAt}
+          WHERE "issueKey" = ${issueKey}
+        `;
+      } else if (status === "received" || status === "employee_confirmed") {
+        await sql`
+          UPDATE transactions
+          SET status = ${status}, "receivedAt" = ${statusChangedAt}
+          WHERE "issueKey" = ${issueKey}
+        `;
+      } else if (status === "completed") {
+        await sql`
+          UPDATE transactions
+          SET status = ${status},
+              "issuedAt" = CASE WHEN "issuedAt" > 0 THEN "issuedAt" ELSE ${statusChangedAt} END,
+              "completedAt" = ${statusChangedAt}
+          WHERE "issueKey" = ${issueKey}
+        `;
+      } else if (status === "cancelled") {
+        await sql`
+          UPDATE transactions
+          SET status = ${status}, "cancelledAt" = ${statusChangedAt}
           WHERE "issueKey" = ${issueKey}
         `;
       } else if (body.approver) {
@@ -308,6 +369,10 @@ export async function PUT(request: Request) {
         status,
         approver: nextApprover,
         approvedAt,
+        issuedAt: status === "issued" ? statusChangedAt : status === "completed" ? Number(requisition.issuedAt || statusChangedAt) : Number(requisition.issuedAt || 0),
+        receivedAt: status === "received" || status === "employee_confirmed" ? statusChangedAt : Number(requisition.receivedAt || 0),
+        completedAt: status === "completed" ? statusChangedAt : Number(requisition.completedAt || 0),
+        cancelledAt: status === "cancelled" ? statusChangedAt : Number(requisition.cancelledAt || 0),
       });
     }
 
@@ -363,8 +428,26 @@ export async function PUT(request: Request) {
     // Action 2: Update a single transaction
     if (id) {
       const quantity = Number(body.quantity);
-      if (!Number.isInteger(quantity) || quantity <= 0) {
-        return NextResponse.json({ error: "Quantity must be a positive integer" }, { status: 400 });
+      const price = Number(body.price || 0);
+      const costPrice = Number(body.costPrice || 0);
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return NextResponse.json({ error: "Quantity must be a positive number" }, { status: 400 });
+      }
+      if (!Number.isFinite(price) || price < 0 || !Number.isFinite(costPrice) || costPrice < 0) {
+        return NextResponse.json({ error: "Price and cost price must be non-negative numbers" }, { status: 400 });
+      }
+      const manufactureDate = String(body.manufactureDate || "");
+      const receivedDate = String(body.date || "");
+      const expiryDate = String(body.expiryDate || "");
+      const isStockReceipt = (body.type || "in") === "in";
+      if (isStockReceipt && manufactureDate && receivedDate && manufactureDate > receivedDate) {
+        return NextResponse.json({ error: "วันที่ผลิตต้องไม่เกินวันที่รับเข้า" }, { status: 400 });
+      }
+      if (isStockReceipt && expiryDate && receivedDate && expiryDate < receivedDate) {
+        return NextResponse.json({ error: "วันหมดอายุต้องไม่น้อยกว่าวันที่รับเข้า" }, { status: 400 });
+      }
+      if (isStockReceipt && manufactureDate && expiryDate && expiryDate < manufactureDate) {
+        return NextResponse.json({ error: "วันหมดอายุต้องไม่น้อยกว่าวันที่ผลิต" }, { status: 400 });
       }
       await sql`
         UPDATE transactions
@@ -377,10 +460,11 @@ export async function PUT(request: Request) {
           unit = ${body.unit},
           type = ${body.type || "in"},
           quantity = ${quantity},
-          price = ${body.price || 0},
-          "costPrice" = ${body.costPrice || 0},
+          price = ${price},
+          "costPrice" = ${costPrice},
           "costCurrency" = ${body.costCurrency || "THB"},
           date = ${body.date},
+          "manufactureDate" = ${manufactureDate},
           "expiryDate" = ${body.expiryDate || ""},
           "issueKey" = ${body.issueKey || ""},
           requester = ${body.requester || ""},

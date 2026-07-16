@@ -414,7 +414,7 @@ export default function OverviewPage() {
         helper: "คงเหลือต่ำกว่า min ของสินค้า",
         icon: AlertTriangle,
         tone: "amber" as const,
-        valueTone: "danger" as const,
+        valueTone: "warning" as const,
       },
       {
         label: "ใกล้หมด/หมดอายุ",
@@ -557,7 +557,7 @@ export default function OverviewPage() {
   const stockStatusChartOption = useMemo(
     () => ({
       animationDuration: 450,
-      color: ["#16a34a", "#dc2626", "#f59e0b", "#94a3b8"],
+      color: ["#16a34a", "#f59e0b", "#dc2626", "#94a3b8"],
       tooltip: {
         trigger: "item",
         backgroundColor: "rgba(15,23,42,0.92)",
@@ -842,10 +842,6 @@ export default function OverviewPage() {
                   <div>
                     <strong>{requisition.issueKey}</strong>
                     <span>{formatDate(requisition.date)} · ผู้ขอ {requisition.requester}</span>
-                  </div>
-                  <div>
-                    <strong>{formatNumber(requisition.itemCount)}</strong>
-                    <span>{formatNumber(requisition.totalQuantity)} หน่วย</span>
                   </div>
                 </div>
               ))

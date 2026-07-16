@@ -88,7 +88,7 @@ const masterDataSetupSteps = [
   },
   {
     title: "ค่อยตั้งค่าควบคุมสต๊อก",
-    description: "หมวดหมู่, min / max และจุดเก็บ เป็นข้อมูลเสริมที่กลับมาแก้ทีหลังได้",
+    description: "หมวดหมู่, min / max และสถานที่จัดเก็บ เป็นข้อมูลเสริมที่กลับมาแก้ทีหลังได้",
   },
   {
     title: "ใช้รายการด้านล่างเป็นตัวหลัก",
@@ -436,8 +436,8 @@ export default function MasterDataPage() {
       unit: form.unit.trim(),
       price: Math.max(0, Number(form.price || 0)),
       costPrice: Math.max(0, Number(form.costPrice || 0)),
-      minStock: Math.max(0, Math.floor(Number(form.minStock || 0))),
-      maxStock: Math.max(0, Math.floor(Number(form.maxStock || 0))),
+      minStock: Math.max(0, Number(form.minStock || 0)),
+      maxStock: Math.max(0, Number(form.maxStock || 0)),
       defaultStorageLocation: form.defaultStorageLocation.trim(),
       defaultExpiryDate: form.defaultExpiryDate,
       vendor: form.vendor.trim(),
@@ -446,6 +446,10 @@ export default function MasterDataPage() {
 
     if (!payload.name || !payload.unit) {
       window.alert("กรอกชื่อสินค้าและหน่วยนับให้ครบก่อนบันทึก");
+      return;
+    }
+    if (![payload.price, payload.costPrice, payload.minStock, payload.maxStock].every(Number.isFinite)) {
+      window.alert("กรอกราคา ต้นทุน และจำนวนสต๊อกเป็นตัวเลขที่ถูกต้อง");
       return;
     }
 
@@ -713,9 +717,9 @@ export default function MasterDataPage() {
                     <span
                       className={`stock-pill ${
                         product.stockTargetStatus === "low"
-                          ? "stock-pill-danger"
+                          ? "stock-pill-warn"
                           : product.stockTargetStatus === "high"
-                            ? "stock-pill-warn"
+                            ? "stock-pill-danger"
                             : product.stockTargetStatus === "normal"
                               ? "stock-pill-ok"
                               : ""
@@ -874,7 +878,7 @@ export default function MasterDataPage() {
               <div className="master-data-form-section-header">
                 <p className="master-data-form-step-label">ตัวเลือกเพิ่ม</p>
                 <h3>การจัดเก็บและควบคุมสต๊อก</h3>
-                <p>ใช้เมื่ออยากตั้ง min / max หรือระบุหมวดหมู่และจุดเก็บให้ชัดขึ้น</p>
+                <p>ใช้เมื่ออยากตั้ง min / max หรือระบุหมวดหมู่และสถานที่จัดเก็บให้ชัดขึ้น</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
@@ -888,7 +892,7 @@ export default function MasterDataPage() {
                 </label>
 
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                  จุดเก็บมาตรฐาน
+                  สถานที่จัดเก็บมาตรฐาน
                   <input
                     value={form.defaultStorageLocation}
                     onChange={(event) => updateForm("defaultStorageLocation", event.target.value)}
@@ -902,7 +906,7 @@ export default function MasterDataPage() {
                   <input
                     type="number"
                     min="0"
-                    step="1"
+                    step="0.0001"
                     value={form.minStock}
                     onChange={(event) => updateForm("minStock", event.target.value)}
                     className={inputClassName}
@@ -914,7 +918,7 @@ export default function MasterDataPage() {
                   <input
                     type="number"
                     min="0"
-                    step="1"
+                    step="0.0001"
                     value={form.maxStock}
                     onChange={(event) => updateForm("maxStock", event.target.value)}
                     className={inputClassName}
@@ -944,10 +948,14 @@ export default function MasterDataPage() {
                   ต้นทุนมาตรฐาน
                   <input
                     type="number"
+                    inputMode="decimal"
                     min="0"
-                    step="0.01"
+                    step="0.0001"
                     value={form.costPrice}
-                    onChange={(event) => updateForm("costPrice", event.target.value)}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value === "" || /^\d*(?:\.\d{0,4})?$/.test(value)) updateForm("costPrice", value);
+                    }}
                     className={inputClassName}
                   />
                 </label>
@@ -972,10 +980,14 @@ export default function MasterDataPage() {
                   ราคาขายมาตรฐาน
                   <input
                     type="number"
+                    inputMode="decimal"
                     min="0"
-                    step="0.01"
+                    step="0.0001"
                     value={form.price}
-                    onChange={(event) => updateForm("price", event.target.value)}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value === "" || /^\d*(?:\.\d{0,4})?$/.test(value)) updateForm("price", value);
+                    }}
                     className={inputClassName}
                   />
                 </label>

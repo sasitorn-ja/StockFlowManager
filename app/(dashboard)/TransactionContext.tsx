@@ -10,7 +10,7 @@ type TransactionContextValue = {
   transactions: Transaction[];
   loading: boolean;
   refresh: () => Promise<void>;
-  patchIssueStatus: (issueKey: string, nextStatus: Transaction["status"], updates?: Partial<Pick<Transaction, "approver" | "approvedAt">>) => void;
+  patchIssueStatus: (issueKey: string, nextStatus: Transaction["status"], updates?: Partial<Pick<Transaction, "approver" | "approvedAt" | "issuedAt" | "receivedAt" | "completedAt" | "cancelledAt">>) => void;
 };
 
 const TransactionContext = createContext<TransactionContextValue | null>(null);
@@ -35,7 +35,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const patchIssueStatus = useCallback(
-    (issueKey: string, nextStatus: Transaction["status"], updates?: Partial<Pick<Transaction, "approver" | "approvedAt">>) => {
+    (issueKey: string, nextStatus: Transaction["status"], updates?: Partial<Pick<Transaction, "approver" | "approvedAt" | "issuedAt" | "receivedAt" | "completedAt" | "cancelledAt">>) => {
       setTransactions((current) =>
         current.map((transaction) =>
           transaction.issueKey === issueKey
@@ -44,6 +44,10 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
                 status: nextStatus,
                 approver: updates?.approver ?? transaction.approver,
                 approvedAt: updates?.approvedAt ?? transaction.approvedAt,
+                issuedAt: updates?.issuedAt ?? transaction.issuedAt,
+                receivedAt: updates?.receivedAt ?? transaction.receivedAt,
+                completedAt: updates?.completedAt ?? transaction.completedAt,
+                cancelledAt: updates?.cancelledAt ?? transaction.cancelledAt,
               }
             : transaction
         )

@@ -215,8 +215,8 @@ export default function SettingsPage() {
     const nextUnit = productEditForm.unit.trim();
     const nextSku = sanitizeSku(productEditForm.sku.trim());
     const nextCategory = productEditForm.category.trim() || "-";
-    const nextMinStock = Math.max(0, Math.floor(Number(productEditForm.minStock || 0)));
-    const nextMaxStock = Math.max(0, Math.floor(Number(productEditForm.maxStock || 0)));
+    const nextMinStock = Math.max(0, Number(productEditForm.minStock || 0));
+    const nextMaxStock = Math.max(0, Number(productEditForm.maxStock || 0));
 
     if (!nextName || !nextUnit) {
       window.alert("กรอกชื่อสินค้าและหน่วยนับให้ครบก่อนบันทึก");
@@ -350,9 +350,9 @@ export default function SettingsPage() {
                     <span
                       className={`stock-pill ${
                         product.stockTargetStatus === "low"
-                          ? "stock-pill-danger"
+                          ? "stock-pill-warn"
                           : product.stockTargetStatus === "high"
-                            ? "stock-pill-warn"
+                            ? "stock-pill-danger"
                             : product.stockTargetStatus === "normal"
                               ? "stock-pill-ok"
                               : ""
@@ -484,7 +484,7 @@ export default function SettingsPage() {
                 <input
                   type="number"
                   min="0"
-                  step="1"
+                  step="0.0001"
                   value={productEditForm.minStock}
                   onChange={(event) => updateProductEditForm("minStock", event.target.value)}
                   className={inputClassName}
@@ -497,7 +497,7 @@ export default function SettingsPage() {
                 <input
                   type="number"
                   min="0"
-                  step="1"
+                  step="0.0001"
                   value={productEditForm.maxStock}
                   onChange={(event) => updateProductEditForm("maxStock", event.target.value)}
                   className={inputClassName}

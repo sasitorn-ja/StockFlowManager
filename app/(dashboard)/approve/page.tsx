@@ -34,6 +34,10 @@ type GroupedRequisition = {
   createdBy: string;
   approver?: string;
   approvedAt?: number;
+  issuedAt?: number;
+  receivedAt?: number;
+  completedAt?: number;
+  cancelledAt?: number;
   note?: string;
   date: string;
   createdAt: number;
@@ -69,6 +73,16 @@ function formatRequisitionCostByCurrency(items: Transaction[]) {
     .join(" / ") || formatCurrencyWithLabel(0, "THB");
 }
 
+function formatDateTime(timestamp: number) {
+  return new Date(timestamp).toLocaleString("th-TH", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function RequisitionTrackerPage() {
   return (
     <Suspense fallback={null}>
@@ -80,7 +94,7 @@ export default function RequisitionTrackerPage() {
 function RequisitionTrackerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { transactions, loading: isLoading, patchIssueStatus } = useTransactions();
+  const { transactions, loading: isLoading, refresh, patchIssueStatus } = useTransactions();
   const [currentRole, setCurrentRole] = useState("employee");
   const [currentUsername, setCurrentUsername] = useState("ผู้ใช้งาน");
   const [activeTab, setActiveTab] = useState<TabType>("all");
@@ -88,6 +102,21 @@ function RequisitionTrackerContent() {
   const [showOnlyMine, setShowOnlyMine] = useState(false);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [myCreatedIssueKeys, setMyCreatedIssueKeys] = useState<string[]>([]);
+
+  useEffect(() => {
+    const refreshLatestRequisitions = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    const intervalId = window.setInterval(refreshLatestRequisitions, 10_000);
+    window.addEventListener("focus", refreshLatestRequisitions);
+    document.addEventListener("visibilitychange", refreshLatestRequisitions);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshLatestRequisitions);
+      document.removeEventListener("visibilitychange", refreshLatestRequisitions);
+    };
+  }, [refresh]);
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const deepLinkedIssueKey = searchParams.get("issueKey")?.trim() || "";
@@ -147,6 +176,10 @@ function RequisitionTrackerContent() {
         createdBy: t.createdBy || "",
         approver: t.approver || "",
         approvedAt: t.approvedAt || 0,
+        issuedAt: t.issuedAt || 0,
+        receivedAt: t.receivedAt || 0,
+        completedAt: t.completedAt || 0,
+        cancelledAt: t.cancelledAt || 0,
         note: t.note || "-",
         date: t.date,
         createdAt: t.createdAt,
@@ -158,6 +191,10 @@ function RequisitionTrackerContent() {
 
       current.items.push(t);
       current.approvedAt = Math.max(current.approvedAt || 0, t.approvedAt || 0);
+      current.issuedAt = Math.max(current.issuedAt || 0, t.issuedAt || 0);
+      current.receivedAt = Math.max(current.receivedAt || 0, t.receivedAt || 0);
+      current.completedAt = Math.max(current.completedAt || 0, t.completedAt || 0);
+      current.cancelledAt = Math.max(current.cancelledAt || 0, t.cancelledAt || 0);
       current.totalQuantity += t.quantity;
       current.totalCost += t.quantity * (t.costPrice || t.price || 0);
       
@@ -280,6 +317,10 @@ function RequisitionTrackerContent() {
             typeof data?.approvedAt === "number" && data.approvedAt > 0
               ? data.approvedAt
               : undefined,
+          issuedAt: typeof data?.issuedAt === "number" && data.issuedAt > 0 ? data.issuedAt : undefined,
+          receivedAt: typeof data?.receivedAt === "number" && data.receivedAt > 0 ? data.receivedAt : undefined,
+          completedAt: typeof data?.completedAt === "number" && data.completedAt > 0 ? data.completedAt : undefined,
+          cancelledAt: typeof data?.cancelledAt === "number" && data.cancelledAt > 0 ? data.cancelledAt : undefined,
         });
       } else {
         const data = await res.json().catch(() => null);
@@ -373,7 +414,7 @@ function RequisitionTrackerContent() {
                 </div>
                 <div>
                   <dt>วันที่ขอเบิก</dt>
-                  <dd>{formatDate(confirmDialog.requisition.date)}</dd>
+                  <dd>{formatDateTime(confirmDialog.requisition.createdAt)}</dd>
                 </div>
                 <div>
                   <dt>เลขใบเบิก</dt>
@@ -526,7 +567,7 @@ function RequisitionTrackerContent() {
             headers={[
               "", // Expand arrow
               "เลขใบเบิก",
-              "วันที่ขอเบิก",
+              "วันที่/เวลาขอเบิก",
               "ผู้ขอเบิก",
               "คนคีย์ข้อมูล",
               "สินค้า / จำนวน",
@@ -572,7 +613,10 @@ function RequisitionTrackerContent() {
                     <td className="w-[12%] min-w-[110px] font-semibold text-slate-800">
                       {req.issueKey}
                     </td>
-                    <td className="w-[12%] min-w-[110px] text-slate-500">{formatDate(req.date)}</td>
+                    <td className="w-[12%] min-w-[130px] text-slate-500">
+                      <span className="block">{formatDate(req.date)}</span>
+                      <span className="block text-[10px]">{formatDateTime(req.createdAt).split(" ").slice(-2).join(" ")}</span>
+                    </td>
                     <td className="w-[15%] min-w-[120px]">
                       <span className="font-medium text-slate-700">{req.requester}</span>
                     </td>
@@ -772,6 +816,7 @@ function RequisitionTrackerContent() {
                                   {req.createdBy ? (
                                     <span className="block text-[10px] text-slate-400 font-normal">คนคีย์: {req.createdBy}</span>
                                   ) : null}
+                                  <span className="block text-[10px] text-slate-400 font-normal">เวลา: {formatDateTime(req.createdAt)}</span>
                                 </div>
                                 <CheckCircle2 size={16} className="text-emerald-500 shrink-0 ml-auto md:ml-2" />
                               </div>
@@ -794,13 +839,7 @@ function RequisitionTrackerContent() {
                                   )}
                                   {req.approvedAt ? (
                                     <span className="block text-[10px] text-slate-400 font-normal">
-                                      เวลาอนุมัติ: {new Date(req.approvedAt).toLocaleString("th-TH", {
-                                        day: "2-digit",
-                                        month: "short",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
+                                      เวลาอนุมัติ: {formatDateTime(req.approvedAt)}
                                     </span>
                                   ) : null}
                                 </div>
@@ -828,6 +867,8 @@ function RequisitionTrackerContent() {
                                   <p className={req.status === "issued" || req.status === "received" || req.status === "employee_confirmed" || req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>
                                     แอดมินจ่ายสินค้า
                                   </p>
+                                  {req.issuedAt ? <span className="block text-[10px] text-slate-400 font-normal">เวลา: {formatDateTime(req.issuedAt)}</span> : null}
+                                  {req.receivedAt ? <span className="block text-[10px] text-slate-400 font-normal">รับสินค้า: {formatDateTime(req.receivedAt)}</span> : null}
                                 </div>
                                 {req.status === "received" || req.status === "employee_confirmed" || req.status === "completed" ? (
                                   <CheckSquare size={16} className="text-emerald-500 shrink-0 ml-2" />
@@ -841,7 +882,11 @@ function RequisitionTrackerContent() {
                               <div className="hidden md:block h-0.5 bg-slate-200 grow mx-2" />
                               <div className="flex items-center gap-2">
                                 <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold ${req.status === "completed" ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>4</div>
-                                <div><p className={req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>ปิดงานเสร็จสิ้น</p></div>
+                                <div>
+                                  <p className={req.status === "completed" ? "text-slate-800" : "text-slate-400 font-medium"}>ปิดงานเสร็จสิ้น</p>
+                                  {req.completedAt ? <span className="block text-[10px] text-slate-400 font-normal">เวลา: {formatDateTime(req.completedAt)}</span> : null}
+                                  {req.cancelledAt ? <span className="block text-[10px] text-rose-500 font-normal">ยกเลิก: {formatDateTime(req.cancelledAt)}</span> : null}
+                                </div>
                                 {req.status === "completed" ? <CheckSquare size={16} className="text-emerald-500 shrink-0 ml-2" /> : <Clock size={16} className="text-slate-300 shrink-0 ml-2" />}
                               </div>
 

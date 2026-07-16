@@ -48,9 +48,10 @@ export async function GET(request: Request) {
       image: typeof user.LINE_PROFILE_IMAGE_URL === "string" ? user.LINE_PROFILE_IMAGE_URL : undefined,
       exp: Math.floor(Date.now() / 1000) + 8 * 60 * 60,
     };
-    await syncSsoUser(sessionUser);
+    const role = await syncSsoUser(sessionUser);
     const session = createSessionCookie(sessionUser);
-    const response = NextResponse.redirect(toAbsoluteAppUrl(request.url, "/approve"));
+    const firstMenuPath = role === "employee" ? "/issue" : "/overview";
+    const response = NextResponse.redirect(toAbsoluteAppUrl(request.url, firstMenuPath));
     response.cookies.set(SESSION_COOKIE, session, createAuthCookieOptions(8 * 60 * 60));
     response.cookies.set(FLOW_STATE_COOKIE, "", createExpiredAuthCookieOptions());
     response.cookies.set(FLOW_VERIFIER_COOKIE, "", createExpiredAuthCookieOptions());

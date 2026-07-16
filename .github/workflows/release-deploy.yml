@@ -32,3 +32,36 @@ jobs:
           cd /opt/sbm-inventory-management
           chmod +x scripts/deploy-container.sh
           ./scripts/deploy-container.sh
+
+      - name: Clear demo inventory and requisitions once
+        if: contains(github.event.head_commit.message, '[reset-demo-data]')
+        shell: bash
+        run: |
+          cd /opt/sbm-inventory-management
+          docker compose exec -T sbm-inventory-management node - <<'NODE'
+          const mysql = require("mysql2/promise");
+
+          (async () => {
+            const connection = await mysql.createConnection({
+              uri: process.env.DATABASE_URL,
+              decimalNumbers: true,
+            });
+            try {
+              await connection.beginTransaction();
+              const [[transactionCount]] = await connection.query("SELECT COUNT(*) AS count FROM transactions");
+              const [[productCount]] = await connection.query("SELECT COUNT(*) AS count FROM products");
+              await connection.query("DELETE FROM transactions");
+              await connection.query("DELETE FROM products");
+              await connection.commit();
+              console.log(`Cleared ${transactionCount.count} transactions and ${productCount.count} products.`);
+            } catch (error) {
+              await connection.rollback();
+              throw error;
+            } finally {
+              await connection.end();
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
