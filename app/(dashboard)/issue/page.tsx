@@ -31,6 +31,7 @@ import {
   formatDate,
   formatNumber,
   matchesMasterProduct,
+  normalizeTransactions,
 } from "@/lib/stock-flow/utils";
 import type { Transaction, InventoryLotItem, ProductImportType, ProductMaster } from "@/types/stock-flow";
 import { defaultAppSettings, type AppSettings } from "@/lib/app-settings-shared";
@@ -158,7 +159,8 @@ function buildAutoAllocationPlan(item: IssueProductItem, quantity: number, alloc
 
 export default function IssuePage() {
   const router = useRouter();
-  const { transactions, refresh } = useTransactions();
+  const { refresh } = useTransactions();
+  const [inventoryTransactions, setInventoryTransactions] = useState<Transaction[]>([]);
   const [masterProducts, setMasterProducts] = useState<ProductMaster[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [issueImportTypeFilter, setIssueImportTypeFilter] = useState<OverviewFilter>("all");
@@ -175,6 +177,16 @@ export default function IssuePage() {
   const [issueNote, setIssueNote] = useState("");
   const [isSendingIssueEmail, setIsSendingIssueEmail] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
+
+  async function refreshInventoryTransactions() {
+    try {
+      const response = await fetch(withBasePath("/api/transactions?scope=inventory"), { cache: "no-store" });
+      if (!response.ok) return;
+      setInventoryTransactions(normalizeTransactions(await response.json()));
+    } catch (error) {
+      console.error("Failed to refresh inventory balances", error);
+    }
+  }
 
   async function fetchMasterProducts() {
     try {
@@ -228,6 +240,7 @@ export default function IssuePage() {
   }
 
   useEffect(() => {
+    void refreshInventoryTransactions();
     fetchMasterProducts();
     fetchUserDirectory();
     fetchAppSettings();
@@ -265,9 +278,24 @@ export default function IssuePage() {
     };
   }, []);
 
+  useEffect(() => {
+    const refreshLatestInventory = () => {
+      if (document.visibilityState === "visible") void refreshInventoryTransactions();
+    };
+    const intervalId = window.setInterval(refreshLatestInventory, 10_000);
+    window.addEventListener("focus", refreshLatestInventory);
+    document.addEventListener("visibilitychange", refreshLatestInventory);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshLatestInventory);
+      document.removeEventListener("visibilitychange", refreshLatestInventory);
+    };
+  }, []);
+
   const inventoryLots = useMemo(() => {
     const inactiveMasterProducts = masterProducts.filter((item) => !item.isActive);
-    const lots = [...buildInventoryLotMap(transactions).values()]
+    const lots = [...buildInventoryLotMap(inventoryTransactions).values()]
       .filter(
         (item) =>
           (appSettings.allowNegativeStock ? item.totalIn > 0 : item.balance > 0) &&
@@ -302,7 +330,7 @@ export default function IssuePage() {
         }`,
       };
     });
-  }, [appSettings.allowNegativeStock, masterProducts, transactions]);
+  }, [appSettings.allowNegativeStock, inventoryTransactions, masterProducts]);
 
   const inventory = useMemo(() => {
     const grouped = new Map<string, IssueProductItem>();
@@ -726,6 +754,7 @@ export default function IssuePage() {
       }
 
       await refresh();
+      await refreshInventoryTransactions();
 
       // Add issueKey to local storage my_created_issue_keys to track ownership
       try {

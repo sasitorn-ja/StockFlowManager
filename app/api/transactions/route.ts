@@ -121,11 +121,27 @@ async function ensureTableExists() {
 }
 
 // GET all transactions
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureTableExists();
     const actor = await getCurrentUser();
     if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const requestUrl = new URL(request.url);
+    if (requestUrl.searchParams.get("scope") === "inventory") {
+      const inventoryTransactions = await sql`
+        SELECT id, name, sku, category,
+          CASE WHEN type = 'in' THEN "imageDataUrl" ELSE '' END AS "imageDataUrl",
+          "productImportType", unit, type,
+          CAST(quantity AS FLOAT) AS quantity,
+          CAST(price AS FLOAT) AS price,
+          CAST("costPrice" AS FLOAT) AS "costPrice",
+          "costCurrency", date, "manufactureDate", "expiryDate", "createdAt", status
+        FROM transactions
+        ORDER BY "createdAt" DESC
+      `;
+      return NextResponse.json(inventoryTransactions);
+    }
 
     const baseSelect = actor.role === "admin" ? await sql`
       SELECT 
