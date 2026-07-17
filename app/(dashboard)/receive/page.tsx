@@ -1375,7 +1375,7 @@ export default function ReceivePage() {
             <div className="receive-form-scroll">
             <div className="receive-form-grid">
               <label>
-                <span>ประเภทสินค้า *</span>
+                <span>ประเภทสินค้า <span className="required-mark">*</span></span>
                 <ComboboxInput
                   value={form.productImportType}
                   onValueChange={(value) => handleProductImportTypeChange(value as ProductImportType)}
@@ -1393,7 +1393,7 @@ export default function ReceivePage() {
               </label>
 
               <label>
-                <span>หมวดหมู่ *</span>
+                <span>หมวดหมู่ <span className="required-mark">*</span></span>
                 <ComboboxInput
                   className={showMissingCategoryError ? "receive-input-error" : ""}
                   value={form.category}
@@ -1431,7 +1431,7 @@ export default function ReceivePage() {
 
             <div className="receive-form-grid">
               <label>
-                <span>ชื่อรายการสินค้า *</span>
+                <span>ชื่อรายการสินค้า <span className="required-mark">*</span></span>
                 <ComboboxInput
                   className={showMissingProductError ? "receive-input-error" : ""}
                   value={form.name}
@@ -1482,7 +1482,7 @@ export default function ReceivePage() {
 
             <div className="receive-form-grid receive-form-grid-compact">
               <label>
-                <span>จำนวน *</span>
+                <span>จำนวน <span className="required-mark">*</span></span>
                 <div className="receive-quantity-stepper">
                   <button
                     type="button"
@@ -1517,7 +1517,7 @@ export default function ReceivePage() {
               </label>
 
               <label>
-                <span>หน่วย *</span>
+                <span>หน่วย <span className="required-mark">*</span></span>
                 <ComboboxInput
                   value={form.unit}
                   onValueChange={(value) => updateForm("unit", value)}
@@ -1533,7 +1533,7 @@ export default function ReceivePage() {
                 />
               </label>
               <label>
-                <span>ต้นทุนต่อหน่วย *</span>
+                <span>ต้นทุนต่อหน่วย <span className="required-mark">*</span></span>
                 <div className="cost-currency-control">
                   <input
                     type="number"
@@ -1650,7 +1650,7 @@ export default function ReceivePage() {
 
             <div className="receive-form-grid receive-form-grid-half">
               <label>
-                <span>วันที่รับเข้า *</span>
+                <span>วันที่รับเข้า <span className="required-mark">*</span></span>
                 <input
                   type="date"
                   value={form.date}

@@ -42,7 +42,7 @@ body {
   min-height: 100vh;
   background: #f6faff;
   color: var(--text-body);
-  font-family: "TH Sarabun New", "Sarabun", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sarabun), "Sarabun", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
   font-feature-settings: "tnum";
 }
 
@@ -80,6 +80,11 @@ textarea {
 }
 
 @layer components {
+  .required-mark {
+    color: #dc2626 !important;
+    @apply font-extrabold;
+  }
+
   .dashboard-shell {
     position: relative;
     isolation: isolate;
@@ -299,18 +304,68 @@ textarea {
   #requisition-tracker > .flex.flex-wrap.items-center.justify-between > div:first-child { @apply rounded-xl border border-slate-200/70 bg-transparent p-0.5; }
   #requisition-tracker > .flex.flex-wrap.items-center.justify-between button { @apply rounded-lg px-2.5 py-1.5; }
   #requisition-tracker > .flex.flex-wrap.items-center.justify-between .h-10 { @apply h-9 rounded-lg shadow-none; }
-  .requisition-table { min-width: 1020px !important; }
-  .requisition-table th:nth-child(1), .requisition-table td:nth-child(1) { width: 3%; }
-  .requisition-table th:nth-child(2), .requisition-table td:nth-child(2) { width: 8%; }
-  .requisition-table th:nth-child(3), .requisition-table td:nth-child(3) { width: 8%; }
-  .requisition-table th:nth-child(4), .requisition-table td:nth-child(4) { width: 13%; }
-  .requisition-table th:nth-child(5), .requisition-table td:nth-child(5) { width: 11%; }
-  .requisition-table th:nth-child(6), .requisition-table td:nth-child(6) { width: 13%; }
-  .requisition-table th:nth-child(7), .requisition-table td:nth-child(7) { width: 11%; }
-  .requisition-table th:nth-child(8), .requisition-table td:nth-child(8) { width: 12%; }
-  .requisition-table th:nth-child(9), .requisition-table td:nth-child(9) { width: 11%; }
-  .requisition-table th:nth-child(10), .requisition-table td:nth-child(10) { width: 10%; }
-  .requisition-table td:nth-child(4), .requisition-table td:nth-child(5), .requisition-table td:nth-child(7) { overflow-wrap: anywhere; }
+  .requisition-table {
+    min-width: 100% !important;
+    table-layout: fixed;
+  }
+  .requisition-table > thead > tr > th:nth-child(1), .requisition-table > tbody > tr > td:nth-child(1) { width: 3%; }
+  .requisition-table > thead > tr > th:nth-child(2), .requisition-table > tbody > tr > td:nth-child(2) { width: 8%; }
+  .requisition-table > thead > tr > th:nth-child(3), .requisition-table > tbody > tr > td:nth-child(3) { width: 8%; }
+  .requisition-table > thead > tr > th:nth-child(4), .requisition-table > tbody > tr > td:nth-child(4) { width: 13%; }
+  .requisition-table > thead > tr > th:nth-child(5), .requisition-table > tbody > tr > td:nth-child(5) { width: 11%; }
+  .requisition-table > thead > tr > th:nth-child(6), .requisition-table > tbody > tr > td:nth-child(6) { width: 13%; }
+  .requisition-table > thead > tr > th:nth-child(7), .requisition-table > tbody > tr > td:nth-child(7) { width: 11%; }
+  .requisition-table > thead > tr > th:nth-child(8), .requisition-table > tbody > tr > td:nth-child(8) { width: 12%; }
+  .requisition-table > thead > tr > th:nth-child(9), .requisition-table > tbody > tr > td:nth-child(9) { width: 11%; }
+  .requisition-table > thead > tr > th:nth-child(10), .requisition-table > tbody > tr > td:nth-child(10) { width: 10%; }
+  .requisition-table > tbody > tr > td:nth-child(4),
+  .requisition-table > tbody > tr > td:nth-child(5),
+  .requisition-table > tbody > tr > td:nth-child(7) { overflow-wrap: anywhere; }
+  .requisition-table > thead > tr > th,
+  .requisition-table > tbody > tr > td {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .requisition-table > thead > tr > th:last-child,
+  .requisition-table > tbody > tr:not(.bg-slate-50\/50) > td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: #ffffff;
+    box-shadow: -8px 0 14px rgba(15, 23, 42, 0.06);
+  }
+  .requisition-table > thead > tr > th:last-child {
+    background: linear-gradient(180deg, #f5faff, #eaf4ff);
+  }
+
+  .requisition-detail-table {
+    table-layout: fixed;
+  }
+  .requisition-detail-table th:nth-child(1), .requisition-detail-table td:nth-child(1) { width: 30%; }
+  .requisition-detail-table th:nth-child(2), .requisition-detail-table td:nth-child(2) { width: 16%; }
+  .requisition-detail-table th:nth-child(3), .requisition-detail-table td:nth-child(3) { width: 13%; }
+  .requisition-detail-table th:nth-child(4), .requisition-detail-table td:nth-child(4) { width: 14%; }
+  .requisition-detail-table th:nth-child(5), .requisition-detail-table td:nth-child(5) { width: 14%; }
+  .requisition-detail-table th:nth-child(6), .requisition-detail-table td:nth-child(6) { width: 13%; }
+  .requisition-detail-table th,
+  .requisition-detail-table td {
+    overflow-wrap: anywhere;
+    vertical-align: middle;
+  }
+
+  @media (max-width: 1535px) {
+    .requisition-table > thead > tr > th:nth-child(5),
+    .requisition-table > tbody > tr > td:nth-child(5) {
+      display: none;
+    }
+
+    .requisition-table > thead > tr > th:nth-child(4),
+    .requisition-table > tbody > tr > td:nth-child(4),
+    .requisition-table > thead > tr > th:nth-child(6),
+    .requisition-table > tbody > tr > td:nth-child(6) {
+      width: 15%;
+    }
+  }
 
   .dashboard-content:has(.overview-page) {
     @apply gap-2 py-3;
@@ -1741,14 +1796,16 @@ textarea {
   .cost-currency-control {
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid var(--border);
-    @apply grid h-11 grid-cols-[minmax(0,1fr)_140px] items-center overflow-visible rounded-md;
+    @apply grid h-11 grid-cols-[minmax(0,1fr)_140px] items-center overflow-hidden rounded-md;
   }
 
   .cost-currency-control > input,
   .cost-currency-control select,
   .cost-currency-control [role="combobox"]:not([data-combobox-input]) {
     box-shadow: none;
-    @apply h-full min-w-0 border-0 bg-transparent;
+    border: 0 !important;
+    border-radius: 0 !important;
+    @apply h-full min-w-0 bg-transparent;
   }
 
   .cost-currency-control > input:focus,
@@ -1759,8 +1816,8 @@ textarea {
 
   .cost-currency-control select,
   .cost-currency-control [role="combobox"]:not([data-combobox-input]) {
-    border-left: 1px solid var(--border-soft);
-    @apply rounded-none px-4;
+    border-left: 1px solid var(--border-soft) !important;
+    @apply px-4;
   }
 
   .cost-currency-control [data-combobox-control] {
@@ -1772,8 +1829,15 @@ textarea {
     @apply grid items-start gap-3 sm:grid-cols-2;
   }
 
+  .receive-form-grid > label {
+    min-width: 0;
+  }
+
   .receive-form-grid-compact {
-    @apply sm:grid-cols-2 lg:grid-cols-4;
+    /* The receive dialog is capped at 900px. Viewport-based lg: columns made
+       these fields switch to four columns even though the dialog itself was
+       still too narrow, causing Unit and Cost per unit to collide. */
+    @apply sm:grid-cols-2;
   }
 
   .receive-form-grid-half {
@@ -1852,6 +1916,10 @@ textarea {
 
   .receive-entry-dialog .cost-currency-control select {
     @apply h-full cursor-pointer bg-white px-3 text-xs font-extrabold;
+  }
+
+  .receive-entry-dialog .cost-currency-control select:disabled {
+    @apply bg-slate-100;
   }
 
   .receive-note-field {
@@ -3531,6 +3599,7 @@ textarea {
 
   .delivery-document {
     display: flex !important;
+    font-family: var(--font-sarabun), "Sarabun", "Noto Sans Thai", sans-serif !important;
     min-height: calc(297mm - 20mm);
     width: 100% !important;
     max-width: none !important;

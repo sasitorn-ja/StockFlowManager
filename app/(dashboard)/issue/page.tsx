@@ -862,7 +862,7 @@ export default function IssuePage() {
               <input value={issueCreatedBy} readOnly />
             </label>
             <label>
-              <span>ผู้ขอเบิกสินค้า *</span>
+              <span>ผู้ขอเบิกสินค้า <span className="required-mark">*</span></span>
               <ComboboxInput
                 value={issueRequester}
                 onValueChange={setIssueRequester}

@@ -610,36 +610,36 @@ function RequisitionTrackerContent() {
                         {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                       </button>
                     </td>
-                    <td className="w-[12%] min-w-[110px] font-semibold text-slate-800">
+                    <td className="font-semibold text-slate-800">
                       {req.issueKey}
                     </td>
-                    <td className="w-[12%] min-w-[130px] text-slate-500">
+                    <td className="text-slate-500">
                       <span className="block">{formatDate(req.date)}</span>
                       <span className="block text-[10px]">{formatDateTime(req.createdAt).split(" ").slice(-2).join(" ")}</span>
                     </td>
-                    <td className="w-[15%] min-w-[120px]">
+                    <td>
                       <span className="font-medium text-slate-700">{req.requester}</span>
                     </td>
-                    <td className="w-[15%] min-w-[120px]">
+                    <td>
                       <span className="font-medium text-slate-700">{req.createdBy || "-"}</span>
                       {isOwnRequisition && (
                         <span className="ml-1 text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded">คุณ</span>
                       )}
                     </td>
-                    <td className="w-[16%] min-w-[150px] text-slate-600">
+                    <td className="text-slate-600">
                       <strong className="block truncate text-slate-700">{req.items[0]?.name || "-"}</strong>
                       <span className="text-[11px]">
                         {req.items.length > 1 ? `และอีก ${req.items.length - 1} รายการ · ` : ""}
                         รวม {formatNumber(req.totalQuantity)} หน่วย
                       </span>
                     </td>
-                    <td className="w-[12%] min-w-[100px] text-slate-500">{req.approver || "-"}</td>
-                    <td className="w-[18%] min-w-[170px]">
+                    <td className="text-slate-500">{req.approver || "-"}</td>
+                    <td>
                       <div className="flex items-center">
                         <StatusBadge tone={badgeTone}>{badgeText}</StatusBadge>
                       </div>
                     </td>
-                    <td className="w-[22%] min-w-[220px]">
+                    <td>
                       <div className="flex flex-wrap items-center gap-1.5">
                         {/* ผู้จัดการอนุมัติใบเบิก */}
                         {req.status === "pending" && isManager && (
@@ -739,7 +739,7 @@ function RequisitionTrackerContent() {
                           </div>
 
                           <div className="overflow-x-auto rounded-lg border bg-white">
-                            <table className="min-w-full text-xs text-left divide-y divide-slate-100">
+                            <table className="requisition-detail-table min-w-full text-xs text-left divide-y divide-slate-100">
                               <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
                                 <tr>
                                   <th className="px-3 py-2">ชื่อสินค้า</th>

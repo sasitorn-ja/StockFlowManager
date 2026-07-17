@@ -121,10 +121,7 @@ function DeliveryNoteSection({
               หมายเลข <strong>{deliveryDocument.documentNo}</strong>
             </p>
             <p>สร้างใบเบิก {formatDateTime(deliveryDocument.transaction.createdAt)}</p>
-            <p>อนุมัติ {formatDateTime(deliveryDocument.transaction.approvedAt)}</p>
-            <p>จ่ายสินค้า {formatDateTime(deliveryDocument.transaction.issuedAt)}</p>
             {deliveryDocument.transaction.receivedAt ? <p>รับสินค้า {formatDateTime(deliveryDocument.transaction.receivedAt)}</p> : null}
-            <p>ปิดใบเบิก {formatDateTime(deliveryDocument.transaction.completedAt)}</p>
           </div>
         </div>
 
@@ -167,7 +164,7 @@ function DeliveryNoteSection({
             <p>คนคีย์ใบเบิก {createdByName}</p>
           </div>
           <div>
-            <p>ผู้รับสินค้า {requesterName}</p>
+            <p className="delivery-sign-line">ผู้รับสินค้า ..............................................</p>
             <p className="delivery-sign-line">ลายเซ็นผู้รับ ......................................</p>
           </div>
           <div>

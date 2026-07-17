@@ -804,7 +804,7 @@ export default function MasterDataPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                  ประเภทสินค้า *
+                  ประเภทสินค้า <span className="required-mark">*</span>
                   <ComboboxInput
                     value={form.productImportType}
                     onValueChange={(value) =>
@@ -838,7 +838,7 @@ export default function MasterDataPage() {
                 </label>
 
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">
-                  ชื่อสินค้า *
+                  ชื่อสินค้า <span className="required-mark">*</span>
                   <input
                     value={form.name}
                     onChange={(event) => updateForm("name", event.target.value)}
@@ -849,7 +849,7 @@ export default function MasterDataPage() {
                 </label>
 
                 <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
-                  หน่วยนับ *
+                  หน่วยนับ <span className="required-mark">*</span>
                   <input
                     value={form.unit}
                     onChange={(event) => updateForm("unit", event.target.value)}

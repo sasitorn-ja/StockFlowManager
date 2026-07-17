@@ -1,8 +1,8 @@
 "use client";
 
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
+import { FolderCog, ImagePlus, Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
 import { withBasePath } from "@/lib/base-path";
 import {
   getClientMasterProducts,
@@ -36,7 +36,9 @@ type ProductEditForm = {
   sku: string;
   category: string;
   productImportType: ProductImportType;
+  imageDataUrl: string;
   unit: string;
+  defaultStorageLocation: string;
   minStock: string;
   maxStock: string;
 };
@@ -46,7 +48,9 @@ const defaultProductEditForm: ProductEditForm = {
   sku: "",
   category: "",
   productImportType: "resale",
+  imageDataUrl: "",
   unit: "",
+  defaultStorageLocation: "",
   minStock: "0",
   maxStock: "0",
 };
@@ -59,11 +63,29 @@ export default function SettingsPage() {
   const [editingMasterProductId, setEditingMasterProductId] = useState("");
   const [editingItemKey, setEditingItemKey] = useState("");
   const [productEditForm, setProductEditForm] = useState<ProductEditForm>(defaultProductEditForm);
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
+  const [categoryNames, setCategoryNames] = useState<string[]>([]);
+  const [editingCategoryName, setEditingCategoryName] = useState("");
+  const [nextCategoryName, setNextCategoryName] = useState("");
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
 
   useEffect(() => {
     getClientMasterProducts()
       .then((products) => setMasterProducts(products))
       .catch(() => setMasterProducts([]));
+  }, []);
+
+  async function fetchCategories() {
+    const response = await fetch(withBasePath("/api/categories"), { cache: "no-store" });
+    const data: unknown = await response.json().catch(() => null);
+    if (!response.ok || !Array.isArray(data)) {
+      throw new Error("ไม่สามารถโหลดหมวดหมู่ได้");
+    }
+    setCategoryNames(data.map(String));
+  }
+
+  useEffect(() => {
+    fetchCategories().catch((error) => console.error(error));
   }, []);
 
   const inventory = useMemo(() => [...buildInventoryMap(transactions).values()], [transactions]);
@@ -119,7 +141,9 @@ export default function SettingsPage() {
       sku: sanitizeSku(product.sku),
       category: product.category,
       productImportType: product.productImportType,
+      imageDataUrl: product.imageDataUrl || "",
       unit: product.unit,
+      defaultStorageLocation: product.defaultStorageLocation || "",
       minStock: String(product.minStock ?? 0),
       maxStock: String(product.maxStock ?? 0),
     });
@@ -130,6 +154,71 @@ export default function SettingsPage() {
     invalidateClientMasterProductsCache();
     const products = await getClientMasterProducts().catch(() => []);
     setMasterProducts(products);
+  }
+
+  function handleProductImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      window.alert("เลือกได้เฉพาะไฟล์รูปภาพ");
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      window.alert("รูปสินค้าต้องมีขนาดไม่เกิน 3 MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateProductEditForm("imageDataUrl", typeof reader.result === "string" ? reader.result : "");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function beginRenameCategory(name: string) {
+    setEditingCategoryName(name);
+    setNextCategoryName(name);
+  }
+
+  async function handleRenameCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const newName = nextCategoryName.trim();
+    if (!editingCategoryName || !newName || newName === "-") {
+      window.alert("กรอกชื่อหมวดหมู่ใหม่ให้ถูกต้อง");
+      return;
+    }
+    if (newName === editingCategoryName) {
+      setEditingCategoryName("");
+      return;
+    }
+
+    const affectedCount = masterProducts.filter(
+      (product) => product.category.trim().toLocaleLowerCase("th") === editingCategoryName.toLocaleLowerCase("th")
+    ).length;
+    if (!window.confirm(
+      `เปลี่ยนชื่อหมวดหมู่ “${editingCategoryName}” เป็น “${newName}” ใช่หรือไม่\n\nสินค้าทั้ง ${affectedCount} รายการในหมวดนี้จะเปลี่ยนตามอัตโนมัติ`
+    )) return;
+
+    setIsSavingCategory(true);
+    try {
+      const response = await fetch(withBasePath("/api/categories"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldName: editingCategoryName, newName }),
+      });
+      const detail = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(detail?.error || "ไม่สามารถเปลี่ยนชื่อหมวดหมู่ได้");
+
+      setEditingCategoryName("");
+      setNextCategoryName("");
+      invalidateClientMasterProductsCache();
+      await Promise.all([refreshProducts(), fetchCategories(), refresh()]);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "ไม่สามารถเปลี่ยนชื่อหมวดหมู่ได้");
+    } finally {
+      setIsSavingCategory(false);
+    }
   }
 
   async function handleProductActiveChange(product: ProductMaster, nextIsActive: boolean) {
@@ -238,14 +327,14 @@ export default function SettingsPage() {
           sku: nextSku,
           category: nextCategory,
           productImportType: productEditForm.productImportType,
-          imageDataUrl: currentProduct.imageDataUrl || "",
+          imageDataUrl: productEditForm.imageDataUrl,
           unit: nextUnit,
           price: currentProduct.price,
           costPrice: currentProduct.costPrice,
           costCurrency: currentProduct.costCurrency,
           minStock: nextMinStock,
           maxStock: nextMaxStock,
-          defaultStorageLocation: currentProduct.defaultStorageLocation || "",
+          defaultStorageLocation: productEditForm.defaultStorageLocation.trim(),
           defaultExpiryDate: currentProduct.defaultExpiryDate || "",
           vendor: currentProduct.vendor || "",
           note: currentProduct.note || "",
@@ -267,7 +356,7 @@ export default function SettingsPage() {
               sku: nextSku,
               category: nextCategory,
               productImportType: productEditForm.productImportType,
-              imageDataUrl: currentProduct.imageDataUrl || "",
+              imageDataUrl: productEditForm.imageDataUrl,
               unit: nextUnit,
               price: currentProduct.price,
               costPrice: currentProduct.costPrice,
@@ -300,6 +389,10 @@ export default function SettingsPage() {
                 ใช้หน้านี้แก้ชื่อสินค้า ย้ายหมวดหมู่ และกำหนด min / max ของแต่ละรายการแบบตรงไปตรงมา
               </p>
             </div>
+            <Button type="button" variant="secondary" onClick={() => setIsCategoryDialogOpen(true)}>
+              <FolderCog size={16} />
+              จัดการหมวดหมู่
+            </Button>
           </div>
         </section>
 
@@ -479,6 +572,19 @@ export default function SettingsPage() {
                 />
               </label>
 
+              <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)] sm:col-span-2">
+                สถานที่จัดเก็บมาตรฐาน
+                <input
+                  value={productEditForm.defaultStorageLocation}
+                  onChange={(event) => updateProductEditForm("defaultStorageLocation", event.target.value)}
+                  className={inputClassName}
+                  placeholder="เช่น อาคาร 3, A01 - ชั้นวางสินค้า"
+                />
+                <span className="text-xs font-normal leading-5 text-[var(--text-muted)]">
+                  ใช้เป็นค่าเริ่มต้นเมื่อรับสินค้านี้เข้าครั้งถัดไป
+                </span>
+              </label>
+
               <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
                 จำนวนต่ำสุด (min)
                 <input
@@ -504,12 +610,116 @@ export default function SettingsPage() {
                   placeholder="0 = ยังไม่กำหนด"
                 />
               </label>
+
+              <div className="grid gap-2 sm:col-span-2">
+                <span className="text-sm font-semibold text-[var(--text-strong)]">รูปสินค้า</span>
+                <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:grid-cols-[140px_1fr] sm:items-center">
+                  <div className="flex h-32 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-white">
+                    {productEditForm.imageDataUrl ? (
+                      <img
+                        src={productEditForm.imageDataUrl}
+                        alt={productEditForm.name || "รูปสินค้า"}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <ImagePlus size={34} className="text-slate-400" />
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <p className="text-xs leading-5 text-[var(--text-muted)]">
+                      เลือกรูปใหม่เพื่อเพิ่มหรือแทนที่รูปเดิม รองรับไฟล์รูปขนาดไม่เกิน 3 MB
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-blue-600 px-3 text-xs font-bold text-white hover:bg-blue-700">
+                        <ImagePlus size={15} />
+                        {productEditForm.imageDataUrl ? "เปลี่ยนรูป" : "เพิ่มรูป"}
+                        <input type="file" accept="image/*" onChange={handleProductImageChange} className="sr-only" />
+                      </label>
+                      {productEditForm.imageDataUrl ? (
+                        <Button type="button" variant="secondary" size="sm" onClick={() => updateProductEditForm("imageDataUrl", "")}>
+                          ลบรูป
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <Button type="submit" className="w-full sm:w-auto">
               บันทึกการแก้ไข
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCategoryDialogOpen} onOpenChange={(open) => {
+        setIsCategoryDialogOpen(open);
+        if (!open) {
+          setEditingCategoryName("");
+          setNextCategoryName("");
+        }
+      }}>
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[680px]">
+          <DialogHeader>
+            <DialogTitle>จัดการหมวดหมู่สินค้า</DialogTitle>
+            <DialogDescription>
+              แก้ชื่อหมวดหมู่เพียงครั้งเดียว สินค้าและประวัติรายการทั้งหมดที่ใช้ชื่อเดิมจะเปลี่ยนตามอัตโนมัติ
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 p-4">
+            {categoryNames.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-[var(--text-muted)]">
+                ยังไม่มีหมวดหมู่ในระบบ
+              </div>
+            ) : categoryNames.map((name) => {
+              const productCount = masterProducts.filter(
+                (product) => product.category.trim().toLocaleLowerCase("th") === name.toLocaleLowerCase("th")
+              ).length;
+              const isEditing = editingCategoryName === name;
+
+              return (
+                <div key={name} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  {isEditing ? (
+                    <form className="grid gap-3" onSubmit={handleRenameCategory}>
+                      <label className="grid gap-1.5 text-sm font-semibold text-[var(--text-strong)]">
+                        ชื่อหมวดหมู่ใหม่
+                        <input
+                          autoFocus
+                          value={nextCategoryName}
+                          onChange={(event) => setNextCategoryName(event.target.value)}
+                          className={inputClassName}
+                        />
+                      </label>
+                      <p className="text-xs leading-5 text-amber-700">
+                        เมื่อบันทึก สินค้า {formatNumber(productCount)} รายการ รวมถึงรายการรับเข้าและเบิกจ่ายในหมวดนี้จะเปลี่ยนชื่อพร้อมกัน
+                      </p>
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" variant="secondary" size="sm" onClick={() => setEditingCategoryName("")} disabled={isSavingCategory}>
+                          ยกเลิก
+                        </Button>
+                        <Button type="submit" size="sm" disabled={isSavingCategory}>
+                          {isSavingCategory ? "กำลังบันทึก..." : "บันทึกชื่อใหม่"}
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <strong className="block truncate text-sm font-bold text-[var(--text-strong)]">{name}</strong>
+                        <span className="text-xs text-[var(--text-muted)]">สินค้า {formatNumber(productCount)} รายการ</span>
+                      </div>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => beginRenameCategory(name)}>
+                        <Pencil size={14} />
+                        แก้ชื่อ
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </DialogContent>
       </Dialog>
     </>
